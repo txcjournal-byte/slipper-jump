@@ -48,6 +48,9 @@ local function redeem(player: Player, raw: unknown): { Ok: boolean, Message: str
 end
 
 function CodeService.Start()
+	game:GetService("Players").PlayerRemoving:Connect(function(player)
+		lastAttempt[player] = nil
+	end)
 	Net.Function("RedeemCode").OnServerInvoke = redeem
 end
 

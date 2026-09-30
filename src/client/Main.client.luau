@@ -55,3 +55,5 @@ Net.Event("OpenUI").OnClientEvent:Connect(function(name: string, info: any)
 	end
 end)
 
+-- data žebříčku ukazuje tabule ve světě; posluchač jen kvůli frontě zpráv
+Net.Event("Leaderboard").OnClientEvent:Connect(function() end)

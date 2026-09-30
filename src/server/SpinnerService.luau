@@ -86,6 +86,9 @@ local function spin(player: Player): { [string]: any }
 end
 
 function SpinnerService.Start()
+	game:GetService("Players").PlayerRemoving:Connect(function(player)
+		spinning[player] = nil
+	end)
 	Net.Function("Spin").OnServerInvoke = spin
 	Registry.Map.SpinnerPrompt.Triggered:Connect(function(player)
 		Net.Event("OpenUI"):FireClient(player, "Spinner")

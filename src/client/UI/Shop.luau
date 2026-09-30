@@ -146,7 +146,7 @@ local function refreshStorage(data: { [string]: any })
 			Kit.Text(frame, { Text = "+" .. FormatNumber.Money(cfg.Income) .. "/s", Size = UDim2.new(1, -12, 0, 22), Position = UDim2.fromOffset(6, 156), TextColor3 = Color3.fromRGB(40, 160, 70), NoStroke = true })
 			local button = Kit.Button(frame, { Text = "HOLD", Size = UDim2.new(1, -16, 0, 50), Position = UDim2.new(0, 8, 1, -58), Color = Kit.Colors.Orange })
 			button.Activated:Connect(function()
-				if data.Carried then
+				if ClientState.Get().Carried then
 					HUD.Notify("Your hands are full!", "Warning")
 					return
 				end
@@ -158,7 +158,7 @@ local function refreshStorage(data: { [string]: any })
 end
 
 local function refresh(data: { [string]: any })
-	if not window then
+	if not window or ClientState.Data == nil then
 		return
 	end
 	for _, cfg in Catalog.Slippers do

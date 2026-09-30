@@ -301,6 +301,9 @@ local function onCharacter(session: Session, character: Model)
 	task.wait(0.2)
 	AvatarService.ApplyAll(session)
 	setupGiftPrompt(session, root)
+	if session.Flight and not session.Flight.Finished then
+		Registry.Jump.Finish(session, session.Flight, {}, {})
+	end
 	session.Flight = nil
 	session.Returning = false
 	Registry.Player.MarkDirty(session)

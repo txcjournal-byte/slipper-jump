@@ -148,7 +148,7 @@ function Kit.Panel(parent: Instance, props: Props): Frame
 end
 
 function Kit.Pop(object: GuiObject, amount: number?)
-	local scale = object:FindFirstChild("PopScale") :: UIScale?
+	local scale = object:FindFirstChildOfClass("UIScale")
 	if not scale then
 		local created = Kit.new("UIScale", { Name = "PopScale", Parent = object })
 		scale = created

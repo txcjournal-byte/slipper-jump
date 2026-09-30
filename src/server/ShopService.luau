@@ -142,6 +142,9 @@ function ShopService.Sell(session: Session, confirmed: boolean)
 end
 
 function ShopService.Start()
+	game:GetService("Players").PlayerRemoving:Connect(function(player)
+		pendingConfirm[player] = nil
+	end)
 	Net.Function("ShopAction").OnServerInvoke = handleAction
 	Registry.Map.SellPrompt.Triggered:Connect(function(player)
 		local session = Registry.Player.Get(player)

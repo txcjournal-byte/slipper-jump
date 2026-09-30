@@ -191,7 +191,7 @@ local function coinModel(position: Vector3, parent: Instance): Model
 	local coin = Instance.new("Part")
 	coin.Shape = Enum.PartType.Cylinder
 	coin.Size = Vector3.new(0.6, 5, 5)
-	coin.CFrame = CFrame.new(position) * CFrame.Angles(0, math.rad(90), 0)
+	coin.CFrame = CFrame.new(position)
 	coin.Color = Color3.fromRGB(255, 205, 40)
 	coin.Material = Enum.Material.Metal
 	coin.Anchored = true

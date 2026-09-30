@@ -192,6 +192,9 @@ local function onPlayerAdded(player: Player)
 	}
 	PlayerService.Sessions[player] = session
 	Registry.Monetization.LoadPasses(session)
+	if player.Parent ~= Players or PlayerService.Sessions[player] ~= session then
+		return -- hráč odešel během načítání
+	end
 	createLeaderstats(session)
 	Registry.House.Assign(session)
 	Registry.Items.OnJoin(session)
