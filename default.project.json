@@ -1,0 +1,57 @@
+{
+  "name": "SlipperJump",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      },
+      "Assets": {
+        "$path": "assets"
+      }
+    },
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      },
+      "$properties": {
+        "CameraMaxZoomDistance": 60
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": true,
+        "FallenPartsDestroyHeight": -200
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "Brightness": 3,
+        "ClockTime": 14,
+        "GlobalShadows": true,
+        "Ambient": [
+          0.55,
+          0.55,
+          0.6
+        ],
+        "OutdoorAmbient": [
+          0.6,
+          0.62,
+          0.68
+        ]
+      }
+    },
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}

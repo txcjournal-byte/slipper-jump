@@ -1,0 +1,170 @@
+--!strict
+-- Game passy a developer products. ProcessReceipt je chráněný proti dvojímu připsání:
+-- PurchaseId se uloží do profilu a nákup se potvrdí až po úspěšném uložení.
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
+local Products = require(Shared.Config.Products)
+local FormatNumber = require(Shared.Util.FormatNumber)
+
+local Registry = require(script.Parent.Registry)
+
+type Session = any
+
+local MonetizationService = {}
+
+local passByKey: { [string]: Products.GamePass } = {}
+local passById: { [number]: Products.GamePass } = {}
+for _, pass in Products.GamePasses do
+	passByKey[pass.Key] = pass
+	if pass.Id ~= 0 then
+		passById[pass.Id] = pass
+	end
+end
+
+local productById: { [number]: Products.DevProduct } = {}
+for _, product in Products.DevProducts do
+	if product.Id ~= 0 then
+		productById[product.Id] = product
+	end
+end
+
+local MAX_PURCHASE_IDS = 50
+
+local function applyPass(session: Session, key: string)
+	session.Passes[key] = true
+	if key == "PlusSlots" then
+		Registry.House.Render(session)
+		Registry.Items.FlushStorage(session)
+	elseif key == "VIP" then
+		Registry.Avatar.UpdateOverhead(session)
+	elseif key == "RainbowTrail" then
+		Registry.Avatar.ApplySlippers(session)
+	elseif key == "AutoCollect" then
+		Registry.Economy.CollectPiggy(session)
+	end
+	Registry.House.Render(session)
+	Registry.Player.MarkDirty(session)
+end
+
+function MonetizationService.LoadPasses(session: Session)
+	local player: Player = session.Player
+	for _, pass in Products.GamePasses do
+		if pass.Id ~= 0 then
+			local ok, owns = pcall(function()
+				return MarketplaceService:UserOwnsGamePassAsync(player.UserId, pass.Id)
+			end)
+			if ok and owns then
+				session.Passes[pass.Key] = true
+			end
+		end
+	end
+end
+
+function MonetizationService.HasPass(session: Session, key: string): boolean
+	return session.Passes[key] == true and passByKey[key] ~= nil
+end
+
+-- Peněžní balíček podle aktuálního příjmu (aby byl užitečný na začátku i na konci hry)
+local function moneyPack(session: Session, seconds: number): number
+	local income = Registry.Economy.IncomePerSecond(session)
+	return math.max(Products.MinMoneyPack, math.floor(income * seconds))
+end
+
+local function grantProduct(session: Session, product: Products.DevProduct)
+	local player: Player = session.Player
+	local key = product.Key
+	if key == "SuperJump" then
+		session.Data.SuperJumps += 1
+		Registry.Player.Notify(player, "Super Jump ready! Your next jump goes 20% farther.", "Success")
+	elseif key == "Spin1" then
+		Registry.Spinner.AddSpins(session, 1)
+		Registry.Player.Notify(player, "+1 Spin!", "Success")
+	elseif key == "Spins5" then
+		Registry.Spinner.AddSpins(session, 5)
+		Registry.Player.Notify(player, "+5 Spins!", "Success")
+	elseif key == "Boost30" then
+		Registry.Economy.AddBoost(session, Products.BoostMinutes)
+		Registry.Player.Notify(player, "2x Money for " .. Products.BoostMinutes .. " minutes!", "Success")
+	elseif key == "MoneyBag" then
+		local amount = moneyPack(session, Products.MoneyBagSeconds)
+		Registry.Economy.AddMoney(session, amount)
+		Registry.Player.Notify(player, "+" .. FormatNumber.Money(amount) .. "!", "Money")
+	elseif key == "MoneyChest" then
+		local amount = moneyPack(session, Products.MoneyChestSeconds)
+		Registry.Economy.AddMoney(session, amount)
+		Registry.Player.Notify(player, "+" .. FormatNumber.Money(amount) .. "!", "Money")
+	end
+	Registry.Player.MarkDirty(session)
+end
+
+local function processReceipt(receipt: { [string]: any }): Enum.ProductPurchaseDecision
+	local player = Players:GetPlayerByUserId(receipt.PlayerId)
+	if not player then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	-- počkat, až se načtou data hráče
+	local session = Registry.Player.Get(player)
+	local waited = 0
+	while not session and waited < 10 and player.Parent == Players do
+		task.wait(0.5)
+		waited += 0.5
+		session = Registry.Player.Get(player)
+	end
+	local product = productById[receipt.ProductId]
+	if not session or not product then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	local profile = session.Profile
+	if not profile:IsActive() then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	local purchaseId = tostring(receipt.PurchaseId)
+	local ids = session.Data.PurchaseIds
+	if not table.find(ids, purchaseId) then
+		while #ids >= MAX_PURCHASE_IDS do
+			table.remove(ids, 1)
+		end
+		table.insert(ids, purchaseId)
+		grantProduct(session, product)
+	end
+	-- potvrdit až po uložení (ochrana proti dvojímu připsání i ztrátě nákupu)
+	local result: Enum.ProductPurchaseDecision? = nil
+	local function check(savedData: any)
+		local saved = savedData and savedData.PurchaseIds
+		if saved and table.find(saved, purchaseId) then
+			result = Enum.ProductPurchaseDecision.PurchaseGranted
+		end
+	end
+	check(profile.LastSavedData)
+	if result == nil then
+		local connection = profile.OnAfterSave:Connect(check)
+		profile:Save()
+		local timeout = os.clock() + 30
+		while result == nil and profile:IsActive() and os.clock() < timeout do
+			task.wait()
+		end
+		connection:Disconnect()
+	end
+	return result or Enum.ProductPurchaseDecision.NotProcessedYet
+end
+
+function MonetizationService.Start()
+	MarketplaceService.ProcessReceipt = processReceipt
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
+		if not purchased then
+			return
+		end
+		local pass = passById[passId]
+		local session = Registry.Player.Get(player)
+		if pass and session then
+			applyPass(session, pass.Key)
+			Registry.Player.Notify(player, "Thank you! " .. pass.Name .. " is now active!", "Success")
+		end
+	end)
+end
+
+
+return MonetizationService
