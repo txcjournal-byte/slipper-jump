@@ -164,11 +164,14 @@ function JumpService.Release(player: Player, clientValue: unknown)
 	local coinList: { Collectible } = {}
 	local ringList: { Collectible } = {}
 	local span = c.EndFraction - c.StartFraction
-	for row = 1, c.CoinRows do
-		local p0 = c.StartFraction + span * (row - 0.5) / c.CoinRows
+	local rows = math.clamp(math.floor(distance / c.StudsPerCoinRow), 2, c.CoinRows)
+	local ringCount = math.clamp(math.floor(distance / c.StudsPerRing), 1, c.Rings)
+	local spacing = math.max(distance * c.CoinRowSpacing, c.MinCoinSpacing) / distance
+	for row = 1, rows do
+		local p0 = c.StartFraction + span * (row - 0.5) / rows
 		local z = rng:NextNumber(-c.CoinLateral, c.CoinLateral)
 		for k = 1, c.CoinsPerRow do
-			local p = p0 + (k - (c.CoinsPerRow + 1) / 2) * c.CoinRowSpacing
+			local p = p0 + (k - (c.CoinsPerRow + 1) / 2) * spacing
 			local x, y = Formulas.Trajectory(p, startPosition.X, endX, startPosition.Y, endY, height)
 			local id = "c" .. row .. "_" .. k
 			local pos = Vector3.new(x, y, z)
@@ -176,8 +179,8 @@ function JumpService.Release(player: Player, clientValue: unknown)
 			table.insert(coinList, { Id = id, Position = pos })
 		end
 	end
-	for index = 1, c.Rings do
-		local p = c.StartFraction + span * index / (c.Rings + 1)
+	for index = 1, ringCount do
+		local p = c.StartFraction + span * index / (ringCount + 1)
 		local x, y = Formulas.Trajectory(p, startPosition.X, endX, startPosition.Y, endY, height)
 		local id = "r" .. index
 		local pos = Vector3.new(x, y, rng:NextNumber(-c.RingLateral, c.RingLateral))

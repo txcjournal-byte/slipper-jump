@@ -40,6 +40,9 @@ return {
 		CoinRows = 6,
 		CoinsPerRow = 5,
 		CoinRowSpacing = 0.012, -- rozestup mincí v řadě (podíl vzdálenosti)
+		MinCoinSpacing = 6, -- ale aspoň tolik studů
+		StudsPerCoinRow = 45, -- krátké skoky mají méně řad (min. 2)
+		StudsPerRing = 60, -- krátké skoky mají méně kruhů (min. 1)
 		CoinRadius = 6,
 		CoinLateral = 36, -- mince až takhle daleko do strany
 		CoinValueSeconds = 1, -- mince = příjem domečku za X sekund
