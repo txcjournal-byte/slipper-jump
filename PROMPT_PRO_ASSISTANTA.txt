@@ -1,0 +1,28 @@
+Please generate 10 separate 3D models, one at a time. For EACH model:
+- generate it from the description below,
+- rename the resulting Model exactly to the given name (case-sensitive),
+- make sure it is a Model with PrimaryPart set and with NO scripts inside,
+- move it into ReplicatedStorage > Assets > Slippers (create the Assets and Slippers folders if they do not exist),
+- do not leave copies in Workspace.
+Do not change any scripts in the game. When done, list the 10 names you created.
+
+1. Name: BasicBlackSlippers
+   Description: a single basic black slipper (house slipper), bold stylized cartoon game asset, oversized chunky proportions, thick sole, vibrant saturated colors, glossy, eye-catching, no text, no logos
+2. Name: BeachBlueSlippers
+   Description: a single beach blue slipper (house slipper), water drops theme, bold stylized cartoon game asset, oversized chunky proportions, thick sole, vibrant saturated colors, glossy, eye-catching, no text, no logos
+3. Name: WatermelonSlippers
+   Description: a single watermelon slipper (house slipper), seeds theme, bold stylized cartoon game asset, oversized chunky proportions, thick sole, vibrant saturated colors, glossy, eye-catching, no text, no logos
+4. Name: SharkSlippers
+   Description: a single shark slipper (house slipper), shark fin in the water theme, bold stylized cartoon game asset, oversized chunky proportions, thick sole, vibrant saturated colors, glossy, eye-catching, no text, no logos
+5. Name: RoyalDiamondSlippers
+   Description: a single royal diamond slipper (house slipper), crown and confetti theme, bold stylized cartoon game asset, oversized chunky proportions, thick sole, vibrant saturated colors, glossy, eye-catching, no text, no logos
+6. Name: MuddyOldSneakers
+   Description: a single sneaker called "Muddy Old Sneakers", smells a bit... theme, bold stylized cartoon game asset, oversized chunky proportions, thick sole, vibrant saturated colors, glossy, eye-catching, no text, no logos
+7. Name: CanvasKicks
+   Description: a single sneaker called "Canvas Kicks", classic canvas theme, bold stylized cartoon game asset, oversized chunky proportions, thick sole, vibrant saturated colors, glossy, eye-catching, no text, no logos
+8. Name: StreetRunners
+   Description: a single sneaker called "Street Runners", dust clouds theme, bold stylized cartoon game asset, oversized chunky proportions, thick sole, vibrant saturated colors, glossy, eye-catching, no text, no logos
+9. Name: SkyDunkLegends
+   Description: a single sneaker called "Sky Dunk Legends", legendary flames theme, bold stylized cartoon game asset, oversized chunky proportions, thick sole, vibrant saturated colors, glossy, eye-catching, no text, no logos
+10. Name: GoldenAirKings
+   Description: a single sneaker called "Golden Air Kings", gold and diamonds theme, bold stylized cartoon game asset, oversized chunky proportions, thick sole, vibrant saturated colors, glossy, eye-catching, no text, no logos
