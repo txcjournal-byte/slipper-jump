@@ -172,7 +172,7 @@ local function buildSwim(page: ScrollingFrame)
 	for index, upgrade in Swim.Upgrades do
 		local frame = card(page, index, upgrade.Color)
 		local top = frame:FindFirstChild("Top") :: Frame
-		Kit.Text(top, { Text = "🏊", Size = UDim2.fromScale(0.6, 0.7), Position = UDim2.fromScale(0.2, 0.15), NoStroke = true })
+		Kit.Text(top, { Text = "SWIM", Size = UDim2.fromScale(0.8, 0.5), Position = UDim2.fromScale(0.1, 0.25), StrokeThickness = 3 })
 		Kit.Text(frame, { Text = upgrade.Name, Size = UDim2.new(1, -12, 0, 26), Position = UDim2.fromOffset(6, 128), TextColor3 = Kit.Colors.Text, NoStroke = true })
 		Kit.Text(frame, { Text = "Swim speed " .. upgrade.Speed, Size = UDim2.new(1, -12, 0, 22), Position = UDim2.fromOffset(6, 156), TextColor3 = Kit.Colors.Blue, NoStroke = true })
 		Kit.Text(frame, { Text = "Outswim faster sharks!", Size = UDim2.new(1, -12, 0, 18), Position = UDim2.fromOffset(6, 180), TextColor3 = Kit.Colors.Gray, NoStroke = true })

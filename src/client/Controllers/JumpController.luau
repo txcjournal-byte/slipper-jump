@@ -200,7 +200,7 @@ local function coinModel(position: Vector3, parent: Instance): Model
 	local m = Instance.new("Model")
 	local coin = Instance.new("Part")
 	coin.Shape = Enum.PartType.Cylinder
-	coin.Size = Vector3.new(0.6, 5, 5)
+	coin.Size = Vector3.new(0.5, 3.6, 3.6)
 	coin.CFrame = CFrame.new(position)
 	coin.Color = Color3.fromRGB(255, 205, 40)
 	coin.Material = Enum.Material.Metal
@@ -210,7 +210,7 @@ local function coinModel(position: Vector3, parent: Instance): Model
 	coin.CanTouch = false
 	coin.Parent = m
 	local inner = coin:Clone()
-	inner.Size = Vector3.new(0.8, 3.2, 3.2)
+	inner.Size = Vector3.new(0.7, 2.3, 2.3)
 	inner.Color = Color3.fromRGB(255, 235, 120)
 	inner.Material = Enum.Material.Neon
 	inner.Parent = m
@@ -271,7 +271,7 @@ local function checkCollect(state: FlightState, fromX: number, toX: number, y: n
 				table.insert(state.CollectedCoins, coin.Id)
 				collectEffect(coin.Part, Color3.fromRGB(255, 255, 200))
 				Sound.Play("Coin", 1 + #state.CollectedCoins * 0.02)
-				coinsLabel.Text = "🪙 " .. #state.CollectedCoins
+				coinsLabel.Text = "Coins: " .. #state.CollectedCoins
 				Kit.Pop(coinsLabel, 1.25)
 			end
 		end
@@ -394,7 +394,7 @@ local function startFlight(info: { [string]: any })
 	setCharacterFlying(true)
 	HUD.SetVisible(false)
 	flightHud.Visible = true
-	coinsLabel.Text = "🪙 0"
+	coinsLabel.Text = "Coins: 0"
 	ringsLabel.Text = "⭕ 0"
 	steerHint.Visible = true
 	task.delay(2.5, function()
@@ -861,7 +861,7 @@ function JumpController.Init(parentScreen: ScreenGui)
 
 	flightHud = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Visible = false, Parent = screen })
 	distanceLabel = Kit.Text(flightHud, { Text = "0 studs", Size = UDim2.fromOffset(520, 80), Position = UDim2.new(0.5, 0, 0, 20), AnchorPoint = Vector2.new(0.5, 0), StrokeThickness = 4 })
-	coinsLabel = Kit.Text(flightHud, { Text = "🪙 0", Size = UDim2.fromOffset(240, 54), Position = UDim2.new(0, 24, 0, 30), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Kit.Colors.Yellow })
+	coinsLabel = Kit.Text(flightHud, { Text = "Coins: 0", Size = UDim2.fromOffset(260, 54), Position = UDim2.new(0, 24, 0, 30), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Kit.Colors.Yellow })
 	ringsLabel = Kit.Text(flightHud, { Text = "⭕ 0", Size = UDim2.fromOffset(340, 54), Position = UDim2.new(0, 24, 0, 90), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(255, 230, 120) })
 	steerHint = Kit.Text(flightHud, { Text = "Steer with A / D or the joystick!", Size = UDim2.fromOffset(600, 44), Position = UDim2.new(0.5, 0, 1, -60), AnchorPoint = Vector2.new(0.5, 1), TextColor3 = Kit.Colors.White })
 
@@ -869,8 +869,8 @@ function JumpController.Init(parentScreen: ScreenGui)
 	local bar = Kit.Panel(swimHud, { Size = UDim2.fromOffset(560, 44), Position = UDim2.new(0.5, 0, 0, 30), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.fromRGB(40, 80, 140), Radius = 20 })
 	swimBarYou = Kit.new("Frame", { BackgroundColor3 = Kit.Colors.Green, Size = UDim2.fromScale(0, 1), Parent = bar })
 	Kit.Corner(swimBarYou, 20)
-	Kit.Text(bar, { Text = "🏊 YOU  →  🛟 RAFT", Size = UDim2.new(1, -20, 1, -10), Position = UDim2.fromOffset(10, 5), ZIndex = 3 })
-	swimBarShark = Kit.Text(bar, { Text = "🦈", Size = UDim2.fromOffset(48, 48), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), NoStroke = true, ZIndex = 4 }) :: any
+	Kit.Text(bar, { Text = "YOU  >>>  RAFT", Size = UDim2.new(1, -20, 1, -10), Position = UDim2.fromOffset(10, 5), ZIndex = 3 })
+	swimBarShark = Kit.Text(bar, { Text = "SHARK", Size = UDim2.fromOffset(90, 36), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), TextColor3 = Kit.Colors.Coral, StrokeThickness = 3, ZIndex = 4 }) :: any
 	swimHint = Kit.Text(swimHud, { Text = "Hold W / joystick forward to swim!", Size = UDim2.fromOffset(640, 46), Position = UDim2.new(0.5, 0, 1, -60), AnchorPoint = Vector2.new(0.5, 1) })
 	Net.Event("SwimStart").OnClientEvent:Connect(startSwim)
 	Net.Event("SwimResult").OnClientEvent:Connect(endSwim)
