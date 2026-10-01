@@ -268,7 +268,7 @@ function WorldController.Init()
 		local t = os.clock()
 		-- oceán pod kamerou (kousek pod skutečnou vodou, aby neblikal)
 		local distance = camPos.X - World.PierEndX
-		if distance > -200 then
+		if distance > World.TerrainWaterLength - 1024 then
 			ocean.CFrame = CFrame.new(camPos.X, World.WaterY - 0.6, camPos.Z)
 			ocean.Color = waterColor(distance)
 			ocean.Transparency = 0

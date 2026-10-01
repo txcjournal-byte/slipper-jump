@@ -20,6 +20,8 @@ return {
 	GiftIslandRadius = 190,
 	GiftHeight = 300,
 	WaterHalfWidth = 1_000,
+	TerrainWaterLength = 2_400, -- prvních X studů je skutečná Roblox voda (vlny, odlesky), dál ploché díly
+	TerrainWaterDepth = 10,
 	-- Značky vzdálenosti: { do, krok }
 	MarkerRanges = {
 		{ UpTo = 1_000, Step = 100 },

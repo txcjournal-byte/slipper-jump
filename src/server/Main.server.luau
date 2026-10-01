@@ -4,6 +4,7 @@
 local Registry = require(script.Parent.Registry)
 local MapBuilder = require(script.Parent.MapBuilder)
 
+require(script.Parent.Atmosphere).Apply()
 Registry.Map = MapBuilder.Build()
 
 local services: { [string]: any } = {

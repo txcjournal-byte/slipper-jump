@@ -424,7 +424,35 @@ local function buildWater(root: Instance, rng: Random)
 	local water = Instance.new("Folder")
 	water.Name = "Water"
 	water.Parent = root
-	local startDistance = World.BeachFrontX - World.PierEndX
+	-- skutečná Roblox voda u pláže (vlny, odlesky, průhledná na písčité dno)
+	local terrain = workspace.Terrain
+	local fromX = World.BeachBackX - 250
+	local toX = World.PierEndX + World.TerrainWaterLength
+	local depth = World.TerrainWaterDepth
+	local tx = fromX
+	while tx < toX do
+		local length = math.min(512, toX - tx)
+		local z = -World.WaterHalfWidth
+		while z < World.WaterHalfWidth do
+			local width = math.min(512, World.WaterHalfWidth - z)
+			terrain:FillBlock(CFrame.new(tx + length / 2, World.WaterY - depth / 2, z + width / 2), Vector3.new(length, depth, width), Enum.Material.Water)
+			-- písčité dno
+			terrain:FillBlock(CFrame.new(tx + length / 2, World.WaterY - depth - 2, z + width / 2), Vector3.new(length, 4, width), Enum.Material.Sand)
+			z += width
+		end
+		tx += length
+	end
+	-- pod pláží žádná voda (jen písek)
+	terrain:FillBlock(CFrame.new((World.BeachFrontX + World.BeachBackX) / 2, World.WaterY - depth / 2, 0), Vector3.new(World.BeachFrontX - World.BeachBackX, depth, World.BeachHalfWidth * 2), Enum.Material.Sand)
+	-- mělčina u břehu
+	terrain:FillWedge(CFrame.new(World.BeachFrontX + 40, World.WaterY - depth + 3, 0) * CFrame.Angles(0, math.rad(-90), 0), Vector3.new(World.BeachHalfWidth * 2, 6, 80), Enum.Material.Sand)
+	terrain.WaterColor = Color3.fromRGB(40, 200, 220)
+	terrain.WaterTransparency = 0.55
+	terrain.WaterReflectance = 0.6
+	terrain.WaterWaveSize = 0.18
+	terrain.WaterWaveSpeed = 9
+
+	local startDistance = World.TerrainWaterLength
 	local previous = startDistance
 	for _, zone in World.WaterZones do
 		local d = previous
@@ -436,13 +464,6 @@ local function buildWater(root: Instance, rng: Random)
 			d += chunk
 		end
 		previous = zone.UpTo
-	end
-	-- voda po stranách pláže
-	for _, side in { -1, 1 } do
-		local width = World.WaterHalfWidth - World.BeachHalfWidth
-		local length = World.BeachFrontX - (World.BeachBackX - 200)
-		local p = part(water, Vector3.new(length, 4, width), CFrame.new(World.BeachBackX - 200 + length / 2, World.WaterY - 2, side * (World.BeachHalfWidth + width / 2)), World.WaterZones[1].Color, Enum.Material.SmoothPlastic, BLOCK, "Water")
-		p.Reflectance = 0.08
 	end
 
 	-- bójky podél koridoru

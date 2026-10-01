@@ -38,6 +38,7 @@ function HouseService.Assign(session: Session)
 		end
 	end
 	warn("[HouseService] No free house for", session.Player.Name)
+	Registry.Player.Notify(session.Player, "All houses are taken on this server. Your items are safe – join another server to get a house!", "Warning")
 end
 
 function HouseService.Release(session: Session)
