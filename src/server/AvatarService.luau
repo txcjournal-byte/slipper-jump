@@ -17,6 +17,7 @@ type Session = any
 local AvatarService = {}
 
 local PLAYER_GROUP = "Players"
+local SHOE_SCALE = 1.35
 
 local RAINBOW = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 70)),
@@ -87,9 +88,11 @@ function AvatarService.ApplySlippers(session: Session)
 	for _, foot in findFeet(character) do
 		local m = Models.Slipper(id)
 		m.Name = "SlipperModel"
+		-- větší, kreslené boty, aby byly na postavě dobře vidět
+		m:ScaleTo(SHOE_SCALE)
 		local handle = m.PrimaryPart :: BasePart
 		local isR6 = foot.Size.Y > 1.5
-		local offset = if isR6 then CFrame.new(0, -foot.Size.Y / 2 + 0.1, -0.15) else CFrame.new(0, -foot.Size.Y / 2 - 0.02, -0.1)
+		local offset = if isR6 then CFrame.new(0, -foot.Size.Y / 2 + 0.15, -0.2) else CFrame.new(0, -foot.Size.Y / 2 + 0.05, -0.15)
 		m:PivotTo(foot.CFrame * offset)
 		local weld = Instance.new("Weld")
 		weld.Part0 = foot

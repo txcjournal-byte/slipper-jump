@@ -4,6 +4,9 @@
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+
+local spinning: { [Model]: ViewportFrame } = setmetatable({}, { __mode = "k" }) :: any
 
 local Kit = {}
 
@@ -378,8 +381,20 @@ function Kit.Viewport(parent: Instance, model: Model?, props: Props?): ViewportF
 		local radius = size.Magnitude / 2
 		local distance = radius / math.tan(math.rad(20)) * 1.05
 		camera.CFrame = CFrame.lookAt(Vector3.new(distance * 0.55, distance * 0.45, -distance * 0.7), Vector3.zero)
+		spinning[model] = viewport
 	end
 	return viewport
 end
+
+-- modely v náhledech (obchod, karty) se pomalu otáčejí
+RunService.RenderStepped:Connect(function(dt: number)
+	for model, viewport in spinning do
+		if not model.Parent then
+			spinning[model] = nil
+		elseif viewport.Visible and viewport:FindFirstAncestorWhichIsA("LayerCollector") then
+			model:PivotTo(model:GetPivot() * CFrame.Angles(0, dt * 0.8, 0))
+		end
+	end
+end)
 
 return Kit

@@ -576,6 +576,62 @@ function Models.MapAsset(name: string): Model?
 	return nil
 end
 
+-- Efekty podle vzácnosti: jiskry (Rare+), záře (Epic+), světelný sloup (Legendary+)
+function Models.AddRarityFx(model: Model, rarityName: string)
+	local rarity = Catalog.Rarity(rarityName)
+	local handle = model.PrimaryPart
+	if not handle or rarity.Order < 3 then
+		return
+	end
+	local color = if rarity.Name == "Secret" then Color3.fromRGB(200, 120, 255) else rarity.Color
+	local sparkles = Instance.new("ParticleEmitter")
+	sparkles.Name = "RarityFx"
+	sparkles.Rate = 4 + rarity.Order * 3
+	sparkles.Lifetime = NumberRange.new(0.8, 1.6)
+	sparkles.Speed = NumberRange.new(1, 3)
+	sparkles.SpreadAngle = Vector2.new(180, 180)
+	sparkles.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0) })
+	sparkles.LightEmission = 1
+	sparkles.Color = if rarity.Rainbow
+		then ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 80)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 220, 255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 90, 255)),
+		})
+		else ColorSequence.new(color)
+	sparkles.Parent = handle
+	if rarity.Order >= 4 then
+		local light = handle:FindFirstChildOfClass("PointLight") or Instance.new("PointLight")
+		light.Color = color
+		light.Range = 8 + rarity.Order * 2
+		light.Brightness = 2
+		light.Parent = handle
+	end
+	if rarity.Order >= 5 then
+		-- světelný sloup nad předmětem
+		local beam = Instance.new("Part")
+		beam.Name = "LightPillar"
+		beam.Shape = Enum.PartType.Cylinder
+		beam.Size = Vector3.new(14, 2.6, 2.6)
+		beam.CFrame = handle.CFrame * CFrame.new(0, 7, 0) * CFrame.Angles(0, 0, math.rad(90))
+		beam.Color = color
+		beam.Material = NEON
+		beam.Transparency = 0.75
+		beam.Anchored = handle.Anchored
+		beam.CanCollide = false
+		beam.CanQuery = false
+		beam.CanTouch = false
+		beam.CastShadow = false
+		beam.Parent = model
+		if not handle.Anchored then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = handle
+			weld.Part1 = beam
+			weld.Parent = beam
+		end
+	end
+end
+
 -- Pomocník pro anchored rekvizity (předměty na podstavcích, ve vodě)
 function Models.Anchor(model: Model)
 	for _, descendant in model:GetDescendants() do

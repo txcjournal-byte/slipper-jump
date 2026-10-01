@@ -30,6 +30,7 @@ export type HouseInfo = {
 	PiggyBank: BasePart,
 	PiggyLabel: TextLabel,
 	CollectPad: BasePart,
+	BackCollectPad: BasePart,
 	TeleportPad: BasePart,
 	OwnerLabel: TextLabel,
 	HouseNameLabel: TextLabel,
@@ -317,12 +318,15 @@ local function buildBeach(root: Instance, rng: Random): Model
 	-- plot z kůlů a provazu podél cesty (mezi domečky)
 	for _, side in { -1, 1 } do
 		local z = side * (World.PathHalfWidth - 0.5)
-		local x = World.SpawnX + 50
-		while x < World.BeachFrontX - 30 do
+		-- jen podél domečků, aby se ke stánkům a kolu dalo volně dojít
+		local fenceFrom = World.SpawnX + 50
+		local fenceTo = World.SpawnX + 40 + House.Length - 6
+		local x = fenceFrom
+		while x <= fenceTo do
 			deco(part(beach, Vector3.new(4, 1.2, 1.2), CFrame.new(x, World.SandY + 2, z) * UP, WOOD_DARK, Enum.Material.Wood, CYL))
 			x += 16
 		end
-		deco(part(beach, Vector3.new(World.BeachFrontX - 30 - (World.SpawnX + 50), 0.25, 0.25), CFrame.new((World.BeachFrontX - 30 + World.SpawnX + 50) / 2, World.SandY + 3.3, z) * CFrame.Angles(0, 0, 0), Color3.fromRGB(200, 170, 120), Enum.Material.Fabric, CYL))
+		deco(part(beach, Vector3.new(fenceTo - fenceFrom, 0.25, 0.25), CFrame.new((fenceFrom + fenceTo) / 2, World.SandY + 3.3, z), Color3.fromRGB(200, 170, 120), Enum.Material.Fabric, CYL))
 	end
 
 	-- palmy a deštníky
@@ -562,16 +566,27 @@ local function buildHouse(root: Instance, index: number, frontX: number, zCenter
 			window.Transparency = 0.3
 		end
 	end
-	-- zadní stěna
-	part(m, Vector3.new(1, H, W), CFrame.new(backX - 0.5, floorY + 1 + H / 2, zCenter), color, Enum.Material.WoodPlanks, BLOCK, "Wall")
-	-- přední stěna s širokým vchodem
+	-- přední i zadní stěna s širokým vchodem (domeček je průchozí z obou stran)
 	local sideWidth = (W - entranceWidth) / 2
-	for _, side in { -1, 1 } do
-		part(m, Vector3.new(1, H, sideWidth), CFrame.new(frontX + 0.5, floorY + 1 + H / 2, zCenter + side * (entranceWidth / 2 + sideWidth / 2)), color, Enum.Material.WoodPlanks, BLOCK, "Wall")
-		deco(part(m, Vector3.new(1.4, H, 1), CFrame.new(frontX + 0.3, floorY + 1 + H / 2, zCenter + side * (entranceWidth / 2 + 0.5)), trim))
-	end
 	local lintelHeight = 3
-	part(m, Vector3.new(1, lintelHeight, entranceWidth), CFrame.new(frontX + 0.5, floorY + 1 + H - lintelHeight / 2, zCenter), color, Enum.Material.WoodPlanks, BLOCK, "Wall")
+	for _, wallX in { frontX + 0.5, backX - 0.5 } do
+		local trimX = if wallX < centerX then wallX - 0.2 else wallX + 0.2
+		for _, side in { -1, 1 } do
+			part(m, Vector3.new(1, H, sideWidth), CFrame.new(wallX, floorY + 1 + H / 2, zCenter + side * (entranceWidth / 2 + sideWidth / 2)), color, Enum.Material.WoodPlanks, BLOCK, "Wall")
+			deco(part(m, Vector3.new(1.4, H, 1), CFrame.new(trimX, floorY + 1 + H / 2, zCenter + side * (entranceWidth / 2 + 0.5)), trim))
+		end
+		part(m, Vector3.new(1, lintelHeight, entranceWidth), CFrame.new(wallX, floorY + 1 + H - lintelHeight / 2, zCenter), color, Enum.Material.WoodPlanks, BLOCK, "Wall")
+	end
+	-- schůdek u obou vchodů (podlaha je o 1 stud výš než písek)
+	for _, stepX in { frontX - 1.5, backX + 1.5 } do
+		local step = Instance.new("WedgePart")
+		step.Anchored = true
+		step.Size = Vector3.new(entranceWidth, 1, 3)
+		step.CFrame = CFrame.new(stepX, floorY + 0.5, zCenter) * CFrame.Angles(0, if stepX < centerX then math.rad(90) else math.rad(-90), 0)
+		step.Color = Color3.fromRGB(235, 205, 160)
+		step.Material = Enum.Material.WoodPlanks
+		step.Parent = m
+	end
 	-- štíty (trojúhelníky nad přední a zadní stěnou)
 	local gableHeight = 9
 	for _, gx in { frontX + 0.5, backX - 0.5 } do
@@ -682,12 +697,18 @@ local function buildHouse(root: Instance, index: number, frontX: number, zCenter
 	collectPad.Transparency = 1
 	collectPad.CanCollide = false
 	collectPad.CanQuery = false
+	-- i u zadního vchodu
+	local backCollectPad = collectPad:Clone()
+	backCollectPad.Name = "BackCollectPad"
+	backCollectPad.CFrame = CFrame.new(backX - 4, floorY + 4.5, zCenter)
+	backCollectPad.Parent = m
 
 	-- zelené teleportační kolečko u zadní stěny → stánek SELL
-	local padPos = Vector3.new(backX - 8, floorY + 1.1, zCenter)
-	local teleportPad = part(m, Vector3.new(0.3, 9, 9), CFrame.new(padPos) * UP, Color3.fromRGB(60, 255, 110), Enum.Material.Neon, CYL, "TeleportPad")
+	-- v rohu u zadního vchodu, aby přes něj nikdo nešel omylem
+	local padPos = Vector3.new(backX - 6, floorY + 1.1, zCenter + W / 2 - 5)
+	local teleportPad = part(m, Vector3.new(0.3, 6, 6), CFrame.new(padPos) * UP, Color3.fromRGB(60, 255, 110), Enum.Material.Neon, CYL, "TeleportPad")
 	teleportPad.CanCollide = false
-	local ring = deco(part(m, Vector3.new(0.2, 10.5, 10.5), CFrame.new(padPos - Vector3.new(0, 0.05, 0)) * UP, WHITE, nil, CYL))
+	local ring = deco(part(m, Vector3.new(0.2, 7.2, 7.2), CFrame.new(padPos - Vector3.new(0, 0.05, 0)) * UP, WHITE, nil, CYL))
 	ring.Name = "PadRing"
 	local padLight = Instance.new("PointLight")
 	padLight.Color = Color3.fromRGB(80, 255, 120)
@@ -712,6 +733,7 @@ local function buildHouse(root: Instance, index: number, frontX: number, zCenter
 		PiggyBank = body,
 		PiggyLabel = piggyLabel,
 		CollectPad = collectPad,
+		BackCollectPad = backCollectPad,
 		TeleportPad = teleportPad,
 		OwnerLabel = ownerLabel,
 		HouseNameLabel = houseNameLabel,
@@ -1049,16 +1071,17 @@ function MapBuilder.Build(): MapInfo
 	local spinnerPrompt = spinnerStand:FindFirstChild("SpinPrompt") :: ProximityPrompt
 
 	-- žebříček u spawnu
-	local boardOrigin = facing(Vector3.new(World.SpawnX - 5, 0, 48), Vector3.new(0.35, 0, -1))
+	local boardOrigin = facing(Vector3.new(World.ReturnX - 125, 0, 48), Vector3.new(0.3, 0, -1))
 	local leaderboard = buildLeaderboard(root, boardOrigin)
 
 	-- spawn
-	local spawnCFrame = CFrame.lookAt(Vector3.new(World.SpawnX, World.SandY + 3, 0), Vector3.new(World.SpawnX + 10, World.SandY + 3, 0))
+	-- hráč začíná kousek před molem
+	local spawnCFrame = CFrame.lookAt(Vector3.new(World.ReturnX - 12, World.SandY + 3, 0), Vector3.new(World.ReturnX, World.SandY + 3, 0))
 	local spawnLocation = Instance.new("SpawnLocation")
 	spawnLocation.Name = "Spawn"
 	spawnLocation.Anchored = true
 	spawnLocation.Size = Vector3.new(10, 0.4, 10)
-	spawnLocation.CFrame = CFrame.new(World.SpawnX, World.SandY + 0.25, 0)
+	spawnLocation.CFrame = CFrame.new(World.ReturnX - 12, World.SandY + 0.45, 0)
 	spawnLocation.Color = Color3.fromRGB(255, 225, 120)
 	spawnLocation.Material = Enum.Material.SmoothPlastic
 	spawnLocation.Transparency = 0.2

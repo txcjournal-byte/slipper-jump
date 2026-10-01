@@ -119,6 +119,19 @@ function HouseService.Render(session: Session)
 		local top = pedestal.Part:FindFirstChild("Top")
 		if top and top:IsA("BasePart") then
 			top.Transparency = if unlocked then 0 else 0.6
+			-- horní deska svítí barvou vzácnosti předmětu
+			if top:GetAttribute("BaseColor") == nil then
+				top:SetAttribute("BaseColor", top.Color)
+			end
+			local itemCfg = item and Catalog.Item(item.Id)
+			if itemCfg and Catalog.Rarity(itemCfg.Rarity).Order >= 3 then
+				local rarity = Catalog.Rarity(itemCfg.Rarity)
+				top.Color = if rarity.Name == "Secret" then Color3.fromRGB(170, 90, 255) else rarity.Color
+				top.Material = Enum.Material.Neon
+			else
+				top.Color = top:GetAttribute("BaseColor") :: Color3
+				top.Material = Enum.Material.SmoothPlastic
+			end
 		end
 		if item then
 			if not old or old:GetAttribute("Uid") ~= item.Uid then
@@ -132,6 +145,10 @@ function HouseService.Render(session: Session)
 				m:PivotTo(pedestal.ItemCFrame)
 				m.Parent = pedestal.Part
 				CollectionService:AddTag(m, "SpinItem")
+				local itemCfg = Catalog.Item(item.Id)
+				if itemCfg then
+					Models.AddRarityFx(m, itemCfg.Rarity)
+				end
 			end
 			local cfg = Catalog.Item(item.Id)
 			if cfg then
@@ -171,14 +188,16 @@ function HouseService.Start()
 				end
 			end)
 		end
-		house.CollectPad.Touched:Connect(function(hit)
-			local player = playerFromHit(hit)
-			local session = player and Registry.Player.Get(player)
-			if session and owners[house.Index] == session and os.clock() - session.LastCollect > 1 then
-				session.LastCollect = os.clock()
-				Registry.Economy.CollectPiggy(session)
-			end
-		end)
+		for _, pad in { house.CollectPad, house.BackCollectPad } do
+			pad.Touched:Connect(function(hit)
+				local player = playerFromHit(hit)
+				local session = player and Registry.Player.Get(player)
+				if session and owners[house.Index] == session and os.clock() - session.LastCollect > 1 then
+					session.LastCollect = os.clock()
+					Registry.Economy.CollectPiggy(session)
+				end
+			end)
+		end
 		house.TeleportPad.Touched:Connect(function(hit)
 			local player = playerFromHit(hit)
 			local session = player and Registry.Player.Get(player)
