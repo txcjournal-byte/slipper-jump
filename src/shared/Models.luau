@@ -75,20 +75,61 @@ local function finalize(model: Model): Model
 	return model
 end
 
+-- Cílová velikost hezkých modelů (nejdelší rozměr ve studech) – vygenerované modely se přizpůsobí samy
+local TARGET_SIZE: { [string]: number } = { Slippers = 2.6, Hats = 2.6, Items = 3.8 }
+
 local function fromAssets(category: string, id: string): Model?
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local folder = assets and assets:FindFirstChild(category)
 	local template = folder and folder:FindFirstChild(id)
-	if template and template:IsA("Model") and template.PrimaryPart then
-		local clone = template:Clone()
-		for _, descendant in clone:GetDescendants() do
-			if descendant:IsA("Script") or descendant:IsA("LocalScript") or descendant:IsA("ModuleScript") then
-				descendant:Destroy() -- bezpečnost: modely z Toolboxu nesmí mít skripty
-			end
-		end
-		return finalize(clone)
+	if not template then
+		return nil
 	end
-	return nil
+	-- přijme Model, ale i samotný MeshPart / Part (např. vygenerovaný Assistantem)
+	local clone: Model
+	if template:IsA("Model") then
+		clone = template:Clone()
+	elseif template:IsA("BasePart") then
+		clone = Instance.new("Model")
+		template:Clone().Parent = clone
+	else
+		return nil
+	end
+	clone.Name = id
+	for _, descendant in clone:GetDescendants() do
+		if descendant:IsA("Script") or descendant:IsA("LocalScript") or descendant:IsA("ModuleScript") then
+			descendant:Destroy() -- bezpečnost: modely z Toolboxu nesmí mít skripty
+		elseif descendant:IsA("JointInstance") or descendant:IsA("WeldConstraint") then
+			descendant:Destroy() -- spojíme si to po svém
+		end
+	end
+	if #clone:GetDescendants() == 0 then
+		return nil
+	end
+	-- volitelné otočení (atribut RotateY ve stupních na modelu v Assets), když špička nemíří dopředu
+	local rotate = template:GetAttribute("RotateY")
+	if type(rotate) == "number" and rotate ~= 0 then
+		clone:PivotTo(clone:GetPivot() * CFrame.Angles(0, math.rad(rotate), 0))
+	end
+	-- automatická velikost
+	local _, size = clone:GetBoundingBox()
+	local longest = math.max(size.X, size.Y, size.Z)
+	local target = TARGET_SIZE[category] or 3
+	if longest > 0 then
+		clone:ScaleTo(clone:GetScale() * target / longest)
+	end
+	-- vlastní neviditelný Handle: boty a předměty uprostřed, čepice u spodního okraje
+	local boxCFrame, boxSize = clone:GetBoundingBox()
+	local anchor = if category == "Hats" then boxCFrame * CFrame.new(0, -boxSize.Y / 2, 0) else boxCFrame
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(0.2, 0.2, 0.2)
+	handle.Transparency = 1
+	handle.CFrame = CFrame.new(anchor.Position)
+	handle.Parent = clone
+	clone.PrimaryPart = handle
+	clone:PivotTo(CFrame.identity)
+	return finalize(clone)
 end
 
 local BALL = Enum.PartType.Ball

@@ -1,7 +1,7 @@
 # Assets – modely
 
 Sem patří hezké modely, které nahradí dočasné modely z dílů.
-Rojo tyto složky synchronizuje do `ReplicatedStorage.Assets`.
+Ve hře je najdeš v Exploreru jako `ReplicatedStorage → Assets`. Nejjednodušší je vložit model přímo ve Studiu (viz MODELY.md v kořeni projektu).
 
 - `Slippers/` – jeden pantofel (levý i pravý se vytvoří kopií), např. `SharkSlippers.rbxm`
 - `Hats/` – čepice, např. `CowboyHat.rbxm`

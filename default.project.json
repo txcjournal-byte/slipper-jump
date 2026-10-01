@@ -7,7 +7,19 @@
         "$path": "src/shared"
       },
       "Assets": {
-        "$path": "assets"
+        "$className": "Folder",
+        "Slippers": {
+          "$className": "Folder"
+        },
+        "Hats": {
+          "$className": "Folder"
+        },
+        "Items": {
+          "$className": "Folder"
+        },
+        "Map": {
+          "$className": "Folder"
+        }
       }
     },
     "ServerScriptService": {
