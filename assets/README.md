@@ -14,4 +14,7 @@ Pravidla:
 3. Z Toolboxu vždy smažte všechny skripty uvnitř modelu.
 4. Když model ve složce chybí, hra automaticky postaví dočasný model z dílů.
 
+Všechny boty, čepice a předměty už tu jsou jako `.model.json` (z dílů, generují je skripty v `tools/`).
+Čepice s dílem `Attach` jsou ve skutečné velikosti a `Attach` určuje úchyt na hlavě (0,25 pod temenem).
+
 Model exportujete ve Studiu: pravý klik → Save to File… → `.rbxm` do správné složky.

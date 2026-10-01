@@ -91,7 +91,7 @@ function AvatarService.ApplySlippers(session: Session)
 		local m = Models.Slipper(id)
 		m.Name = "SlipperModel"
 		-- větší, kreslené boty, aby byly na postavě dobře vidět
-		m:ScaleTo(SHOE_SCALE)
+		Models.Scale(m, SHOE_SCALE)
 		local handle = m.PrimaryPart :: BasePart
 		local isR6 = foot.Size.Y > 1.5
 		local offset = if isR6 then CFrame.new(0, -foot.Size.Y / 2 + 0.15, -0.2) else CFrame.new(0, -foot.Size.Y / 2 + 0.05, -0.15)

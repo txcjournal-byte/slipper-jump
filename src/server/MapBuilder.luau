@@ -801,7 +801,7 @@ local function buildStall(root: Instance, name: string, text: string, stripeColo
 		for i, id in { "RubberDuck", "Starfish", "Seashell", "RubberDuck" } do
 			local item = Models.Item(id)
 			Models.Anchor(item)
-			item:ScaleTo(0.6)
+			Models.Scale(item, 0.6)
 			item:PivotTo(origin * CFrame.new(-6 + (i - 1) * 4, y + 6.3, -3))
 			item.Parent = m
 		end

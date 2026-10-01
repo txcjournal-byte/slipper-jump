@@ -12,10 +12,10 @@
           "$path": "assets/Slippers"
         },
         "Hats": {
-          "$className": "Folder"
+          "$path": "assets/Hats"
         },
         "Items": {
-          "$className": "Folder"
+          "$path": "assets/Items"
         },
         "Map": {
           "$className": "Folder"

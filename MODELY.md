@@ -27,12 +27,14 @@ Nebo v **Toolboxu** (vlevo) najdi zdarma model a použij ho – jen zkontroluj, 
 
 ## Už hotové modely (z dílů, v projektu)
 
-Těchto 10 bot už je ve hře jako modely z dílů (soubory `assets/Slippers/*.model.json`, vyrábí je `python3 tools/shoes.py`):
-BasicBlackSlippers, BeachBlueSlippers, WatermelonSlippers, SharkSlippers, RoyalDiamondSlippers,
-MuddyOldSneakers, CanvasKicks, StreetRunners, SkyDunkLegends, GoldenAirKings.
+**Všechny modely ze seznamu níž už ve hře jsou** – 40 bot, 23 čepic a 32 předmětů.
+Jsou postavené z kulatých dílů a vyrábí je skripty v `tools/` (`python3 tools/shoes.py`, `hats.py`, `items.py`)
+do souborů `assets/<složka>/<Název>.model.json`. Náhledy: `assets/*/nahled*.png`.
 
-Když místo nich chceš AI model z Assistanta: ve Studiu nejdřív **smaž** starý model se stejným jménem
-ve složce `ReplicatedStorage → Assets → Slippers`, jinak hra může vzít ten starý.
+Čepice mají neviditelný díl `Attach` (úchyt na hlavě) – díky němu sedí helmy a kapuce přes hlavu ve správné velikosti.
+
+Když některý model chceš vyměnit za AI model z Assistanta: ve Studiu nejdřív **smaž** starý model se stejným jménem
+ve složce `ReplicatedStorage → Assets → <složka>`, pak vlož nový (postup níž). Při `rojo serve` smaž i soubor v `assets/`.
 
 ## Pantofle (20) → složka `Assets/Slippers`
 

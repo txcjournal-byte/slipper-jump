@@ -75,6 +75,21 @@ local function finalize(model: Model): Model
 	return model
 end
 
+-- Zvětší/zmenší model (násobí současnou velikost). Kulaté a válcové SpecialMeshe mají Scale relativní
+-- k velikosti dílu, takže jim ho po ScaleTo vrátíme, aby se nezvětšily dvakrát.
+function Models.Scale(model: Model, factor: number)
+	local meshScales: { [SpecialMesh]: Vector3 } = {}
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("SpecialMesh") and descendant.MeshType ~= Enum.MeshType.FileMesh then
+			meshScales[descendant] = descendant.Scale
+		end
+	end
+	model:ScaleTo(model:GetScale() * factor)
+	for mesh, scale in meshScales do
+		mesh.Scale = scale
+	end
+end
+
 -- Cílová velikost hezkých modelů (nejdelší rozměr ve studech) – vygenerované modely se přizpůsobí samy
 local TARGET_SIZE: { [string]: number } = { Slippers = 2.6, Hats = 2.6, Items = 3.8 }
 
@@ -111,16 +126,27 @@ local function fromAssets(category: string, id: string): Model?
 	if type(rotate) == "number" and rotate ~= 0 then
 		clone:PivotTo(clone:GetPivot() * CFrame.Angles(0, math.rad(rotate), 0))
 	end
-	-- automatická velikost
-	local _, size = clone:GetBoundingBox()
-	local longest = math.max(size.X, size.Y, size.Z)
-	local target = TARGET_SIZE[category] or 3
-	if longest > 0 then
-		clone:ScaleTo(clone:GetScale() * target / longest)
+	-- díl "Attach" = model je ve skutečné velikosti a Attach říká, kde je úchyt (u čepic 0,25 pod temenem hlavy)
+	local attach = clone:FindFirstChild("Attach")
+	local attachPosition: Vector3? = nil
+	if attach and attach:IsA("BasePart") then
+		attachPosition = attach.Position
+		attach:Destroy()
+	else
+		-- automatická velikost
+		local _, size = clone:GetBoundingBox()
+		local longest = math.max(size.X, size.Y, size.Z)
+		local target = TARGET_SIZE[category] or 3
+		if longest > 0 then
+			Models.Scale(clone, target / longest)
+		end
 	end
 	-- vlastní neviditelný Handle: boty a předměty uprostřed, čepice u spodního okraje
 	local boxCFrame, boxSize = clone:GetBoundingBox()
-	local anchor = if category == "Hats" then boxCFrame * CFrame.new(0, -boxSize.Y / 2, 0) else boxCFrame
+	local anchor = if attachPosition
+		then CFrame.new(attachPosition)
+		elseif category == "Hats" then boxCFrame * CFrame.new(0, -boxSize.Y / 2, 0)
+		else boxCFrame
 	local handle = Instance.new("Part")
 	handle.Name = "Handle"
 	handle.Size = Vector3.new(0.2, 0.2, 0.2)
