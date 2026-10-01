@@ -28,6 +28,7 @@ local EVENTS = {
 	"SwimStart", -- server → klient: začni plavat k voru (žralok)
 	"SwimResult", -- server → klient: doplaval / chytil ho žralok
 	"ServerEvent", -- server → všichni: právě běžící událost (nebo konec)
+	"Teleport", -- klient → server: rychlý přesun (House / Pier)
 }
 
 local FUNCTIONS = {

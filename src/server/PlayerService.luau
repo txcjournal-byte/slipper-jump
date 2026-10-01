@@ -31,6 +31,7 @@ export type Session = {
 	Loaded: boolean,
 	LastCollect: number,
 	LastTeleport: number,
+	LastQuickTeleport: number,
 	Leaderstats: { Money: NumberValue, Level: IntValue, Best: NumberValue }?,
 }
 
@@ -168,7 +169,7 @@ function PlayerService.ReturnToBeach(session: Session)
 	end
 	local map = Registry.Map
 	local offset = Vector3.new(math.random(-3, 3), 0, math.random(-4, 4))
-	character:PivotTo(map.Spawn + offset)
+	character:PivotTo(map.ReturnPoint + offset)
 	local root = PlayerService.GetRoot(session.Player)
 	if root then
 		root.AssemblyLinearVelocity = Vector3.zero
@@ -196,6 +197,7 @@ local function onPlayerAdded(player: Player)
 		Loaded = false,
 		LastCollect = 0,
 		LastTeleport = 0,
+		LastQuickTeleport = 0,
 		Leaderstats = nil,
 	}
 	PlayerService.Sessions[player] = session
@@ -292,6 +294,24 @@ function PlayerService.Start()
 		end
 	end)
 	task.spawn(boundsLoop)
+
+	-- rychlý přesun tlačítky HOUSE / PIER
+	Net.Event("Teleport").OnServerEvent:Connect(function(player, target)
+		local session = PlayerService.Get(player)
+		if not session or session.Flight or session.Returning or os.clock() - session.LastQuickTeleport < World.TeleportCooldown then
+			return
+		end
+		local character = player.Character
+		if not character then
+			return
+		end
+		session.LastQuickTeleport = os.clock()
+		if target == "House" and session.House then
+			character:PivotTo(session.House.Entrance)
+		elseif target == "Pier" then
+			character:PivotTo(Registry.Map.ReturnPoint)
+		end
+	end)
 
 	Net.Event("SetSetting").OnServerEvent:Connect(function(player, key, value)
 		local session = PlayerService.Get(player)

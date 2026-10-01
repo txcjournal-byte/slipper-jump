@@ -7,6 +7,7 @@ local CollectionService = game:GetService("CollectionService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Catalog = require(Shared.Catalog)
+local World = require(Shared.Config.World)
 local Models = require(Shared.Models)
 
 local Registry = require(script.Parent.Registry)
@@ -293,6 +294,7 @@ local function onCharacter(session: Session, character: Model)
 		return
 	end
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	humanoid.WalkSpeed = World.WalkSpeed
 	for _, descendant in character:GetDescendants() do
 		setCollisionGroup(descendant)
 	end

@@ -46,6 +46,7 @@ export type LeaderboardInfo = {
 export type MapInfo = {
 	Folder: Folder,
 	Spawn: CFrame,
+	ReturnPoint: CFrame,
 	SpawnLocation: SpawnLocation,
 	ShopPrompt: ProximityPrompt,
 	ShopPosition: Vector3,
@@ -1070,6 +1071,7 @@ function MapBuilder.Build(): MapInfo
 	return {
 		Folder = root,
 		Spawn = spawnCFrame,
+		ReturnPoint = CFrame.lookAt(Vector3.new(World.ReturnX, World.SandY + 3, 0), Vector3.new(World.ReturnX + 10, World.SandY + 3, 0)),
 		SpawnLocation = spawnLocation,
 		ShopPrompt = shopPrompt,
 		ShopPosition = shopCounter.Position,

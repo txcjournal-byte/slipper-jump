@@ -15,6 +15,9 @@ return {
 	BeachBackX = PierEndX - 650,
 	BeachHalfWidth = 420,
 	SpawnX = PierEndX - 560,
+	ReturnX = PierEndX - 150 - 45, -- po skoku se hráč objeví kousek před molem
+	WalkSpeed = 26, -- rychlejší chůze po pláži (Roblox výchozí je 16)
+	TeleportCooldown = 2,
 	PathHalfWidth = 11,
 	GiftDistance = 100_000,
 	GiftIslandRadius = 190,
