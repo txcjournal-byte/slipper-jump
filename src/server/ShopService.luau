@@ -3,6 +3,7 @@
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Catalog = require(Shared.Catalog)
+local Swim = require(Shared.Config.Swim)
 local Formulas = require(Shared.Formulas)
 local FormatNumber = require(Shared.Util.FormatNumber)
 local Net = require(Shared.Net)
@@ -71,6 +72,27 @@ local function buyHat(session: Session, id: string): Result
 	return { Ok = true, Message = "You bought " .. cfg.Name .. "!" }
 end
 
+-- vylepšení plavání se kupují postupně (vždy jen to další)
+local function buySwim(session: Session, id: string): Result
+	local data = session.Data
+	local nextUpgrade = Swim.Upgrades[data.SwimLevel + 1]
+	if not nextUpgrade then
+		return { Ok = false, Message = "You already swim as fast as possible!" }
+	end
+	if nextUpgrade.Id ~= id then
+		return { Ok = false, Message = "Buy " .. nextUpgrade.Name .. " first!" }
+	end
+	if not nearShop(session.Player) then
+		return { Ok = false, Message = "Buy swim gear at the SHOP on the beach!" }
+	end
+	if not Registry.Economy.Spend(session, nextUpgrade.Price) then
+		return { Ok = false, Message = "Not enough money! You need " .. FormatNumber.Money(nextUpgrade.Price) .. "." }
+	end
+	data.SwimLevel += 1
+	Net.Event("PlayEffect"):FireClient(session.Player, "Purchase", { Id = id })
+	return { Ok = true, Message = "You bought " .. nextUpgrade.Name .. "! You swim faster now." }
+end
+
 function ShopService.GrantHat(session: Session, id: string)
 	local data = session.Data
 	if Catalog.Hat(id) and not table.find(data.OwnedHats, id) then
@@ -90,6 +112,8 @@ local function handleAction(player: Player, action: unknown, kind: unknown, id: 
 		result = buySlippers(session, id)
 	elseif action == "Buy" and kind == "Hats" then
 		result = buyHat(session, id)
+	elseif action == "Buy" and kind == "Swim" then
+		result = buySwim(session, id)
 	elseif action == "Equip" and kind == "Slippers" then
 		if not table.find(data.OwnedSlippers, id) then
 			return { Ok = false, Message = "You don't own these yet." }
@@ -137,6 +161,7 @@ function ShopService.Sell(session: Session, confirmed: boolean)
 	end
 	Registry.Items.TakeCarried(session)
 	Registry.Economy.AddMoney(session, price)
+	Registry.Quests.Progress(session, "Sells", 1)
 	Registry.Player.Notify(player, "Sold " .. cfg.Name .. " for " .. FormatNumber.Money(price) .. "!", "Money")
 	Net.Event("PlayEffect"):FireClient(player, "Collect", { Amount = price })
 end

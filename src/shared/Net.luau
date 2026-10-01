@@ -25,6 +25,9 @@ local EVENTS = {
 	"SkipTutorial", -- klient → server
 	"Rebirth", -- klient → server
 	"HoldStoredItem", -- klient → server: vzít předmět ze skladu nad hlavu
+	"SwimStart", -- server → klient: začni plavat k voru (žralok)
+	"SwimResult", -- server → klient: doplaval / chytil ho žralok
+	"ServerEvent", -- server → všichni: právě běžící událost (nebo konec)
 }
 
 local FUNCTIONS = {

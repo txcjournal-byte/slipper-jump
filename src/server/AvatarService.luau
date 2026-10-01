@@ -305,6 +305,7 @@ local function onCharacter(session: Session, character: Model)
 		Registry.Jump.Finish(session, session.Flight, {}, {})
 	end
 	session.Flight = nil
+	session.Swim = nil
 	session.Returning = false
 	Registry.Player.MarkDirty(session)
 end

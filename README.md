@@ -125,3 +125,25 @@ Všechno se ladí v `src/shared/Config/` bez sahání do logiky:
 
 Viz [`assets/README.md`](assets/README.md). Model pojmenuj přesně jako `Id` v Configu
 (např. `SharkSlippers`), ulož jako `.rbxm` do správné složky v `assets/` a hra ho použije místo dílů.
+
+## 8. Novinky: tenisky, plavání se žralokem, události, úkoly
+
+- **Tenisky** (`Config/Sneakers.luau`): druhá řada 20 bot od „Muddy Old Sneakers“ po „Golden Air Kings“.
+  Mají stejnou cenu a sílu jako pantofle na stejné pozici, liší se jen vzhledem. Žádné skutečné značky.
+  K dárku se dá doskočit s Royal Diamond Slippers i s Golden Air Kings.
+- **Plavání zpět** (`Config/Swim.luau`): po dopadu hráč plave k záchrannému voru, honí ho žralok
+  (v hlubší vodě rychlejší). Doplave → bonus peněz. Chytí ho → jen přijde o bonus.
+  Rychlost plavání: záložka **Swim** v obchodě (za herní $), game pass **Turbo Fins**, produkt **Shark Repellent**.
+  O výsledku rozhoduje server podle skutečné pozice hráče.
+- **Události každých 5 minut** (`Config/Events.luau`): Golden Rings, Coin Storm, Treasure Tide, Shark Holiday, Mega Jump.
+- **Denní úkoly a série přihlášení** (`Config/Quests.luau`): 3 úkoly denně, odměna za každý den v řadě.
+- **Starter Pack**: levný jednorázový balíček (tlačítko 🎁 zmizí po koupi).
+
+Nové produkty k založení v Creator Dashboard: game pass **Turbo Fins**, developer products **Starter Pack** a **Shark Repellent**.
+
+### Pravidla monetizace (aby hru Roblox nesmazal a rodiče ji hodnotili dobře)
+- Žádné skutečné značky (Nike, Jordan…) – porušení ochranné známky.
+- Šance u všech náhodných odměn musí být vidět (kolo štěstí je má).
+- V EU je zakázané přímo vybízet děti k nákupu („Kup teď!“). Nabídky ukazujeme, netlačíme.
+- Všechno, co ovlivňuje hru, jde získat i hraním; Robux jen zrychluje nebo přidává vzhled.
+- Roblox platí i za čas hráčů s Premium (Engagement-Based Payouts) – zábavná hra vydělává i bez nákupů.

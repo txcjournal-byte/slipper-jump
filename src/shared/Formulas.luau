@@ -9,6 +9,7 @@ local Events = require(Config.Events)
 local Spinner = require(Config.Spinner)
 local House = require(Config.House)
 local Products = require(Config.Products)
+local Swim = require(Config.Swim)
 local Catalog = require(script.Parent.Catalog)
 
 local Formulas = {}
@@ -47,7 +48,7 @@ function Formulas.BaseJump(slipperId: string, hatId: string?): number
 end
 
 function Formulas.CapDistance(distance: number, slipperId: string): number
-	local cap = if slipperId == Jump.BestSlippersId then Jump.MaxDistance else Jump.MaxDistanceWithoutBest
+	local cap = if Catalog.IsBestShoe(slipperId) then Jump.MaxDistance else Jump.MaxDistanceWithoutBest
 	return math.clamp(distance, 1, cap)
 end
 
@@ -151,6 +152,21 @@ function Formulas.ZoneIndex(distance: number): number
 		end
 	end
 	return index
+end
+
+function Formulas.SwimSpeed(swimLevel: number, turboFins: boolean): number
+	local upgrade = Swim.Upgrades[swimLevel]
+	local speed = if upgrade then upgrade.Speed else Swim.BaseSpeed
+	return speed * (if turboFins then 1 + Swim.TurboFinsBonus else 1)
+end
+
+function Formulas.SharkSpeed(distance: number): number
+	return Swim.SharkSpeeds[Formulas.ZoneIndex(distance)] or Swim.SharkSpeeds[#Swim.SharkSpeeds]
+end
+
+-- Kde je žralok (studů od místa dopadu směrem k voru) v čase od začátku plavání
+function Formulas.SharkProgress(elapsed: number, sharkSpeed: number): number
+	return math.max(0, elapsed - Swim.SharkDelay) * sharkSpeed
 end
 
 function Formulas.SellPrice(itemId: string): number

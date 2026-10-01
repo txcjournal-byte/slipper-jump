@@ -3,6 +3,7 @@
 
 local Config = script.Parent.Config
 local Slippers = require(Config.Slippers)
+local Sneakers = require(Config.Sneakers)
 local Hats = require(Config.Hats)
 local ItemsConfig = require(Config.Items)
 
@@ -10,9 +11,12 @@ local Catalog = {}
 
 local slipperById: { [string]: Slippers.Slipper } = {}
 local slipperIndex: { [string]: number } = {}
-for index, slipper in Slippers do
-	slipperById[slipper.Id] = slipper
-	slipperIndex[slipper.Id] = index
+-- pantofle i tenisky; Tier = pozice v řadě (1–20), stejná síla na stejné pozici
+for _, line in { Slippers, Sneakers } do
+	for index, slipper in line do
+		slipperById[slipper.Id] = slipper
+		slipperIndex[slipper.Id] = index
+	end
 end
 
 local hatById: { [string]: Hats.Hat } = {}
@@ -40,6 +44,7 @@ for _, rarity in ItemsConfig.Rarities do
 end
 
 Catalog.Slippers = Slippers
+Catalog.Sneakers = Sneakers
 Catalog.Hats = Hats
 Catalog.Items = ItemsConfig.Items
 Catalog.Rarities = ItemsConfig.Rarities
@@ -51,6 +56,11 @@ end
 
 function Catalog.SlipperIndex(id: string): number
 	return slipperIndex[id] or 1
+end
+
+-- Nejlepší boty (poslední v řadě) – jen s nimi se dá doskočit k dárku
+function Catalog.IsBestShoe(id: string): boolean
+	return slipperIndex[id] == #Slippers
 end
 
 function Catalog.Hat(id: string): Hats.Hat?

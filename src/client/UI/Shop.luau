@@ -6,6 +6,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Catalog = require(Shared.Catalog)
 local Models = require(Shared.Models)
 local Jump = require(Shared.Config.Jump)
+local Swim = require(Shared.Config.Swim)
 local FormatNumber = require(Shared.Util.FormatNumber)
 local Net = require(Shared.Net)
 local Kit = require(script.Parent.Kit)
@@ -15,7 +16,7 @@ local Sound = require(script.Parent.Parent.Sound)
 
 local Shop = {}
 
-type Tab = "Slippers" | "Hats" | "Storage" | "Index"
+type Tab = "Slippers" | "Sneakers" | "Hats" | "Swim" | "Storage" | "Index"
 
 local window: Kit.Window
 local tabButtons: { [string]: TextButton } = {}
@@ -57,8 +58,8 @@ local function card(parent: Instance, order: number, color: Color3): Frame
 	return frame
 end
 
-local function buildSlippers(page: ScrollingFrame)
-	for index, cfg in Catalog.Slippers do
+local function buildSlippers(page: ScrollingFrame, line: { any })
+	for index, cfg in line do
 		local frame = card(page, index, cfg.Color:Lerp(Color3.new(1, 1, 1), 0.55))
 		local top = frame:FindFirstChild("Top") :: Frame
 		local model = Models.Slipper(cfg.Id)
@@ -157,16 +158,56 @@ local function refreshStorage(data: { [string]: any })
 	end
 end
 
+local swimCards: { [number]: TextButton } = {}
+
+local function allShoes(): { any }
+	local list = table.clone(Catalog.Slippers) :: { any }
+	for _, cfg in Catalog.Sneakers do
+		table.insert(list, cfg)
+	end
+	return list
+end
+
+local function buildSwim(page: ScrollingFrame)
+	for index, upgrade in Swim.Upgrades do
+		local frame = card(page, index, upgrade.Color)
+		local top = frame:FindFirstChild("Top") :: Frame
+		Kit.Text(top, { Text = "🏊", Size = UDim2.fromScale(0.6, 0.7), Position = UDim2.fromScale(0.2, 0.15), NoStroke = true })
+		Kit.Text(frame, { Text = upgrade.Name, Size = UDim2.new(1, -12, 0, 26), Position = UDim2.fromOffset(6, 128), TextColor3 = Kit.Colors.Text, NoStroke = true })
+		Kit.Text(frame, { Text = "Swim speed " .. upgrade.Speed, Size = UDim2.new(1, -12, 0, 22), Position = UDim2.fromOffset(6, 156), TextColor3 = Kit.Colors.Blue, NoStroke = true })
+		Kit.Text(frame, { Text = "Outswim faster sharks!", Size = UDim2.new(1, -12, 0, 18), Position = UDim2.fromOffset(6, 180), TextColor3 = Kit.Colors.Gray, NoStroke = true })
+		local button = Kit.Button(frame, { Text = "", Size = UDim2.new(1, -16, 0, 50), Position = UDim2.new(0, 8, 1, -58), Color = Kit.Colors.Green })
+		button.Activated:Connect(function()
+			action("Swim", "Buy", upgrade.Id)
+		end)
+		swimCards[index] = button
+	end
+end
+
 local function refresh(data: { [string]: any })
 	if not window or ClientState.Data == nil then
 		return
 	end
-	for _, cfg in Catalog.Slippers do
+	for _, cfg in allShoes() do
 		local entry = slipperCards[cfg.Id]
 		local owned = table.find(data.OwnedSlippers, cfg.Id) ~= nil
 		local equipped = data.EquippedSlippers == cfg.Id
 		entry.Button.BackgroundColor3 = if equipped then Kit.Colors.Gray elseif owned then Kit.Colors.Blue elseif data.Money >= cfg.Price then Kit.Colors.Green else Kit.Colors.Coral
 		Kit.SetButtonText(entry.Button, if equipped then "EQUIPPED" elseif owned then "EQUIP" elseif not atShop then "AT SHOP " .. FormatNumber.Money(cfg.Price) elseif cfg.Price == 0 then "FREE" else FormatNumber.Money(cfg.Price))
+	end
+	local swimLevel = data.SwimLevel or 0
+	for index, button in swimCards do
+		local upgrade = Swim.Upgrades[index]
+		if index <= swimLevel then
+			Kit.SetButtonText(button, "OWNED")
+			button.BackgroundColor3 = Kit.Colors.Gray
+		elseif index == swimLevel + 1 then
+			Kit.SetButtonText(button, if atShop then FormatNumber.Money(upgrade.Price) else "AT SHOP " .. FormatNumber.Money(upgrade.Price))
+			button.BackgroundColor3 = if data.Money >= upgrade.Price then Kit.Colors.Green else Kit.Colors.Coral
+		else
+			Kit.SetButtonText(button, "LOCKED")
+			button.BackgroundColor3 = Kit.Colors.Gray
+		end
 	end
 	for _, cfg in Catalog.Hats do
 		local entry = hatCards[cfg.Id]
@@ -235,8 +276,8 @@ function Shop.Init(screen: ScreenGui)
 	local tabs = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 56), Parent = window.Content })
 	Kit.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 10), Parent = tabs })
 	local body = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, -66), Position = UDim2.fromOffset(0, 66), Parent = window.Content })
-	for i, name in { "Slippers", "Hats", "Storage", "Index" } do
-		local button = Kit.Button(tabs, { Text = name, Size = UDim2.fromOffset(170, 52), LayoutOrder = i, Color = Kit.Colors.PanelDark })
+	for i, name in { "Slippers", "Sneakers", "Hats", "Swim", "Storage", "Index" } do
+		local button = Kit.Button(tabs, { Text = name, Size = UDim2.fromOffset(148, 52), LayoutOrder = i, Color = Kit.Colors.PanelDark })
 		button.Activated:Connect(function()
 			Sound.Play("Click")
 			showTab(name :: Tab)
@@ -246,7 +287,9 @@ function Shop.Init(screen: ScreenGui)
 		page.Visible = false
 		pages[name] = page
 	end
-	buildSlippers(pages.Slippers)
+	buildSlippers(pages.Slippers, Catalog.Slippers)
+	buildSlippers(pages.Sneakers, Catalog.Sneakers)
+	buildSwim(pages.Swim)
 	buildHats(pages.Hats)
 	storagePage = pages.Storage
 	buildIndex(pages.Index)

@@ -5,7 +5,7 @@ return {
 	BaseDistance = 100, -- studů s Basic Black Slippers bez bonusů
 	MaxDistance = 100_000, -- dál už je jen dárek
 	MaxDistanceWithoutBest = 95_000, -- limit bez nejlepších pantoflí
-	BestSlippersId = "RoyalDiamondSlippers",
+	BestSlippersId = "RoyalDiamondSlippers", -- a také Golden Air Kings (poslední tenisky)
 	RandomSpread = 0.05, -- ± 5 % náhody
 
 	Meter = {

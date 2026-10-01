@@ -10,6 +10,7 @@ local World = require(Shared.Config.World)
 local Spinner = require(Shared.Config.Spinner)
 local Economy = require(Shared.Config.Economy)
 local Formulas = require(Shared.Formulas)
+local Catalog = require(Shared.Catalog)
 local Net = require(Shared.Net)
 
 local Registry = require(script.Parent.Registry)
@@ -22,6 +23,7 @@ export type Session = {
 	House: any?, -- MapBuilder.HouseInfo
 	Passes: { [string]: boolean },
 	Flight: any?, -- JumpService.Flight
+	Swim: any?, -- SwimService.SwimState
 	Charge: { Start: number, Period: number }?,
 	LastJump: number,
 	Returning: boolean,
@@ -123,6 +125,11 @@ function PlayerService.BuildState(session: Session): { [string]: any }
 		GiftsLeftToday = Economy.GiftsPerDay - (if data.GiftsSentDay == day then data.GiftsSentToday else 0),
 		ServerTime = os.time(),
 		Flying = session.Flight ~= nil,
+		SwimLevel = data.SwimLevel,
+		Repellents = data.Repellents,
+		StarterPackBought = data.StarterPackBought,
+		Quests = Registry.Quests.BuildState(session),
+		LoginStreak = data.LoginStreak,
 	}
 end
 
@@ -181,6 +188,7 @@ local function onPlayerAdded(player: Player)
 		House = nil,
 		Passes = {},
 		Flight = nil,
+		Swim = nil,
 		Charge = nil,
 		LastJump = 0,
 		Returning = false,
@@ -202,6 +210,14 @@ local function onPlayerAdded(player: Player)
 	Registry.Economy.ApplyOffline(session)
 	Registry.Avatar.OnSessionLoaded(session)
 	Registry.Tutorial.OnJoin(session)
+	-- obě startovní boty (pantofle i tenisky) zdarma, i pro starší uložená data
+	for _, line in { Catalog.Slippers, Catalog.Sneakers } do
+		local free = line[1]
+		if free and not table.find(session.Data.OwnedSlippers, free.Id) then
+			table.insert(session.Data.OwnedSlippers, free.Id)
+		end
+	end
+	Registry.Quests.OnJoin(session)
 	PlayerService.SendState(session)
 	Registry.Leaderboard.SendTo(player)
 	-- jen pro testování ve Studiu: game.Players.<jméno>:SetAttribute("DevMoney", 1e9) v Command Baru (Server)

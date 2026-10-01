@@ -9,7 +9,26 @@ local Scheduled: { Event } = {
 	-- { Name = "Summer Splash", Start = os.time({year = 2027, month = 7, day = 1, hour = 0}), End = os.time({year = 2027, month = 7, day = 8, hour = 0}), IncomeMultiplier = 2 },
 }
 
+-- Události na serveru každých pár minut (aby se pořád něco dělo)
+export type ServerEventKind = "GoldenRings" | "CoinStorm" | "TreasureTide" | "SharkHoliday" | "MegaJump"
+export type ServerEvent = { Kind: ServerEventKind, Name: string, Description: string, Color: Color3 }
+
+local Rotation: { ServerEvent } = {
+	{ Kind = "GoldenRings", Name = "GOLDEN RINGS", Description = "Rings give double distance!", Color = Color3.fromRGB(255, 200, 40) },
+	{ Kind = "CoinStorm", Name = "COIN STORM", Description = "Coins in the air are worth 3x!", Color = Color3.fromRGB(255, 160, 40) },
+	{ Kind = "TreasureTide", Name = "TREASURE TIDE", Description = "Rarer items from the water!", Color = Color3.fromRGB(170, 90, 255) },
+	{ Kind = "SharkHoliday", Name = "SHARK HOLIDAY", Description = "No sharks! Swim back safely!", Color = Color3.fromRGB(60, 170, 255) },
+	{ Kind = "MegaJump", Name = "MEGA JUMP", Description = "Everyone jumps 25% farther!", Color = Color3.fromRGB(80, 220, 120) },
+}
+
 return {
+	ServerEvents = Rotation,
+	ServerEventInterval = 5 * 60, -- sekund mezi událostmi
+	ServerEventDuration = 90, -- jak dlouho událost běží
+	ServerEventWarning = 15, -- oznámení předem
+	GoldenRingsMultiplier = 2,
+	CoinStormMultiplier = 3,
+	MegaJumpBonus = 0.25,
 	WeekendDoubleMoney = false,
 	WeekendMultiplier = 2,
 	Scheduled = Scheduled,

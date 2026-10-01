@@ -61,6 +61,7 @@ local function spin(player: Player): { [string]: any }
 		return { Ok = false, Message = "No spins left! Come back later." }
 	end
 	spinning[player] = true
+	Registry.Quests.Progress(session, "Spins", 1)
 	local index = chooseSegment()
 	local segment = Spinner.Segments[index]
 	local reward = segment.Reward

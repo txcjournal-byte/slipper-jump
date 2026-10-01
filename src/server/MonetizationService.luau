@@ -7,6 +7,7 @@ local Players = game:GetService("Players")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Products = require(Shared.Config.Products)
+local Swim = require(Shared.Config.Swim)
 local FormatNumber = require(Shared.Util.FormatNumber)
 
 local Registry = require(script.Parent.Registry)
@@ -76,7 +77,17 @@ end
 local function grantProduct(session: Session, product: Products.DevProduct)
 	local player: Player = session.Player
 	local key = product.Key
-	if key == "SuperJump" then
+	if key == "StarterPack" then
+		local pack = Products.StarterPack
+		session.Data.StarterPackBought = true
+		Registry.Economy.AddMoney(session, pack.Money)
+		Registry.Spinner.AddSpins(session, pack.Spins)
+		session.Data.Repellents += pack.Repellents
+		Registry.Player.Notify(player, "Starter Pack unlocked! Have fun!", "Success")
+	elseif key == "SharkRepellent" then
+		session.Data.Repellents += Swim.RepellentSwims
+		Registry.Player.Notify(player, "Shark Repellent! No shark for your next " .. Swim.RepellentSwims .. " swims.", "Success")
+	elseif key == "SuperJump" then
 		session.Data.SuperJumps += 1
 		Registry.Player.Notify(player, "Super Jump ready! Your next jump goes 20% farther.", "Success")
 	elseif key == "Spin1" then

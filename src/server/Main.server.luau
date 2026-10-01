@@ -23,6 +23,9 @@ local services: { [string]: any } = {
 	Tutorial = require(script.Parent.TutorialService),
 	Monetization = require(script.Parent.MonetizationService),
 	Data = require(script.Parent.DataService),
+	Swim = require(script.Parent.SwimService),
+	ServerEvents = require(script.Parent.ServerEventService),
+	Quests = require(script.Parent.QuestService),
 }
 
 for name, service in services do

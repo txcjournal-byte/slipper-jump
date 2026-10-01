@@ -16,6 +16,7 @@ local RobuxShop = {}
 
 local window: Kit.Window
 local passButtons: { [string]: TextButton } = {}
+local starterCard: GuiObject? = nil
 
 local function oddsText(): string
 	local total = 0
@@ -67,18 +68,24 @@ function RobuxShop.Init(screen: ScreenGui)
 	local productGrid = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 4, Parent = scroll })
 	Kit.new("UIGridLayout", { CellSize = UDim2.fromOffset(220, 200), CellPadding = UDim2.fromOffset(12, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = productGrid })
 	for i, product in Products.DevProducts do
-		item(productGrid, i, product.Name, product.Description, product.Price, product.Color, function()
+		local button = item(productGrid, i, product.Name, product.Description, product.Price, product.Color, function()
 			if product.Id == 0 then
 				HUD.Notify("This product is not set up yet (Config/Products.luau).", "Warning")
 				return
 			end
 			MarketplaceService:PromptProductPurchase(Players.LocalPlayer, product.Id)
 		end)
+		if product.Key == "StarterPack" then
+			starterCard = button.Parent :: GuiObject
+		end
 	end
 	-- šance pro placená točení musí být vidět
 	Kit.Text(scroll, { Text = oddsText(), Size = UDim2.new(1, 0, 0, 60), LayoutOrder = 5, TextColor3 = Kit.Colors.Text, NoStroke = true, TextWrapped = true })
 
 	ClientState.Changed:Connect(function(data)
+		if starterCard then
+			starterCard.Visible = data.StarterPackBought ~= true
+		end
 		for key, button in passButtons do
 			if data.Passes and data.Passes[key] then
 				Kit.SetButtonText(button, "OWNED")
@@ -87,6 +94,19 @@ function RobuxShop.Init(screen: ScreenGui)
 			end
 		end
 	end)
+end
+
+function RobuxShop.Prompt(key: string)
+	for _, product in Products.DevProducts do
+		if product.Key == key then
+			if product.Id == 0 then
+				HUD.Notify("This product is not set up yet (Config/Products.luau).", "Warning")
+			else
+				MarketplaceService:PromptProductPurchase(Players.LocalPlayer, product.Id)
+			end
+			return
+		end
+	end
 end
 
 function RobuxShop.Toggle()

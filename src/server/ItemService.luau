@@ -19,8 +19,8 @@ local ItemService = {}
 
 local rng = Random.new()
 
-function ItemService.RollRarity(distance: number): string
-	local zone = Catalog.Zones[Formulas.ZoneIndex(distance)]
+function ItemService.RollRarity(distance: number, zoneShift: number?): string
+	local zone = Catalog.Zones[math.min(Formulas.ZoneIndex(distance) + (zoneShift or 0), #Catalog.Zones)]
 	local total = 0
 	for _, chance in zone.Chances do
 		total += chance
@@ -47,8 +47,8 @@ function ItemService.RandomOfRarity(rarity: string): string
 	return list[rng:NextInteger(1, #list)].Id
 end
 
-function ItemService.Roll(distance: number, forcedRarity: string?): string
-	return ItemService.RandomOfRarity(forcedRarity or ItemService.RollRarity(distance))
+function ItemService.Roll(distance: number, forcedRarity: string?, zoneShift: number?): string
+	return ItemService.RandomOfRarity(forcedRarity or ItemService.RollRarity(distance, zoneShift))
 end
 
 function ItemService.FreeSlot(session: Session): number?

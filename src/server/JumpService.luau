@@ -9,6 +9,8 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Jump = require(Shared.Config.Jump)
 local World = require(Shared.Config.World)
 local Tutorial = require(Shared.Config.Tutorial)
+local Events = require(Shared.Config.Events)
+local Swim = require(Shared.Config.Swim)
 local Formulas = require(Shared.Formulas)
 local Catalog = require(Shared.Catalog)
 local Net = require(Shared.Net)
@@ -38,6 +40,7 @@ export type Flight = {
 	Samples: { Sample },
 	Finished: boolean,
 	SuperJump: boolean,
+	RingBonus: number,
 }
 
 local JumpService = {}
@@ -147,7 +150,8 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		* (1 + bonus)
 		* (1 + rng:NextNumber(-Jump.RandomSpread, Jump.RandomSpread))
 		* (if superJump then 1 + Jump.SuperJumpBonus else 1)
-	local cap = if data.EquippedSlippers == Jump.BestSlippersId then Jump.MaxDistance else Jump.MaxDistanceWithoutBest
+		* (if Registry.ServerEvents.IsActive("MegaJump") then 1 + Events.MegaJumpBonus else 1)
+	local cap = if Catalog.IsBestShoe(data.EquippedSlippers) then Jump.MaxDistance else Jump.MaxDistanceWithoutBest
 	distance = math.clamp(distance, 10, cap)
 
 	local startPosition = root.Position
@@ -202,10 +206,12 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		Tier = tier,
 		Coins = coins,
 		Rings = rings,
-		CoinValue = Registry.Economy.IncomePerSecond(session) * c.CoinValueSeconds,
+		CoinValue = math.max(1, Registry.Economy.IncomePerSecond(session) * c.CoinValueSeconds)
+			* (if Registry.ServerEvents.IsActive("CoinStorm") then Events.CoinStormMultiplier else 1),
 		Samples = {},
 		Finished = false,
 		SuperJump = superJump,
+		RingBonus = c.RingBonus * (if Registry.ServerEvents.IsActive("GoldenRings") then Events.GoldenRingsMultiplier else 1),
 	}
 	session.Flight = flight
 	session.LastJump = os.clock()
@@ -227,6 +233,7 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		Rings = ringList,
 		CoinValue = flight.CoinValue,
 		SuperJump = superJump,
+		RingBonus = flight.RingBonus,
 	})
 	effectEvent:FireAllClients("Takeoff", { UserId = player.UserId, Tier = tier, Slippers = data.EquippedSlippers })
 
@@ -267,7 +274,7 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 		end
 	end
 
-	local distance = math.min(flight.BaseDistance * (1 + c.RingBonus * ringCount), flight.Cap)
+	local distance = math.min(flight.BaseDistance * (1 + flight.RingBonus * ringCount), flight.Cap)
 	local reachedGift = distance >= World.GiftDistance
 	if reachedGift then
 		distance = World.GiftDistance
@@ -286,7 +293,8 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	end
 	local item, placement, isNew
 	if not reachedGift then
-		item, placement, isNew = Registry.Items.Give(session, Registry.Items.Roll(distance, forced))
+		local zoneShift = if Registry.ServerEvents.IsActive("TreasureTide") then 1 else 0
+		item, placement, isNew = Registry.Items.Give(session, Registry.Items.Roll(distance, forced, zoneShift))
 	end
 
 	data.TotalJumps += 1
@@ -297,6 +305,13 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	Registry.Leaderboard.OnJump(session, distance)
 	Registry.Level.AddXP(session, xp)
 	Registry.Tutorial.OnJumped(session)
+	Registry.Quests.Progress(session, "Jumps", 1)
+	Registry.Quests.Progress(session, "Coins", coinCount)
+	Registry.Quests.Progress(session, "Rings", ringCount)
+	Registry.Quests.Progress(session, "Distance", distance)
+	if flight.Tier == "Perfect" then
+		Registry.Quests.Progress(session, "Perfects", 1)
+	end
 
 	local cfg = item and Catalog.Item(item.Id)
 	jumpResultEvent:FireClient(player, {
@@ -321,13 +336,20 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 
 	session.Returning = true
 	Registry.Avatar.SetFlightEffects(session, false)
-	task.delay(if reachedGift then Jump.GiftReturnDelay else Jump.ReturnDelay, function()
-		if session.Flight == flight then
-			session.Flight = nil
-			Registry.Player.ReturnToBeach(session)
-			Registry.Player.MarkDirty(session)
-		end
-	end)
+	if reachedGift then
+		task.delay(Jump.GiftReturnDelay, function()
+			if session.Flight == flight then
+				session.Flight = nil
+				Registry.Player.ReturnToBeach(session)
+				Registry.Player.MarkDirty(session)
+			end
+		end)
+	else
+		-- plavání zpět k voru (honí ho žralok)
+		task.delay(Swim.StartDelay, function()
+			Registry.Swim.Begin(session, flight, distance)
+		end)
+	end
 end
 
 function JumpService.Landed(player: Player, flightId: unknown, coinIds: unknown, ringIds: unknown)

@@ -31,6 +31,13 @@ local announceHolder: Frame
 local spinBadge: TextLabel
 local rebirthButton: TextButton
 local superJumpLabel: TextLabel
+local eventPanel: Frame
+local eventName: TextLabel
+local eventDesc: TextLabel
+local eventEndsAt = 0
+local eventTitle = ""
+local starterButton: TextButton
+local questBadge: Frame
 
 local callbacks: { [string]: () -> () } = {}
 local displayedMoney = 0
@@ -213,8 +220,8 @@ function HUD.Init()
 	-- ===== Tlačítka vlevo =====
 	local left = Kit.new("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(110, 360),
-		Position = UDim2.new(0, 16, 0.5, 20),
+		Size = UDim2.fromOffset(110, 460),
+		Position = UDim2.new(0, 16, 0.5, 60),
 		AnchorPoint = Vector2.new(0, 0.5),
 		Parent = screen,
 	})
@@ -233,13 +240,25 @@ function HUD.Init()
 	Kit.Corner(badgeFrame, 19)
 	Kit.Stroke(badgeFrame, 3, Kit.Colors.Outline, true)
 	spinBadge = Kit.Text(badgeFrame, { Text = "1", Size = UDim2.new(1, -6, 1, -6), Position = UDim2.fromOffset(3, 3), ZIndex = 6 })
-	rebirthButton = sideButton(left, "♻", "REBIRTH", Kit.Colors.Purple, 3, "Rebirth")
+	local questButton = sideButton(left, "📜", "QUESTS", Kit.Colors.Orange, 3, "Quests")
+	questBadge = Kit.new("Frame", {
+		BackgroundColor3 = Kit.Colors.Coral,
+		Size = UDim2.fromOffset(26, 26),
+		Position = UDim2.new(1, 6, 0, -6),
+		AnchorPoint = Vector2.new(1, 0),
+		ZIndex = 5,
+		Visible = false,
+		Parent = questButton,
+	})
+	Kit.Corner(questBadge, 13)
+	Kit.Stroke(questBadge, 3, Kit.Colors.Outline, true)
+	rebirthButton = sideButton(left, "♻", "REBIRTH", Kit.Colors.Purple, 4, "Rebirth")
 	rebirthButton.Visible = false
 
 	-- ===== Tlačítka vpravo (Robux košík, nastavení) =====
 	local right = Kit.new("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(110, 230),
+		Size = UDim2.fromOffset(110, 330),
 		Position = UDim2.new(1, -16, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
 		Parent = screen,
@@ -247,6 +266,20 @@ function HUD.Init()
 	Kit.new("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Right, Parent = right })
 	sideButton(right, "🛒", "STORE", Kit.Colors.Green, 1, "RobuxShop")
 	sideButton(right, "⚙", "SETTINGS", Kit.Colors.Gray, 2, "Settings")
+	starterButton = sideButton(right, "🎁", "STARTER", Kit.Colors.Pink, 0, "StarterPack")
+	starterButton.Visible = false
+
+	-- ===== Událost na serveru (vpravo nahoře) =====
+	eventPanel = Kit.Panel(screen, {
+		Size = UDim2.fromOffset(330, 92),
+		Position = UDim2.new(1, -16, 0, 14),
+		AnchorPoint = Vector2.new(1, 0),
+		BackgroundColor3 = Kit.Colors.Yellow,
+		Visible = false,
+	})
+	Kit.Gradient(eventPanel, Color3.new(1, 1, 1), Color3.fromRGB(215, 215, 215))
+	eventName = Kit.Text(eventPanel, { Text = "", Size = UDim2.new(1, -20, 0, 42), Position = UDim2.fromOffset(10, 6), StrokeThickness = 3 })
+	eventDesc = Kit.Text(eventPanel, { Text = "", Size = UDim2.new(1, -20, 0, 32), Position = UDim2.fromOffset(10, 50), StrokeThickness = 2 })
 
 	-- ===== Co nese hráč =====
 	carryPanel = Kit.Panel(screen, {
@@ -302,6 +335,11 @@ function HUD.Init()
 					displayedMoney += (target - displayedMoney) * 0.35
 				end
 				moneyLabel.Text = FormatNumber.Money(displayedMoney)
+				local eventLeft = eventEndsAt - ClientState.ServerNow()
+				eventPanel.Visible = eventLeft > 0
+				if eventLeft > 0 then
+					eventName.Text = "⚡ " .. eventTitle .. "  " .. FormatNumber.Time(eventLeft)
+				end
 				local boostLeft = (data.BoostUntil :: number) - ClientState.ServerNow()
 				boostPill.Visible = boostLeft > 0
 				if boostLeft > 0 then
@@ -332,6 +370,14 @@ function HUD.Refresh(data: { [string]: any })
 	local badgeFrame = spinBadge.Parent :: Frame
 	badgeFrame.Visible = spins > 0
 	rebirthButton.Visible = data.CanRebirth == true
+	starterButton.Visible = data.StarterPackBought ~= true
+	local unfinished = false
+	for _, quest in data.Quests or {} do
+		if not quest.Done then
+			unfinished = true
+		end
+	end
+	questBadge.Visible = unfinished
 	local carried = data.Carried
 	carryPanel.Visible = carried ~= nil
 	if carried then
@@ -341,6 +387,20 @@ function HUD.Refresh(data: { [string]: any })
 			carryLabel.Text = "Carrying: " .. cfg.Name .. " (" .. rarity.Name .. ", +" .. FormatNumber.Money(cfg.Income) .. "/s)"
 			carryLabel.TextColor3 = if rarity.Name == "Secret" or rarity.Name == "Common" then Kit.Colors.White else rarity.Color
 		end
+	end
+end
+
+function HUD.SetServerEvent(info: { [string]: any }?)
+	if info then
+		eventEndsAt = info.EndsAt
+		eventTitle = info.Name
+		eventName.Text = "⚡ " .. info.Name
+		eventDesc.Text = info.Description
+		eventPanel.BackgroundColor3 = info.Color
+		Kit.Pop(eventPanel, 1.2)
+	else
+		eventEndsAt = 0
+		eventPanel.Visible = false
 	end
 end
 

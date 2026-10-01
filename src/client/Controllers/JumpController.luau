@@ -12,6 +12,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Jump = require(Shared.Config.Jump)
+local Swim = require(Shared.Config.Swim)
 local World = require(Shared.Config.World)
 local Formulas = require(Shared.Formulas)
 local Catalog = require(Shared.Catalog)
@@ -26,6 +27,8 @@ local Effects = require(script.Parent.Parent.Effects.Effects)
 
 local JumpController = {}
 
+local updateSwim: (any, BasePart, number) -> ()
+
 local player = Players.LocalPlayer
 
 type Collectible = { Id: string, Position: Vector3, Part: Model?, Taken: boolean }
@@ -34,7 +37,7 @@ type FlightState = {
 	Id: number,
 	Info: { [string]: any },
 	StartClock: number,
-	Phase: "Main" | "Glide" | "Landed" | "Returned",
+	Phase: "Main" | "Glide" | "Landed" | "Swim" | "Returned",
 	Z: number,
 	Coins: { Collectible },
 	Rings: { Collectible },
@@ -46,6 +49,13 @@ type FlightState = {
 	LastX: number,
 	LandPosition: Vector3?,
 	Folder: Folder,
+	-- plavání zpět
+	SwimInfo: { [string]: any }?,
+	SwimStart: number,
+	SwimProgress: number,
+	SwimEnded: boolean,
+	Shark: Model?,
+	ExpectedPosition: Vector3?,
 }
 
 local screen: ScreenGui
@@ -273,9 +283,10 @@ local function checkCollect(state: FlightState, fromX: number, toX: number, y: n
 				table.insert(state.CollectedRings, ring.Id)
 				collectEffect(ring.Part, Color3.fromRGB(255, 255, 255))
 				Sound.Play("Ring")
-				ringsLabel.Text = "⭕ " .. #state.CollectedRings .. "  (+" .. math.floor(#state.CollectedRings * c.RingBonus * 100) .. "%)"
+				local ringBonus = state.Info.RingBonus or c.RingBonus
+				ringsLabel.Text = "⭕ " .. #state.CollectedRings .. "  (+" .. math.floor(#state.CollectedRings * ringBonus * 100 + 0.5) .. "%)"
 				Kit.Pop(ringsLabel, 1.3)
-				Effects.BigText("+" .. math.floor(c.RingBonus * 100) .. "% DISTANCE!", Kit.Colors.Yellow, 0.7, 0.36)
+				Effects.BigText("+" .. math.floor(ringBonus * 100 + 0.5) .. "% DISTANCE!", Kit.Colors.Yellow, 0.7, 0.36)
 			end
 		end
 	end
@@ -371,6 +382,12 @@ local function startFlight(info: { [string]: any })
 		LastX = info.StartPosition.X,
 		LandPosition = nil,
 		Folder = folder,
+		SwimInfo = nil,
+		SwimStart = 0,
+		SwimProgress = 0,
+		SwimEnded = false,
+		Shark = nil,
+		ExpectedPosition = nil,
 	}
 	flight = state
 	setInZone(false)
@@ -407,6 +424,206 @@ local function startFlight(info: { [string]: any })
 	end
 end
 
+-- ===== Plavání zpět (vor a žralok) =====
+
+local swimHud: Frame
+local swimBarYou: Frame
+local swimBarShark: Frame
+local swimHint: TextLabel
+
+local function raftModel(position: Vector3, parent: Instance): Model
+	local m = Instance.new("Model")
+	m.Name = "Raft"
+	local function add(size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?, shape: Enum.PartType?): Part
+		local p = Instance.new("Part")
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.Size = size
+		p.CFrame = cf
+		p.Color = color
+		p.Material = material or Enum.Material.Wood
+		p.Shape = shape or Enum.PartType.Block
+		p.Parent = m
+		return p
+	end
+	for i = -3, 3 do
+		-- kulatiny (válec leží podél osy X)
+		add(Vector3.new(14, 1.6, 1.6), CFrame.new(position + Vector3.new(0, 0.3, i * 1.9)), Color3.fromRGB(190, 135, 80), Enum.Material.Wood, Enum.PartType.Cylinder)
+	end
+	add(Vector3.new(0.4, 9, 0.4), CFrame.new(position + Vector3.new(0, 5, 0)), Color3.fromRGB(110, 75, 45))
+	local flag = add(Vector3.new(0.2, 3, 5), CFrame.new(position + Vector3.new(0, 8, 2.6)), Color3.fromRGB(80, 220, 110), Enum.Material.SmoothPlastic)
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(200, 60)
+	gui.StudsOffset = Vector3.new(0, 4, 0)
+	gui.AlwaysOnTop = true
+	gui.Parent = flag
+	local label = Kit.Text(gui, { Text = "SAFE!", Size = UDim2.fromScale(1, 1), TextColor3 = Kit.Colors.Green, StrokeThickness = 3 })
+	label.Name = "SafeLabel"
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(120, 255, 150)
+	light.Range = 20
+	light.Parent = flag
+	m.Parent = parent
+	return m
+end
+
+local function sharkModel(parent: Instance): Model
+	local m = Instance.new("Model")
+	m.Name = "Shark"
+	local gray = Color3.fromRGB(110, 125, 145)
+	local function add(className: string, size: Vector3, cf: CFrame, color: Color3, shape: Enum.PartType?): BasePart
+		local p = Instance.new(className) :: BasePart
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.Size = size
+		p.CFrame = cf
+		p.Color = color
+		p.Material = Enum.Material.SmoothPlastic
+		if shape and p:IsA("Part") then
+			p.Shape = shape
+		end
+		p.Parent = m
+		return p
+	end
+	-- žralok pluje ve směru -Z modelu
+	local body = add("Part", Vector3.new(4.5, 3.6, 12), CFrame.new(0, -0.8, 0), gray, Enum.PartType.Ball)
+	add("Part", Vector3.new(3.4, 1.6, 9), CFrame.new(0, -1.8, -0.5), Color3.fromRGB(235, 235, 240), Enum.PartType.Ball)
+	add("WedgePart", Vector3.new(0.6, 3.6, 3.2), CFrame.new(0, 2.4, 0.6), gray)
+	add("WedgePart", Vector3.new(0.5, 3, 2.4), CFrame.new(0, 0.2, 7) * CFrame.Angles(math.rad(180), 0, 0), gray)
+	for _, side in { -1, 1 } do
+		add("Part", Vector3.new(0.7, 0.7, 0.7), CFrame.new(side * 1.6, 0, -4.2), Color3.fromRGB(20, 20, 25), Enum.PartType.Ball)
+	end
+	-- usměvavé zuby (kreslený styl, nic strašidelného)
+	add("Part", Vector3.new(2.6, 0.35, 0.3), CFrame.new(0, -1.2, -5.6), Color3.new(1, 1, 1))
+	m.PrimaryPart = body
+	m.Parent = parent
+	return m
+end
+
+local function startSwim(info: { [string]: any })
+	local state = flight
+	if not state or state.Phase == "Returned" then
+		return
+	end
+	state.Phase = "Swim"
+	state.SwimInfo = info
+	state.SwimStart = os.clock()
+	state.SwimProgress = 0
+	state.SwimEnded = false
+	state.Z = info.StartZ
+	raftModel(Vector3.new(info.StartX - info.Distance, info.Y, info.StartZ), state.Folder)
+	if not info.NoShark then
+		local shark = sharkModel(state.Folder)
+		shark:PivotTo(CFrame.new(0, -500, 0))
+		state.Shark = shark
+	end
+	swimHud.Visible = true
+	swimBarShark.Visible = not info.NoShark
+	flightHud.Visible = false
+	if info.NoShark then
+		Effects.BigText(if info.UsedRepellent then "SHARK REPELLENT! SWIM!" else "SWIM TO THE RAFT!", Kit.Colors.Turquoise, 1.4, 0.25)
+	else
+		Effects.BigText("SWIM TO THE RAFT!", Kit.Colors.Turquoise, 1.2, 0.25)
+		task.delay(info.SharkDelay, function()
+			if flight == state and not state.SwimEnded then
+				Effects.BigText("SHARK!!! SWIM FASTER!", Kit.Colors.Coral, 1.2, 0.3)
+				Sound.Play("Fanfare", 0.6)
+			end
+		end)
+	end
+	swimHint.Visible = true
+	task.delay(3, function()
+		swimHint.Visible = false
+	end)
+end
+
+updateSwim = function(state: FlightState, root: BasePart, dt: number)
+	local info = state.SwimInfo
+	if not info then
+		return
+	end
+	local elapsed = os.clock() - state.SwimStart
+	if not state.SwimEnded then
+		if not controls then
+			controls = getControls()
+		end
+		local move = if controls then controls:GetMoveVector() else Vector3.zero
+		local forward = math.clamp(-move.Z, 0, 1)
+		state.SwimProgress = math.min(info.Distance, state.SwimProgress + info.Speed * forward * dt)
+		state.Z = math.clamp(state.Z - move.X * info.Speed * 0.5 * dt, -40, 40)
+	end
+	local position = Vector3.new(info.StartX - state.SwimProgress, info.Y + 0.4 + math.sin(os.clock() * 6) * 0.15, state.Z)
+	state.ExpectedPosition = position
+	-- plavecká poloha: břichem dolů, hlavou k voru (-X)
+	root.CFrame = CFrame.lookAt(position, position - Vector3.xAxis) * CFrame.Angles(math.rad(-80), 0, math.sin(os.clock() * 8) * 0.2)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	-- žralok
+	local sharkProgress = Formulas.SharkProgress(elapsed, info.SharkSpeed)
+	local shark = state.Shark
+	if shark then
+		if elapsed < info.SharkDelay then
+			-- ploutev se blíží zezadu
+			local behind = Vector3.new(info.StartX + 30 - (elapsed / info.SharkDelay) * 30, info.Y - 1.6, state.Z + 6)
+			shark:PivotTo(CFrame.lookAt(behind, behind - Vector3.xAxis))
+		else
+			local sx = info.StartX - math.min(sharkProgress, state.SwimProgress + 2)
+			local sharkPos = Vector3.new(sx, info.Y + 0.6, state.Z + math.sin(os.clock() * 3) * 1.5)
+			shark:PivotTo(CFrame.lookAt(sharkPos, sharkPos - Vector3.xAxis))
+		end
+	end
+	-- ukazatel: ty vs. žralok
+	swimBarYou.Size = UDim2.fromScale(math.clamp(state.SwimProgress / info.Distance, 0, 1), 1)
+	swimBarShark.Position = UDim2.fromScale(math.clamp(sharkProgress / info.Distance, 0, 1), 0.5)
+	-- kamera za hráčem (vidí žraloka i vor)
+	local camera = Workspace.CurrentCamera
+	if camera then
+		local camPos = position + Vector3.new(24, 11, 0)
+		camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(camPos, position - Vector3.new(18, 2, 0)), 0.15)
+	end
+end
+
+local function endSwim(result: { [string]: any })
+	local state = flight
+	if not state then
+		return
+	end
+	state.SwimEnded = true
+	if result.Success then
+		Effects.BigText("SAFE! +" .. FormatNumber.Money(result.Bonus), Kit.Colors.Green, 1.4, 0.28)
+		Effects.ScreenConfetti(60)
+		Sound.Play("Coin")
+	elseif result.Reason == "Shark" then
+		Effects.BigText("CHOMP! The shark got you!", Kit.Colors.Coral, 1.4, 0.28)
+		local pos = state.ExpectedPosition
+		if pos then
+			Effects.Splash(pos, true)
+		end
+		if state.SwimInfo and state.SwimInfo.CanUpgrade then
+			HUD.Notify("Swim faster! Buy swim gear in the SHOP (Swim tab).", "Info")
+		end
+	else
+		Effects.BigText("Too slow!", Kit.Colors.Orange, 1.2, 0.28)
+	end
+	task.delay(Swim.ReturnDelay - 0.45, function()
+		Effects.Fade(true, 0.35)
+	end)
+	task.delay(Swim.ReturnDelay + 0.15, function()
+		if flight == state then
+			state.Folder:Destroy()
+			flight = nil
+		end
+		swimHud.Visible = false
+		setCharacterFlying(false)
+		endFlightVisuals()
+		Effects.Fade(false, 0.5)
+	end)
+end
+
 local function updateFlight(dt: number)
 	local state = flight
 	if not state then
@@ -421,8 +638,13 @@ local function updateFlight(dt: number)
 		return
 	end
 	-- server hráče přenesl na pláž → přestat řídit postavu
-	if state.Phase == "Landed" and state.LandPosition and (root.Position - state.LandPosition).Magnitude > 40 then
+	local expected = if state.Phase == "Swim" then state.ExpectedPosition else state.LandPosition
+	if (state.Phase == "Landed" or state.Phase == "Swim") and expected and (root.Position - expected).Magnitude > 40 then
 		state.Phase = "Returned"
+		return
+	end
+	if state.Phase == "Swim" then
+		updateSwim(state, root, dt)
 		return
 	end
 	local info = state.Info
@@ -440,7 +662,7 @@ local function updateFlight(dt: number)
 		if p >= 1 then
 			-- dolet díky kruhům
 			local c = Jump.Collectibles
-			local final = math.min(info.BaseDistance * (1 + c.RingBonus * #state.CollectedRings), info.Cap)
+			local final = math.min(info.BaseDistance * (1 + (info.RingBonus or c.RingBonus) * #state.CollectedRings), info.Cap)
 			state.FinalDistance = final
 			local extra = final - info.BaseDistance
 			if extra > 1 then
@@ -521,7 +743,7 @@ local function showResult(result: { [string]: any })
 			model:PivotTo(start * CFrame.new(0, alpha * 7, 0) * CFrame.Angles(0, alpha * math.pi * 2, 0))
 		end)
 		TweenService:Create(value, TweenInfo.new(1.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Value = 1 }):Play()
-		task.delay(Jump.ReturnDelay + 0.5, function()
+		task.delay(4, function()
 			model:Destroy()
 			value:Destroy()
 		end)
@@ -533,7 +755,10 @@ local function showResult(result: { [string]: any })
 		Effects.WorldConfetti(landing + Vector3.new(60, 40, 0), 120, 6)
 		Effects.ScreenConfetti(150)
 	end
-	local delayTime = if result.ReachedGift then Jump.GiftReturnDelay else Jump.ReturnDelay
+	if not result.ReachedGift then
+		return -- dál pokračuje plavání (SwimStart / SwimResult)
+	end
+	local delayTime = Jump.GiftReturnDelay
 	task.delay(delayTime - 0.45, function()
 		Effects.Fade(true, 0.35)
 	end)
@@ -640,6 +865,16 @@ function JumpController.Init(parentScreen: ScreenGui)
 	ringsLabel = Kit.Text(flightHud, { Text = "⭕ 0", Size = UDim2.fromOffset(340, 54), Position = UDim2.new(0, 24, 0, 90), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(255, 230, 120) })
 	steerHint = Kit.Text(flightHud, { Text = "Steer with A / D or the joystick!", Size = UDim2.fromOffset(600, 44), Position = UDim2.new(0.5, 0, 1, -60), AnchorPoint = Vector2.new(0.5, 1), TextColor3 = Kit.Colors.White })
 
+	swimHud = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Visible = false, Parent = screen })
+	local bar = Kit.Panel(swimHud, { Size = UDim2.fromOffset(560, 44), Position = UDim2.new(0.5, 0, 0, 30), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.fromRGB(40, 80, 140), Radius = 20 })
+	swimBarYou = Kit.new("Frame", { BackgroundColor3 = Kit.Colors.Green, Size = UDim2.fromScale(0, 1), Parent = bar })
+	Kit.Corner(swimBarYou, 20)
+	Kit.Text(bar, { Text = "🏊 YOU  →  🛟 RAFT", Size = UDim2.new(1, -20, 1, -10), Position = UDim2.fromOffset(10, 5), ZIndex = 3 })
+	swimBarShark = Kit.Text(bar, { Text = "🦈", Size = UDim2.fromOffset(48, 48), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), NoStroke = true, ZIndex = 4 }) :: any
+	swimHint = Kit.Text(swimHud, { Text = "Hold W / joystick forward to swim!", Size = UDim2.fromOffset(640, 46), Position = UDim2.new(0.5, 0, 1, -60), AnchorPoint = Vector2.new(0.5, 1) })
+	Net.Event("SwimStart").OnClientEvent:Connect(startSwim)
+	Net.Event("SwimResult").OnClientEvent:Connect(endSwim)
+
 	Net.Event("FlightStart").OnClientEvent:Connect(startFlight)
 	Net.Event("JumpResult").OnClientEvent:Connect(function(result)
 		local state = flight
@@ -669,6 +904,7 @@ function JumpController.Init(parentScreen: ScreenGui)
 			flight.Folder:Destroy()
 			flight = nil
 		end
+		swimHud.Visible = false
 		charging = false
 		destroyMeter()
 		endFlightVisuals()

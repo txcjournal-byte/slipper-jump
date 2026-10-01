@@ -217,6 +217,8 @@ local function onEffect(kind: string, info: { [string]: any })
 		if root then
 			Effects.WorldConfetti(root.Position + Vector3.new(0, 3, 0), 40)
 		end
+	elseif kind == "Quest" then
+		Effects.ScreenConfetti(40)
 	elseif kind == "Rebirth" then
 		Effects.BigText("REBIRTH " .. info.Rebirths .. "!", Kit.Colors.Purple, 2)
 		Effects.ScreenConfetti(150)

@@ -45,12 +45,18 @@ export type Data = {
 	Discovered: { [string]: boolean },
 	NextUid: number,
 	SuperJumps: number,
+	SwimLevel: number,
+	Repellents: number,
+	StarterPackBought: boolean,
+	Quests: { Day: number, List: { { Index: number, Progress: number, Done: boolean } } },
+	LoginDay: number,
+	LoginStreak: number,
 }
 
 local TEMPLATE: Data = {
 	Money = Economy.StartingMoney,
 	TotalEarned = 0,
-	OwnedSlippers = { "BasicBlackSlippers" },
+	OwnedSlippers = { "BasicBlackSlippers", "MuddyOldSneakers" },
 	EquippedSlippers = "BasicBlackSlippers",
 	OwnedHats = {},
 	EquippedHat = "",
@@ -82,6 +88,12 @@ local TEMPLATE: Data = {
 	Discovered = {},
 	NextUid = 1,
 	SuperJumps = 0,
+	SwimLevel = 0,
+	Repellents = 0,
+	StarterPackBought = false,
+	Quests = { Day = 0, List = {} },
+	LoginDay = 0,
+	LoginStreak = 0,
 }
 
 local store = ProfileStore.New("SlipperJump_PlayerData_v1", TEMPLATE)

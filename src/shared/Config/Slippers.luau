@@ -15,6 +15,9 @@ export type Slipper = {
 	TrailColor: Color3,
 	Effect: Effect,
 	EffectText: string,
+	Style: ("Slipper" | "Sneaker")?, -- tvar modelu (nil = pantofel)
+	HighTop: boolean?, -- tenisky: kotníkové
+	Worn: boolean?, -- tenisky: ošoupané / ošklivé
 }
 
 local Slippers: { Slipper } = {

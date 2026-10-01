@@ -107,6 +107,63 @@ local function eyes(b: Builder, y: number, z: number, spread: number, size: numb
 	end
 end
 
+-- ===== Tenisky (jeden kus, špička míří na -Z) =====
+
+local function sneaker(id: string, cfg: any): Model
+	local color, accent = cfg.Color, cfg.Accent
+	local e = cfg.Effect
+	local upperMaterial = Enum.Material.SmoothPlastic
+	if e == "Crown" then
+		upperMaterial = METAL
+	elseif e == "Crystals" or e == "Stars" then
+		upperMaterial = GLASS
+	elseif cfg.Worn then
+		upperMaterial = Enum.Material.Fabric
+	end
+	local soleColor = if cfg.Worn then Color3.fromRGB(150, 130, 105) elseif e == "Crown" then Color3.fromRGB(255, 240, 200) else WHITE
+	local b = newBuilder(id, Vector3.new(1.35, 0.42, 2.5), soleColor, BLOCK)
+	-- podrážka se zaoblenou špičkou a pruhem
+	b:Add(CYL, Vector3.new(0.42, 1.35, 1.35), CFrame.new(0, 0, -1.2) * CFrame.Angles(0, 0, math.rad(90)), soleColor)
+	b:Add(BLOCK, Vector3.new(1.38, 0.1, 2.5), CFrame.new(0, -0.12, 0), if cfg.Worn then Color3.fromRGB(110, 95, 80) else accent)
+	-- svršek
+	b:Add(BLOCK, Vector3.new(1.22, 0.8, 1.9), CFrame.new(0, 0.6, 0.25), color, upperMaterial)
+	b:Add(BALL, Vector3.new(1.22, 0.9, 1.3), CFrame.new(0, 0.42, -0.75), color, upperMaterial)
+	-- jazyk a tkaničky
+	b:Add(BLOCK, Vector3.new(0.7, 0.5, 0.9), CFrame.new(0, 1.05, -0.1) * CFrame.Angles(math.rad(-20), 0, 0), accent)
+	for i = 0, 2 do
+		b:Add(BLOCK, Vector3.new(0.9, 0.1, 0.12), CFrame.new(0, 1.0 + i * 0.03, -0.45 + i * 0.28), if cfg.Worn then Color3.fromRGB(170, 160, 140) else WHITE)
+	end
+	-- boční pruh (vlastní design, žádné logo)
+	for _, side in { -1, 1 } do
+		b:Add("Wedge", Vector3.new(0.08, 0.45, 1.3), CFrame.new(side * 0.62, 0.55, 0.3), accent, if e == "Leds" or e == "Crown" then NEON else Enum.Material.SmoothPlastic)
+	end
+	if cfg.HighTop then
+		b:Add(BLOCK, Vector3.new(1.18, 0.9, 1.1), CFrame.new(0, 1.35, 0.6), color, upperMaterial)
+		b:Add(BLOCK, Vector3.new(1.22, 0.2, 1.14), CFrame.new(0, 1.82, 0.6), accent)
+	end
+	if cfg.Worn then
+		-- izolepa a bláto
+		b:Add(BLOCK, Vector3.new(1.3, 0.25, 0.3), CFrame.new(0, 0.55, -0.4) * CFrame.Angles(0, math.rad(12), 0), Color3.fromRGB(200, 200, 200))
+		b:Add(BLOCK, Vector3.new(1.3, 0.25, 0.3), CFrame.new(0, 0.5, 0.6) * CFrame.Angles(0, math.rad(-10), 0), Color3.fromRGB(200, 200, 200))
+		for i = 0, 2 do
+			b:Add(BALL, Vector3.new(0.5, 0.3, 0.6), CFrame.new(-0.5 + i * 0.45, 0.3, 0.9 - i * 0.6), Color3.fromRGB(90, 70, 45))
+		end
+	end
+	if e == "Crown" then
+		b:Add(CYL, Vector3.new(0.3, 0.7, 0.7), CFrame.new(0, 2.0, 0.6) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 215, 60), METAL)
+		for i = 0, 3 do
+			b:Add(BALL, Vector3.one * 0.22, CFrame.new(-0.45 + i * 0.3, 0.55, -1.25), accent, GLASS)
+		end
+	elseif e == "Flames" or e == "Clouds" then
+		for i = 0, 2 do
+			b:Add("Wedge", Vector3.new(0.1, 0.5, 0.4), CFrame.new(0.63, 0.5, 0.9 - i * 0.4), accent)
+		end
+	elseif e == "Boing" then
+		b:Add(CYL, Vector3.new(0.6, 0.5, 0.5), CFrame.new(0, 0.7, 1.35) * CFrame.Angles(0, math.rad(90), 0), accent, METAL)
+	end
+	return finalize(b.Model)
+end
+
 -- ===== Pantofle (jeden kus, špička míří na -Z) =====
 
 function Models.Slipper(id: string): Model
@@ -115,6 +172,9 @@ function Models.Slipper(id: string): Model
 		return existing
 	end
 	local cfg = Catalog.Slipper(id) or Catalog.Slippers[1]
+	if cfg.Style == "Sneaker" then
+		return sneaker(id, cfg)
+	end
 	local color, accent = cfg.Color, cfg.Accent
 	local material = Enum.Material.SmoothPlastic
 	if cfg.Effect == "Sparks" or cfg.Effect == "Crown" then

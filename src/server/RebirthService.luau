@@ -57,7 +57,7 @@ local function rebirth(player: Player)
 	data.GiftOpenedThisLife = false
 	data.Rebirths += 1
 	data.Money = 0
-	data.OwnedSlippers = { "BasicBlackSlippers" }
+	data.OwnedSlippers = { "BasicBlackSlippers", "MuddyOldSneakers" }
 	data.EquippedSlippers = "BasicBlackSlippers"
 	local titles = GiantGift.RebirthTitles
 	local title = titles[math.min(data.Rebirths, #titles)]
