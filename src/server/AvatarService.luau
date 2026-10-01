@@ -17,7 +17,9 @@ type Session = any
 local AvatarService = {}
 
 local PLAYER_GROUP = "Players"
-local SHOE_SCALE = 1.35
+local SHOE_SCALE = 1.6
+local IDLE_SPARKLE_TIER = 9 -- od této boty v řadě boty pořád jiskří
+local GLOW_SOLE_TIER = 13 -- od této boty zářící podrážka
 
 local RAINBOW = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 70)),
@@ -141,6 +143,46 @@ function AvatarService.ApplySlippers(session: Session)
 			emitter.Enabled = false
 			emitter.Parent = handle
 			CollectionService:AddTag(emitter, "FlightFx")
+		end
+		-- lepší boty jsou vidět už z dálky: jiskry a zářící podrážka i při chůzi
+		local tier = Catalog.SlipperIndex(id)
+		if tier >= IDLE_SPARKLE_TIER then
+			local aura = Instance.new("ParticleEmitter")
+			aura.Name = "ShoeAura"
+			aura.Rate = 3 + (tier - IDLE_SPARKLE_TIER) * 1.5
+			aura.Lifetime = NumberRange.new(0.6, 1.2)
+			aura.Speed = NumberRange.new(0.5, 1.5)
+			aura.SpreadAngle = Vector2.new(180, 180)
+			aura.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.25), NumberSequenceKeypoint.new(1, 0) })
+			aura.LightEmission = 1
+			aura.Color = if rainbow or cfg.Effect == "Rainbow" then RAINBOW else ColorSequence.new(cfg.TrailColor)
+			aura.Parent = handle
+		end
+		if tier >= GLOW_SOLE_TIER then
+			local sole = Instance.new("Part")
+			sole.Name = "GlowSole"
+			sole.Shape = Enum.PartType.Cylinder
+			sole.Size = Vector3.new(0.12, 2.4, 2.4)
+			sole.Color = cfg.TrailColor
+			sole.Material = Enum.Material.Neon
+			sole.Transparency = 0.35
+			sole.CanCollide = false
+			sole.CanQuery = false
+			sole.CanTouch = false
+			sole.Massless = true
+			sole.CastShadow = false
+			local _, size = m:GetBoundingBox()
+			sole.CFrame = handle.CFrame * CFrame.new(0, -size.Y / 2 - 0.05, 0) * CFrame.Angles(0, 0, math.rad(90))
+			local soleWeld = Instance.new("WeldConstraint")
+			soleWeld.Part0 = handle
+			soleWeld.Part1 = sole
+			soleWeld.Parent = sole
+			sole.Parent = m
+			local light = Instance.new("PointLight")
+			light.Color = cfg.TrailColor
+			light.Range = 6
+			light.Brightness = 1.5
+			light.Parent = sole
 		end
 		m.Parent = character
 	end
