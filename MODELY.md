@@ -25,6 +25,15 @@ Nebo v **Toolboxu** (vlevo) najdi zdarma model a použij ho – jen zkontroluj, 
 **Tip:** začni boty, které hráči vidí nejčastěji: prvních 5 pantoflí a prvních 5 tenisek.
 
 
+## Už hotové modely (z dílů, v projektu)
+
+Těchto 10 bot už je ve hře jako modely z dílů (soubory `assets/Slippers/*.model.json`, vyrábí je `python3 tools/shoes.py`):
+BasicBlackSlippers, BeachBlueSlippers, WatermelonSlippers, SharkSlippers, RoyalDiamondSlippers,
+MuddyOldSneakers, CanvasKicks, StreetRunners, SkyDunkLegends, GoldenAirKings.
+
+Když místo nich chceš AI model z Assistanta: ve Studiu nejdřív **smaž** starý model se stejným jménem
+ve složce `ReplicatedStorage → Assets → Slippers`, jinak hra může vzít ten starý.
+
 ## Pantofle (20) → složka `Assets/Slippers`
 
 | # | Název (přesně) | Popis pro AI (zkopíruj) |

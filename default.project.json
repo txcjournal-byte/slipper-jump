@@ -9,7 +9,7 @@
       "Assets": {
         "$className": "Folder",
         "Slippers": {
-          "$className": "Folder"
+          "$path": "assets/Slippers"
         },
         "Hats": {
           "$className": "Folder"
