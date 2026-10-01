@@ -124,7 +124,7 @@ function HUD.Announce(text: string, kind: string?)
 end
 
 local function sideButton(parent: Instance, icon: string, text: string, color: Color3, order: number, action: string): TextButton
-	local button = Kit.Button(parent, { Text = "", Color = color, Size = UDim2.fromOffset(96, 96), LayoutOrder = order, Radius = 22, Name = action }, call(action))
+	local button = Kit.Button(parent, { Text = "", Color = color, Size = UDim2.fromOffset(88, 88), LayoutOrder = order, Radius = 22, Name = action }, call(action))
 	Kit.Text(button, { Text = icon, Size = UDim2.new(1, 0, 0.62, 0), Position = UDim2.fromScale(0, 0.04), NoStroke = true, ZIndex = 2 })
 	Kit.Text(button, { Text = text, Size = UDim2.new(1, -6, 0.3, 0), Position = UDim2.new(0, 3, 0.66, 0), ZIndex = 2 })
 	return button
@@ -221,12 +221,12 @@ function HUD.Init()
 	-- ===== Tlačítka vlevo =====
 	local left = Kit.new("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(110, 460),
-		Position = UDim2.new(0, 16, 0.5, 60),
-		AnchorPoint = Vector2.new(0, 0.5),
+		Size = UDim2.fromOffset(110, 420),
+		Position = UDim2.fromOffset(16, 292), -- pod penězi, levelem a boostem
+		AnchorPoint = Vector2.new(0, 0),
 		Parent = screen,
 	})
-	Kit.new("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = left })
+	Kit.new("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = left })
 	sideButton(left, "👟", "ITEMS", Kit.Colors.Turquoise, 1, "Inventory")
 	local spinButton = sideButton(left, "🎡", "SPIN", Kit.Colors.Pink, 2, "Spinner")
 	local badgeFrame = Kit.new("Frame", {
