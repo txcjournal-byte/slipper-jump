@@ -9,6 +9,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local FormatNumber = require(Shared.Util.FormatNumber)
 local Formulas = require(Shared.Formulas)
 local Catalog = require(Shared.Catalog)
+local Products = require(Shared.Config.Products)
 local Kit = require(script.Parent.Kit)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Sound = require(script.Parent.Parent.Sound)
@@ -264,7 +265,8 @@ function HUD.Init()
 		Parent = screen,
 	})
 	Kit.new("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Right, Parent = right })
-	sideButton(right, "🛒", "STORE", Kit.Colors.Green, 1, "RobuxShop")
+	local storeButton = sideButton(right, "🛒", "STORE", Kit.Colors.Green, 1, "RobuxShop")
+	storeButton.Visible = Products.AnyConfigured()
 	sideButton(right, "⚙", "SETTINGS", Kit.Colors.Gray, 2, "Settings")
 	starterButton = sideButton(right, "🎁", "STARTER", Kit.Colors.Pink, 0, "StarterPack")
 	starterButton.Visible = false
@@ -370,7 +372,7 @@ function HUD.Refresh(data: { [string]: any })
 	local badgeFrame = spinBadge.Parent :: Frame
 	badgeFrame.Visible = spins > 0
 	rebirthButton.Visible = data.CanRebirth == true
-	starterButton.Visible = data.StarterPackBought ~= true
+	starterButton.Visible = data.StarterPackBought ~= true and Products.IsConfigured("StarterPack")
 	local unfinished = false
 	for _, quest in data.Quests or {} do
 		if not quest.Done then

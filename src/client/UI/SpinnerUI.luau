@@ -228,12 +228,16 @@ function SpinnerUI.Init(screen: ScreenGui)
 	Kit.Text(content, { Text = "Money rewards grow with your level!", Size = UDim2.fromOffset(400, 26), Position = UDim2.new(1, 0, 0, 396), AnchorPoint = Vector2.new(1, 0), TextColor3 = Kit.Colors.Gray, NoStroke = true })
 
 	spinButton = Kit.Button(content, { Text = "SPIN!", Color = Kit.Colors.Green, Size = UDim2.fromOffset(420, 70), Position = UDim2.new(0, 0, 1, -4), AnchorPoint = Vector2.new(0, 1) }, doSpin)
-	Kit.Button(content, { Text = "+1 Spin  R$" .. priceOf("Spin1"), Color = Kit.Colors.Orange, Size = UDim2.fromOffset(195, 60), Position = UDim2.new(1, -205, 1, -4), AnchorPoint = Vector2.new(1, 1) }, function()
-		promptProduct("Spin1")
-	end)
-	Kit.Button(content, { Text = "+5 Spins  R$" .. priceOf("Spins5"), Color = Kit.Colors.Pink, Size = UDim2.fromOffset(195, 60), Position = UDim2.new(1, 0, 1, -4), AnchorPoint = Vector2.new(1, 1) }, function()
-		promptProduct("Spins5")
-	end)
+	if Products.IsConfigured("Spin1") then
+		Kit.Button(content, { Text = "+1 Spin  R$" .. priceOf("Spin1"), Color = Kit.Colors.Orange, Size = UDim2.fromOffset(195, 60), Position = UDim2.new(1, -205, 1, -4), AnchorPoint = Vector2.new(1, 1) }, function()
+			promptProduct("Spin1")
+		end)
+	end
+	if Products.IsConfigured("Spins5") then
+		Kit.Button(content, { Text = "+5 Spins  R$" .. priceOf("Spins5"), Color = Kit.Colors.Pink, Size = UDim2.fromOffset(195, 60), Position = UDim2.new(1, 0, 1, -4), AnchorPoint = Vector2.new(1, 1) }, function()
+			promptProduct("Spins5")
+		end)
+	end
 
 	ClientState.Changed:Connect(refresh)
 	task.spawn(function()

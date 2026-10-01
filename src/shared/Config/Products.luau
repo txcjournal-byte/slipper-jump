@@ -25,7 +25,38 @@ local DevProducts: { DevProduct } = {
 	{ Key = "MoneyChest", Id = 0, Name = "Money Chest", Price = 149, Description = "Money equal to 1 hour of house income", Color = Color3.fromRGB(170, 80, 255) },
 }
 
+-- Je aspoň jeden produkt nebo pass založený? (jinak se Robux obchod ve hře vůbec neukáže)
+local function anyConfigured(): boolean
+	for _, pass in GamePasses do
+		if pass.Id ~= 0 then
+			return true
+		end
+	end
+	for _, product in DevProducts do
+		if product.Id ~= 0 then
+			return true
+		end
+	end
+	return false
+end
+
+local function isConfigured(key: string): boolean
+	for _, pass in GamePasses do
+		if pass.Key == key then
+			return pass.Id ~= 0
+		end
+	end
+	for _, product in DevProducts do
+		if product.Key == key then
+			return product.Id ~= 0
+		end
+	end
+	return false
+end
+
 return {
+	AnyConfigured = anyConfigured,
+	IsConfigured = isConfigured,
 	GamePasses = GamePasses,
 	DevProducts = DevProducts,
 	-- Hodnoty produktů

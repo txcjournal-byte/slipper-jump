@@ -56,6 +56,9 @@ function RobuxShop.Init(screen: ScreenGui)
 	local passGrid = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2, Parent = scroll })
 	Kit.new("UIGridLayout", { CellSize = UDim2.fromOffset(220, 200), CellPadding = UDim2.fromOffset(12, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = passGrid })
 	for i, pass in Products.GamePasses do
+		if pass.Id == 0 then
+			continue -- nezaložené passy se neukazují
+		end
 		passButtons[pass.Key] = item(passGrid, i, pass.Name, pass.Description, pass.Price, pass.Color, function()
 			if pass.Id == 0 then
 				HUD.Notify("This pass is not set up yet (Config/Products.luau).", "Warning")
@@ -68,6 +71,9 @@ function RobuxShop.Init(screen: ScreenGui)
 	local productGrid = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 4, Parent = scroll })
 	Kit.new("UIGridLayout", { CellSize = UDim2.fromOffset(220, 200), CellPadding = UDim2.fromOffset(12, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = productGrid })
 	for i, product in Products.DevProducts do
+		if product.Id == 0 then
+			continue
+		end
 		local button = item(productGrid, i, product.Name, product.Description, product.Price, product.Color, function()
 			if product.Id == 0 then
 				HUD.Notify("This product is not set up yet (Config/Products.luau).", "Warning")
