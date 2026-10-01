@@ -5,3 +5,4 @@
 sourcemap.json
 
 !release/SlipperJump.rbxl
+__pycache__/
