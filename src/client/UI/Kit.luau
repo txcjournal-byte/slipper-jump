@@ -5,6 +5,8 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
+local StarterGui = game:GetService("StarterGui")
 
 local spinning: { [Model]: ViewportFrame } = setmetatable({}, { __mode = "k" }) :: any
 
@@ -103,7 +105,9 @@ function Kit.Screen(name: string, order: number?): ScreenGui
 	local function update()
 		local camera = Workspace.CurrentCamera
 		if camera then
-			local size = camera.ViewportSize
+			-- odečteme horní lištu Robloxu, jinak se spodní tlačítka na malých oknech nevejdou
+			local inset = GuiService:GetGuiInset()
+			local size = camera.ViewportSize - Vector2.new(0, inset.Y)
 			scale.Scale = math.clamp(math.min(size.X / 1280, size.Y / 760), 0.55, 1.25)
 		end
 	end
@@ -238,6 +242,13 @@ export type Window = {
 
 local openWindow: Window? = nil
 
+-- Seznam hráčů Robloxu (vpravo nahoře) překrývá křížek okna – když je okno otevřené, schováme ho
+local function setPlayerList(enabled: boolean)
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, enabled)
+	end)
+end
+
 function Kit.Window(screen: ScreenGui, title: string, size: UDim2, color: Color3?): Window
 	local frame = Kit.Panel(screen, {
 		Name = title .. "Window",
@@ -301,6 +312,7 @@ function Kit.Window(screen: ScreenGui, title: string, size: UDim2, color: Color3
 			end
 			openWindow = window
 			frame.Visible = true
+			setPlayerList(false)
 			scale.Scale = 0.8
 			TweenService:Create(scale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 		end,
@@ -309,6 +321,7 @@ function Kit.Window(screen: ScreenGui, title: string, size: UDim2, color: Color3
 				frame.Visible = false
 				if openWindow == window then
 					openWindow = nil
+					setPlayerList(true)
 				end
 				if window.OnClose then
 					window.OnClose()
@@ -386,12 +399,27 @@ function Kit.Viewport(parent: Instance, model: Model?, props: Props?): ViewportF
 	return viewport
 end
 
--- modely v náhledech (obchod, karty) se pomalu otáčejí
+-- je náhled opravdu vidět? (všichni předci viditelní a obrazovka zapnutá)
+local function onScreen(gui: GuiObject): boolean
+	local node: Instance? = gui
+	while node do
+		if node:IsA("GuiObject") and not (node :: GuiObject).Visible then
+			return false
+		end
+		if node:IsA("LayerCollector") then
+			return (node :: LayerCollector).Enabled
+		end
+		node = node.Parent
+	end
+	return false
+end
+
+-- modely v náhledech (obchod, karty) se pomalu otáčejí – jen ty, které jsou vidět (šetří výkon na mobilech)
 RunService.RenderStepped:Connect(function(dt: number)
 	for model, viewport in spinning do
 		if not model.Parent then
 			spinning[model] = nil
-		elseif viewport.Visible and viewport:FindFirstAncestorWhichIsA("LayerCollector") then
+		elseif onScreen(viewport) then
 			model:PivotTo(model:GetPivot() * CFrame.Angles(0, dt * 0.8, 0))
 		end
 	end

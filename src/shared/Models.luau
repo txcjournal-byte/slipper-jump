@@ -121,6 +121,10 @@ local function fromAssets(category: string, id: string): Model?
 	if #clone:GetDescendants() == 0 then
 		return nil
 	end
+	-- AI / importované modely mívají pivot nebo PrimaryPart natočený (např. -90° kolem X).
+	-- Srovnáme pivot se světem, aby RotateY, velikost i spodní okraj počítaly se svislou osou Y.
+	clone.PrimaryPart = nil
+	clone.WorldPivot = CFrame.new(clone:GetPivot().Position)
 	-- volitelné otočení (atribut RotateY ve stupních na modelu v Assets), když špička nemíří dopředu
 	local rotate = template:GetAttribute("RotateY")
 	if type(rotate) == "number" and rotate ~= 0 then

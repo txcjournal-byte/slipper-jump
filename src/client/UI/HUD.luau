@@ -358,12 +358,14 @@ function HUD.Init()
 	})
 
 	-- ===== Hlášky =====
+	-- vlastní obrazovka, aby hlášky byly vidět i během skoku, kdy je HUD schovaný
+	local toastScreen = Kit.Screen("Toasts", 9)
 	toastHolder = Kit.new("Frame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.fromOffset(560, 300),
 		Position = UDim2.new(0.5, 0, 0, 100),
 		AnchorPoint = Vector2.new(0.5, 0),
-		Parent = screen,
+		Parent = toastScreen,
 	})
 	Kit.new("UIListLayout", { Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder, Parent = toastHolder })
 	announceHolder = Kit.new("Frame", {
@@ -371,7 +373,7 @@ function HUD.Init()
 		Size = UDim2.fromOffset(760, 160),
 		Position = UDim2.new(0.5, 0, 0, 16),
 		AnchorPoint = Vector2.new(0.5, 0),
-		Parent = screen,
+		Parent = toastScreen,
 	})
 	Kit.new("UIListLayout", { Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder, Parent = announceHolder })
 
