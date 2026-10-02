@@ -24,6 +24,7 @@ export type SwimState = {
 	SharkSpeed: number,
 	NoShark: boolean,
 	Done: boolean,
+	Character: Model?, -- postava, se kterou hráč začal plavat (reset = prohra, ne doplavání)
 }
 
 local SwimService = {}
@@ -86,6 +87,7 @@ function SwimService.Begin(session: Session, flight: any, landDistance: number)
 		SharkSpeed = Formulas.SharkSpeed(landDistance),
 		NoShark = noShark,
 		Done = false,
+		Character = session.Player.Character,
 	}
 	session.Swim = state
 	Registry.Player.MarkDirty(session)
@@ -116,7 +118,7 @@ function SwimService.Start()
 			if state and not state.Done then
 				local elapsed = os.clock() - state.StartClock
 				local root = Registry.Player.GetRoot(session.Player)
-				if not root then
+				if not root or session.Player.Character ~= state.Character then
 					finish(session, state, false, "Lost")
 				else
 					-- postup k voru (nemůže být rychlejší, než dovolí rychlost plavání)

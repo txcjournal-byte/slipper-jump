@@ -245,6 +245,11 @@ function AvatarService.UpdateCarried(session: Session)
 	end
 	local carried = session.Data.Carried
 	character:SetAttribute("Carrying", carried ~= nil)
+	-- jméno a level nad předmětem v rukou, ne schované za ním
+	local overhead = head:FindFirstChild("Overhead") :: BillboardGui?
+	if overhead then
+		overhead.StudsOffset = Vector3.new(0, if carried then 7 else 3.2, 0)
+	end
 	if not carried then
 		return
 	end
@@ -274,7 +279,7 @@ function AvatarService.UpdateOverhead(session: Session)
 		local newGui = Instance.new("BillboardGui")
 		newGui.Name = "Overhead"
 		newGui.Size = UDim2.fromOffset(220, 80)
-		newGui.StudsOffset = Vector3.new(0, 3.2, 0)
+		newGui.StudsOffset = Vector3.new(0, if character:GetAttribute("Carrying") then 7 else 3.2, 0)
 		newGui.MaxDistance = 120
 		newGui.LightInfluence = 0
 		newGui.Parent = head

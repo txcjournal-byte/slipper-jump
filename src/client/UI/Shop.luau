@@ -67,7 +67,10 @@ local function buildSlippers(page: ScrollingFrame, line: { any })
 		Kit.Text(frame, { Text = cfg.Name, Size = UDim2.new(1, -12, 0, 26), Position = UDim2.fromOffset(6, 128), TextColor3 = Kit.Colors.Text, NoStroke = true })
 		local distance = Jump.BaseDistance * cfg.Multiplier
 		Kit.Text(frame, { Text = "x" .. cfg.Multiplier .. "  •  " .. FormatNumber.Studs(distance), Size = UDim2.new(1, -12, 0, 22), Position = UDim2.fromOffset(6, 156), TextColor3 = Kit.Colors.Blue, NoStroke = true })
-		local status = Kit.Text(frame, { Text = cfg.EffectText, Size = UDim2.new(1, -12, 0, 18), Position = UDim2.fromOffset(6, 180), TextColor3 = Kit.Colors.Gray, NoStroke = true })
+		-- tenisky mají stejnou sílu jako pantofle na stejné pozici – ať to hráč ví, než je koupí
+		local sameAs = if line == Catalog.Sneakers then Catalog.Slippers[index] else nil
+		local statusText = if sameAs then "Same jump as " .. sameAs.Name else cfg.EffectText
+		local status = Kit.Text(frame, { Text = statusText, Size = UDim2.new(1, -12, 0, 18), Position = UDim2.fromOffset(6, 180), TextColor3 = Kit.Colors.Gray, NoStroke = true })
 		local button = Kit.Button(frame, { Text = "", Size = UDim2.new(1, -16, 0, 50), Position = UDim2.new(0, 8, 1, -58), Color = Kit.Colors.Green })
 		button.Activated:Connect(function()
 			local data = ClientState.Get()

@@ -11,6 +11,7 @@ local FormatNumber = require(Shared.Util.FormatNumber)
 local Formulas = require(Shared.Formulas)
 local Catalog = require(Shared.Catalog)
 local Products = require(Shared.Config.Products)
+local Net = require(Shared.Net)
 local Kit = require(script.Parent.Kit)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Sound = require(script.Parent.Parent.Sound)
@@ -30,6 +31,7 @@ local luckPill: Frame
 local luckLabel: TextLabel
 local carryPanel: Frame
 local carryLabel: TextLabel
+local quickSellButton: TextButton
 local toastHolder: Frame
 local announceHolder: Frame
 local spinBadge: TextLabel
@@ -345,17 +347,30 @@ function HUD.Init()
 	})
 	carryLabel = Kit.Text(carryPanel, {
 		Text = "",
-		Size = UDim2.new(1, -24, 0.5, -4),
+		Size = UDim2.new(1, -150, 0.5, -4),
 		Position = UDim2.fromOffset(12, 6),
 		TextColor3 = Kit.Colors.Yellow,
 	})
 	Kit.Text(carryPanel, {
 		Text = "Place or swap it in your house, sell it at SELL, or gift it to a player",
-		Size = UDim2.new(1, -24, 0.4, -4),
+		Size = UDim2.new(1, -150, 0.4, -4),
 		Position = UDim2.new(0, 12, 0.55, 0),
 		TextColor3 = Kit.Colors.White,
 		StrokeThickness = 2,
 	})
+
+	-- rychlý prodej běžných předmětů (nemusí se chodit ke stánku)
+	quickSellButton = Kit.Button(carryPanel, {
+		Text = "SELL",
+		Color = Kit.Colors.Coral,
+		Size = UDim2.fromOffset(120, 56),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		AnchorPoint = Vector2.new(1, 0.5),
+		Name = "QuickSell",
+	}, function()
+		Sound.Play("Click")
+		Net.Event("QuickSell"):FireServer()
+	end)
 
 	-- ===== Hlášky =====
 	-- vlastní obrazovka, aby hlášky byly vidět i během skoku, kdy je HUD schovaný
@@ -363,7 +378,7 @@ function HUD.Init()
 	toastHolder = Kit.new("Frame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.fromOffset(560, 300),
-		Position = UDim2.new(0.5, 0, 0, 100),
+		Position = UDim2.new(0.5, 0, 0, 184), -- pod pruhem tutoriálu, ať ho nepřekrývají
 		AnchorPoint = Vector2.new(0.5, 0),
 		Parent = toastScreen,
 	})
@@ -477,6 +492,7 @@ function HUD.Refresh(data: { [string]: any })
 			local rarity = Catalog.Rarity(cfg.Rarity)
 			carryLabel.Text = "Carrying: " .. cfg.Name .. " (" .. rarity.Name .. ", +" .. FormatNumber.Money(cfg.Income) .. "/s)"
 			carryLabel.TextColor3 = if rarity.Name == "Secret" or rarity.Name == "Common" then Kit.Colors.White else rarity.Color
+			quickSellButton.Visible = rarity.Order <= 3
 		end
 	end
 end

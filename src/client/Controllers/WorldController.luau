@@ -6,8 +6,10 @@
 --  • otáčení a vznášení předmětů na podstavcích a nad hlavou, ruce nahoře při nošení
 --  • zapínání výzev (Pick Up / Place / Swap jen ve vlastním domečku, Gift a Sell jen s předmětem)
 --  • časovač na kole štěstí a animace kola
+--  • záložní hlava s obličejem, když se hlava avatara nenačte
 
 local CollectionService = game:GetService("CollectionService")
+local ContentProvider = game:GetService("ContentProvider")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -239,6 +241,62 @@ local function onEffect(kind: string, info: { [string]: any })
 	end
 end
 
+-- ===== Záložní hlava =====
+-- Když se 3D hlava avatara nestáhne (stává se ve Studiu, když vyprší přihlášení), postava je bez hlavy
+-- a bez obličeje. Jen tady na klientovi jí pak přidáme klasickou hlavu s úsměvem.
+local function ensureVisibleHead(character: Model)
+	local head = character:WaitForChild("Head", 10)
+	if not head or not head:IsA("MeshPart") then
+		return
+	end
+	local meshPart = head :: MeshPart
+	if meshPart.MeshId == "" then
+		return
+	end
+	local failed = false
+	pcall(function()
+		ContentProvider:PreloadAsync({ meshPart.MeshId }, function(_, status)
+			if status == Enum.AssetFetchStatus.Failure then
+				failed = true
+			end
+		end)
+	end)
+	if not failed or not meshPart.Parent or meshPart:FindFirstChild("FallbackHead") then
+		return
+	end
+	local fallback = Instance.new("Part")
+	fallback.Name = "FallbackHead"
+	fallback.Size = meshPart.Size
+	fallback.Color = meshPart.Color
+	fallback.CanCollide = false
+	fallback.CanQuery = false
+	fallback.CanTouch = false
+	fallback.Massless = true
+	fallback.CFrame = meshPart.CFrame
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Head
+	mesh.Parent = fallback
+	local face = Instance.new("Decal")
+	face.Name = "face"
+	face.Face = Enum.NormalId.Front
+	face.Texture = "rbxasset://textures/face.png"
+	face.Parent = fallback
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = meshPart
+	weld.Part1 = fallback
+	weld.Parent = fallback
+	fallback.Parent = meshPart
+end
+
+local function watchHeads(other: Player)
+	other.CharacterAdded:Connect(function(character)
+		task.spawn(ensureVisibleHead, character)
+	end)
+	if other.Character then
+		task.spawn(ensureVisibleHead, other.Character)
+	end
+end
+
 function WorldController.Init()
 	createOcean()
 	createHorizonGift()
@@ -271,6 +329,11 @@ function WorldController.Init()
 	end)
 
 	RunService.Stepped:Connect(poseCarrying)
+
+	for _, other in Players:GetPlayers() do
+		watchHeads(other)
+	end
+	Players.PlayerAdded:Connect(watchHeads)
 
 	local lastTimerUpdate = 0
 	RunService.RenderStepped:Connect(function()

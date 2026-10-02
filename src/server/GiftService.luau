@@ -89,6 +89,9 @@ local function respond(target: Player, offerId: unknown, accepted: unknown)
 	end
 	local offer = offers[offerId]
 	if not offer or offer.Target ~= target or offer.Expires < os.clock() then
+		if accepted == true then
+			Registry.Player.Notify(target, "That gift offer expired. Ask them to send it again!", "Info")
+		end
 		return
 	end
 	offers[offerId] = nil

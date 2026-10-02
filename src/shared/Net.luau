@@ -30,6 +30,7 @@ local EVENTS = {
 	"ServerEvent", -- server → všichni: právě běžící událost (nebo konec)
 	"ContestBoard", -- server → všichni: živá tabulka soutěže o nejdelší skok (nebo nil = konec)
 	"Teleport", -- klient → server: rychlý přesun (House / Pier)
+	"QuickSell", -- klient → server: prodat běžný předmět z rukou kdekoli (tlačítko SELL)
 }
 
 local FUNCTIONS = {

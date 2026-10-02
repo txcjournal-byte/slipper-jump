@@ -245,6 +245,12 @@ local function onPlayerRemoving(player: Player)
 	PlayerService.Sessions[player] = nil
 	if session then
 		session.Data.LastLogout = os.time()
+		-- rozletěný skok se už nedopočítá (jinak by odešlého hráče vrátil do žebříčků a soutěže)
+		if session.Flight then
+			session.Flight.Finished = true
+			session.Flight = nil
+		end
+		session.Swim = nil
 		Registry.Gifting.OnLeave(player)
 		Registry.House.Release(session)
 		Registry.Leaderboard.OnLeave(session)

@@ -933,11 +933,14 @@ function JumpController.Init(parentScreen: ScreenGui)
 	jumpButton.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			startCharge()
-		end
-	end)
-	jumpButton.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			releaseCharge()
+			-- puštění se počítá i když prst/myš mezitím sjede z tlačítka
+			local connection: RBXScriptConnection
+			connection = input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End or input.UserInputState == Enum.UserInputState.Cancel then
+					connection:Disconnect()
+					releaseCharge()
+				end
+			end)
 		end
 	end)
 

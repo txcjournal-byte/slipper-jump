@@ -139,6 +139,7 @@ end
 -- ===== Prodej =====
 
 local pendingConfirm: { [Player]: number } = {}
+local QUICK_SELL_MAX_ORDER = 3 -- do Rare včetně
 
 function ShopService.Sell(session: Session, confirmed: boolean)
 	local player: Player = session.Player
@@ -174,6 +175,15 @@ function ShopService.Start()
 	Registry.Map.SellPrompt.Triggered:Connect(function(player)
 		local session = Registry.Player.Get(player)
 		if session and not session.Flight then
+			ShopService.Sell(session, false)
+		end
+	end)
+	-- rychlý prodej z rukou kdekoli (jen Common/Uncommon/Rare – vzácnější se prodávají u stánku s potvrzením)
+	Net.Event("QuickSell").OnServerEvent:Connect(function(player)
+		local session = Registry.Player.Get(player)
+		local carried = session and session.Data.Carried
+		local cfg = carried and Catalog.Item(carried.Id)
+		if session and not session.Flight and cfg and Catalog.Rarity(cfg.Rarity).Order <= QUICK_SELL_MAX_ORDER then
 			ShopService.Sell(session, false)
 		end
 	end)

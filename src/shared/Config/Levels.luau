@@ -25,8 +25,8 @@ local Milestones: { [number]: Milestone } = {
 
 return {
 	MaxLevel = 50,
-	XPBase = 10,
-	XPDistanceDivisor = 1_000,
+	XPBase = 25, -- level 2 po ~4 skocích (dřív 10 skoků)
+	XPDistanceDivisor = 200,
 	XPPerLevel = 100,
 	MoneyPerLevel = 100,
 	Milestones = Milestones,
