@@ -331,6 +331,25 @@ function AvatarService.ApplyAll(session: Session)
 	AvatarService.UpdateOverhead(session)
 end
 
+-- Když avatar nemá obličej (žádný obličej na hlavě ani dynamickou hlavu), dáme mu klasický úsměv
+local function ensureFace(character: Model)
+	local head = character:FindFirstChild("Head")
+	if not head or not head:IsA("BasePart") or not head.Parent then
+		return
+	end
+	if head:FindFirstChildWhichIsA("Decal") or head:FindFirstChildOfClass("FaceControls") then
+		return
+	end
+	if head:IsA("MeshPart") and head.TextureID ~= "" then
+		return -- dynamická hlava má obličej v textuře
+	end
+	local face = Instance.new("Decal")
+	face.Name = "face"
+	face.Face = Enum.NormalId.Front
+	face.Texture = "rbxasset://textures/face.png"
+	face.Parent = head
+end
+
 local function onCharacter(session: Session, character: Model)
 	local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
 	local root = character:WaitForChild("HumanoidRootPart", 10) :: BasePart?
@@ -347,6 +366,8 @@ local function onCharacter(session: Session, character: Model)
 	-- R15 načítá díly postupně, chvíli počkat na nohy
 	task.wait(0.2)
 	AvatarService.ApplyAll(session)
+	-- vzhled avatara se načítá chvíli, obličej zkontrolujeme až potom
+	task.delay(3, ensureFace, character)
 	setupGiftPrompt(session, root)
 	if session.Flight and not session.Flight.Finished then
 		Registry.Jump.Finish(session, session.Flight, {}, {})

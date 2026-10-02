@@ -17,7 +17,7 @@ OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "Slippers")
 
 # ===================== Pantofle (domácí bačkory) =====================
 
-def slipper_base(s: Build, upper, sole, footbed, rim, upper_mat="Fabric", sole_mat="Smooth"):
+def slipper_base(s: Build, upper, sole, footbed, rim, upper_mat="Smooth", sole_mat="Smooth"):
     """Bačkora: tlustá zaoblená podrážka, měkká stélka a nártová kopule vepředu."""
     s.ell((1.45, 0.5, 2.9), (0, 0.2, 0), sole, sole_mat)
     s.ell((1.4, 0.3, 2.8), (0, 0.08, 0), sole, sole_mat)
@@ -63,22 +63,23 @@ def beach_blue():
 
 def watermelon():
     s = Build("WatermelonSlippers")
-    red, green, dark, white = rgb(255, 75, 95), rgb(60, 185, 70), rgb(25, 110, 40), rgb(250, 250, 235)
+    red, green, dark, white = rgb(255, 85, 105), rgb(90, 210, 90), rgb(40, 150, 60), rgb(250, 250, 235)
     # podrážka = slupka (tmavě zelená, světle zelená, bílá)
     s.ell((1.45, 0.5, 2.9), (0, 0.2, 0), dark)
     s.ell((1.4, 0.3, 2.8), (0, 0.08, 0), dark)
-    s.ell((1.4, 0.14, 2.86), (0, 0.38, 0), green)
-    s.ell((1.32, 0.14, 2.7), (0, 0.46, 0.04), white, "Fabric")
-    # kopule = dužina se slupkou dole
-    s.ell((1.46, 1.15, 1.78), (0, 0.38, -0.5), green)
-    s.ell((1.38, 1.15, 1.7), (0, 0.48, -0.5), red, "Fabric")
-    s.ell((1.48, 0.75, 0.24), (0, 0.5, 0.3), green, "Fabric", rot=(-15, 0, 0))
+    s.ell((1.47, 0.14, 2.92), (0, 0.36, 0), green)
+    s.ell((1.32, 0.14, 2.7), (0, 0.46, 0.04), white)
+    # kopule = dužina s bílou a zelenou slupkou dole
+    s.ell((1.48, 1.0, 1.8), (0, 0.36, -0.5), dark)
+    s.ell((1.45, 1.1, 1.76), (0, 0.42, -0.5), white)
+    s.ell((1.38, 1.15, 1.7), (0, 0.48, -0.5), red)
+    s.ell((1.48, 0.75, 0.24), (0, 0.5, 0.3), green, rot=(-15, 0, 0))
     # pruhy na slupce
     for x in (-0.55, -0.2, 0.2, 0.55):
-        s.ell((0.16, 0.12, 2.6), (x, 0.14, 0), green)
+        s.ell((0.18, 0.14, 2.65), (x, 0.14, 0), green)
     # semínka
-    for x, z, y in ((-0.35, -0.95, 0.88), (0.0, -1.05, 0.83), (0.35, -0.95, 0.88), (-0.2, -0.6, 1.0), (0.2, -0.6, 1.0), (-0.45, -0.4, 0.92), (0.45, -0.4, 0.92)):
-        s.ell((0.1, 0.07, 0.18), (x, y, z), rgb(20, 20, 20), rot=(-30, 0, 0))
+    for x, z, y in ((-0.35, -0.95, 0.9), (0.0, -1.08, 0.85), (0.35, -0.95, 0.9), (-0.2, -0.6, 1.02), (0.2, -0.6, 1.02), (-0.47, -0.4, 0.93), (0.47, -0.4, 0.93), (0.0, -0.3, 1.04)):
+        s.ell((0.13, 0.1, 0.22), (x, y, z), rgb(25, 20, 20), rot=(-30, 0, 0))
     # lísteček a stopka na patě
     s.box((0.08, 0.35, 0.08), (0, 0.65, 1.3), rgb(110, 80, 40), rot=(20, 0, 0))
     s.ell((0.35, 0.06, 0.2), (0.12, 0.8, 1.35), green, rot=(0, 30, 20))

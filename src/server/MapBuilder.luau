@@ -336,12 +336,12 @@ local function buildBeach(root: Instance, rng: Random): Model
 		local z = side * rng:NextNumber(175, halfWidth - 20)
 		palm(beach, Vector3.new(x, World.SandY, z), rng:NextNumber(16, 26), rng:NextNumber(6, 18), rng:NextNumber(0, math.pi * 2))
 	end
-	for _, pos in { Vector3.new(-50240, 0, 120), Vector3.new(-50300, 0, -150), Vector3.new(-50200, 0, -110), Vector3.new(-50360, 0, 150), Vector3.new(-50600, 0, 90), Vector3.new(-50610, 0, -110) } do
+	for _, pos in { Vector3.new(-50240, 0, 120), Vector3.new(-50280, 0, -195), Vector3.new(-50200, 0, -110), Vector3.new(-50360, 0, 190), Vector3.new(-50480, 0, 90), Vector3.new(-50490, 0, -110) } do
 		local palmBase = Vector3.new(pos.X, World.SandY, pos.Z + 12)
 		palm(beach, palmBase, rng:NextNumber(18, 24), rng:NextNumber(8, 14), rng:NextNumber(0, 6))
 	end
 	local umbrellaColors = { CORAL, ROYAL, Color3.fromRGB(150, 90, 230), Color3.fromRGB(255, 170, 40) }
-	for i, pos in { Vector3.new(-50215, 0, -30), Vector3.new(-50230, 0, 40), Vector3.new(-50380, 0, 60), Vector3.new(-50350, 0, -160), Vector3.new(-50195, 0, 160), Vector3.new(-50630, 0, 40), Vector3.new(-50620, 0, -60) } do
+	for i, pos in { Vector3.new(-50215, 0, -30), Vector3.new(-50230, 0, 40), Vector3.new(-50470, 0, 45), Vector3.new(-50350, 0, -200), Vector3.new(-50195, 0, 160), Vector3.new(-50510, 0, 35), Vector3.new(-50505, 0, -55) } do
 		umbrella(beach, Vector3.new(pos.X, World.SandY, pos.Z), umbrellaColors[(i % #umbrellaColors) + 1], rng:NextNumber(-0.5, 0.5))
 	end
 	-- hvězdice, pískový hrad, kameny
@@ -1070,8 +1070,8 @@ function MapBuilder.Build(): MapInfo
 	local _, spinnerStand = buildSpinner(root, spinnerOrigin)
 	local spinnerPrompt = spinnerStand:FindFirstChild("SpinPrompt") :: ProximityPrompt
 
-	-- žebříček u spawnu
-	local boardOrigin = facing(Vector3.new(World.ReturnX - 125, 0, 48), Vector3.new(0.3, 0, -1))
+	-- žebříček mezi kolem štěstí a domečky
+	local boardOrigin = facing(Vector3.new(World.BeachFrontX - 120, 0, 52), Vector3.new(0.3, 0, -1))
 	local leaderboard = buildLeaderboard(root, boardOrigin)
 
 	-- spawn

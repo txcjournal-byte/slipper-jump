@@ -12,9 +12,9 @@ return {
 	WaterY = 0, -- hladina
 	SandY = 3, -- horní plocha písku
 	BeachFrontX = PierEndX - 150, -- kde končí písek a začíná voda
-	BeachBackX = PierEndX - 650,
+	BeachBackX = PierEndX - 550,
 	BeachHalfWidth = 420,
-	SpawnX = PierEndX - 560,
+	SpawnX = PierEndX - 458, -- začátek cesty (domečky začínají 40 studů za ním, zadní vchody 150 studů před molem)
 	ReturnX = PierEndX - 150 - 45, -- po skoku se hráč objeví kousek před molem
 	WalkSpeed = 26, -- rychlejší chůze po pláži (Roblox výchozí je 16)
 	TeleportCooldown = 2,

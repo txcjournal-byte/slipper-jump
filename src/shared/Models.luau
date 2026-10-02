@@ -91,7 +91,7 @@ function Models.Scale(model: Model, factor: number)
 end
 
 -- Cílová velikost hezkých modelů (nejdelší rozměr ve studech) – vygenerované modely se přizpůsobí samy
-local TARGET_SIZE: { [string]: number } = { Slippers = 2.6, Hats = 2.6, Items = 3.8 }
+local TARGET_SIZE: { [string]: number } = { Slippers = 2.3, Hats = 2.6, Items = 3.8 }
 
 local function fromAssets(category: string, id: string): Model?
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
