@@ -34,6 +34,7 @@ export type Data = {
 	DailySpinsUsed: number,
 	ExtraSpins: number,
 	BoostUntil: number,
+	LuckUntil: number,
 	TutorialDone: boolean,
 	TutorialStep: number,
 	UsedCodes: { [string]: boolean },
@@ -45,6 +46,7 @@ export type Data = {
 	Discovered: { [string]: boolean },
 	NextUid: number,
 	SuperJumps: number,
+	MegaJumps: number,
 	SwimLevel: number,
 	Repellents: number,
 	StarterPackBought: boolean,
@@ -77,6 +79,7 @@ local TEMPLATE: Data = {
 	DailySpinsUsed = 0,
 	ExtraSpins = 0,
 	BoostUntil = 0,
+	LuckUntil = 0, -- Lucky Potion (starší profily doplní Reconcile)
 	TutorialDone = false,
 	TutorialStep = 1,
 	UsedCodes = {},
@@ -88,6 +91,7 @@ local TEMPLATE: Data = {
 	Discovered = {},
 	NextUid = 1,
 	SuperJumps = 0,
+	MegaJumps = 0, -- zbývající skoky z Mega Jump Packu
 	SwimLevel = 0,
 	Repellents = 0,
 	StarterPackBought = false,

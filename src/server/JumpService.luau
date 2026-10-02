@@ -11,6 +11,7 @@ local World = require(Shared.Config.World)
 local Tutorial = require(Shared.Config.Tutorial)
 local Events = require(Shared.Config.Events)
 local Swim = require(Shared.Config.Swim)
+local Products = require(Shared.Config.Products)
 local Formulas = require(Shared.Formulas)
 local Catalog = require(Shared.Catalog)
 local Net = require(Shared.Net)
@@ -142,14 +143,20 @@ function JumpService.Release(player: Player, clientValue: unknown)
 	local tier, bonus = Formulas.PowerTier(value)
 
 	local data = session.Data
-	local superJump = data.SuperJumps > 0
-	if superJump then
+	-- jednorázové bonusy: nejdřív Mega Jump (+50 %), jinak Super Jump (+20 %) – nikdy oba naráz
+	local megaJump = data.MegaJumps > 0
+	local superJump = false
+	if megaJump then
+		data.MegaJumps -= 1
+	elseif data.SuperJumps > 0 then
 		data.SuperJumps -= 1
+		superJump = true
 	end
 	local distance = Formulas.BaseJump(data.EquippedSlippers, data.EquippedHat)
 		* (1 + bonus)
 		* (1 + rng:NextNumber(-Jump.RandomSpread, Jump.RandomSpread))
-		* (if superJump then 1 + Jump.SuperJumpBonus else 1)
+		* Formulas.PassJumpMultiplier(session.Passes.SuperJumper == true)
+		* (if megaJump then 1 + Products.MegaJumpBonus elseif superJump then 1 + Jump.SuperJumpBonus else 1)
 		* (if Registry.ServerEvents.IsActive("MegaJump") then 1 + Events.MegaJumpBonus else 1)
 	local cap = if Catalog.IsBestShoe(data.EquippedSlippers) then Jump.MaxDistance else Jump.MaxDistanceWithoutBest
 	distance = math.clamp(distance, 10, cap)
@@ -233,6 +240,7 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		Rings = ringList,
 		CoinValue = flight.CoinValue,
 		SuperJump = superJump,
+		MegaJump = megaJump,
 		RingBonus = flight.RingBonus,
 	})
 	effectEvent:FireAllClients("Takeoff", { UserId = player.UserId, Tier = tier, Slippers = data.EquippedSlippers })
@@ -294,7 +302,8 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	local item, placement, isNew
 	if not reachedGift then
 		local zoneShift = if Registry.ServerEvents.IsActive("TreasureTide") then 1 else 0
-		item, placement, isNew = Registry.Items.Give(session, Registry.Items.Roll(distance, forced, zoneShift))
+		local luck = Registry.Items.Luck(session)
+		item, placement, isNew = Registry.Items.Give(session, Registry.Items.Roll(distance, forced, zoneShift, luck))
 	end
 
 	data.TotalJumps += 1

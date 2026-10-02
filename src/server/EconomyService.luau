@@ -13,7 +13,13 @@ type Session = any
 
 local EconomyService = {}
 
--- Násobič příjmu (znovuzrození, čepice, 2x Money pass, dočasný boost, událost)
+-- Má hráč Roblox Premium? (čte se pokaždé znovu – členství se může změnit i během hry)
+function EconomyService.IsPremium(session: Session): boolean
+	local player: Player = session.Player
+	return player.MembershipType == Enum.MembershipType.Premium
+end
+
+-- Násobič příjmu (znovuzrození, čepice, 2x Money pass, dočasný boost, Premium, událost)
 function EconomyService.Multiplier(session: Session): number
 	local data = session.Data
 	return Formulas.IncomeMultiplier({
@@ -21,6 +27,7 @@ function EconomyService.Multiplier(session: Session): number
 		HatId = data.EquippedHat,
 		DoubleMoneyPass = session.Passes.DoubleMoney == true,
 		BoostUntil = data.BoostUntil,
+		Premium = EconomyService.IsPremium(session),
 		Now = os.time(),
 	})
 end
@@ -66,6 +73,13 @@ function EconomyService.AddBoost(session: Session, minutes: number)
 	Registry.House.Render(session)
 end
 
+-- Lucky Potion: čas se sčítá stejně jako u 2x Money boostu
+function EconomyService.AddLuck(session: Session, minutes: number)
+	local now = os.time()
+	session.Data.LuckUntil = math.max(now, session.Data.LuckUntil) + minutes * 60
+	Registry.Player.MarkDirty(session)
+end
+
 function EconomyService.CollectPiggy(session: Session)
 	local amount = session.Data.PendingCash
 	session.Data.PendingCash = 0
@@ -94,6 +108,7 @@ function EconomyService.ApplyOffline(session: Session)
 		HatId = data.EquippedHat,
 		DoubleMoneyPass = session.Passes.DoubleMoney == true,
 		BoostUntil = 0,
+		Premium = EconomyService.IsPremium(session),
 		Now = os.time(),
 	})
 	local earned = math.floor(income * away)

@@ -19,16 +19,23 @@ local ItemService = {}
 
 local rng = Random.new()
 
-function ItemService.RollRarity(distance: number, zoneShift: number?): string
+local rarityOrders: { [string]: number } = {}
+for _, rarity in Catalog.Rarities do
+	rarityOrders[rarity.Name] = rarity.Order
+end
+
+-- luck > 1 posune šance k vzácnějším raritám (Lucky Charm, Lucky Potion), viz Formulas.LuckyChances
+function ItemService.RollRarity(distance: number, zoneShift: number?, luck: number?): string
 	local zone = Catalog.Zones[math.min(Formulas.ZoneIndex(distance) + (zoneShift or 0), #Catalog.Zones)]
+	local chances = Formulas.LuckyChances(zone.Chances, rarityOrders, luck or 1)
 	local total = 0
-	for _, chance in zone.Chances do
+	for _, chance in chances do
 		total += chance
 	end
 	local roll = rng:NextNumber(0, total)
 	-- pevné pořadí rarit, aby výsledek nezávisel na pořadí v tabulce
 	for _, rarity in Catalog.Rarities do
-		local chance = zone.Chances[rarity.Name]
+		local chance = chances[rarity.Name]
 		if chance then
 			roll -= chance
 			if roll <= 0 then
@@ -47,8 +54,13 @@ function ItemService.RandomOfRarity(rarity: string): string
 	return list[rng:NextInteger(1, #list)].Id
 end
 
-function ItemService.Roll(distance: number, forcedRarity: string?, zoneShift: number?): string
-	return ItemService.RandomOfRarity(forcedRarity or ItemService.RollRarity(distance, zoneShift))
+function ItemService.Roll(distance: number, forcedRarity: string?, zoneShift: number?, luck: number?): string
+	return ItemService.RandomOfRarity(forcedRarity or ItemService.RollRarity(distance, zoneShift, luck))
+end
+
+-- Aktuální štěstí hráče (počítá jen server)
+function ItemService.Luck(session: Session): number
+	return Formulas.LuckMultiplier(session.Passes.LuckyCharm == true, session.Data.LuckUntil, os.time())
 end
 
 function ItemService.FreeSlot(session: Session): number?

@@ -47,6 +47,11 @@ function Formulas.BaseJump(slipperId: string, hatId: string?): number
 	return Jump.BaseDistance * multiplier * (1 + jumpBonus)
 end
 
+-- Trvalý bonus ke vzdálenosti z game passu Super Jumper
+function Formulas.PassJumpMultiplier(superJumper: boolean): number
+	return if superJumper then 1 + Products.SuperJumperBonus else 1
+end
+
 function Formulas.CapDistance(distance: number, slipperId: string): number
 	local cap = if Catalog.IsBestShoe(slipperId) then Jump.MaxDistance else Jump.MaxDistanceWithoutBest
 	return math.clamp(distance, 1, cap)
@@ -128,6 +133,7 @@ export type MultiplierInput = {
 	HatId: string?,
 	DoubleMoneyPass: boolean,
 	BoostUntil: number,
+	Premium: boolean?,
 	Now: number,
 }
 
@@ -141,7 +147,44 @@ function Formulas.IncomeMultiplier(input: MultiplierInput): number
 	if input.BoostUntil > input.Now then
 		multiplier *= 2
 	end
+	if input.Premium then
+		multiplier *= 1 + Products.PremiumIncomeBonus
+	end
 	return multiplier * Formulas.EventMultiplier(input.Now)
+end
+
+-- Násobič štěstí (pass Lucky Charm × aktivní Lucky Potion)
+function Formulas.LuckMultiplier(luckyCharm: boolean, luckUntil: number, now: number): number
+	local luck = 1
+	if luckyCharm then
+		luck *= Products.LuckyCharmLuck
+	end
+	if luckUntil > now then
+		luck *= Products.LuckyPotionLuck
+	end
+	return luck
+end
+
+-- Šance zóny upravené štěstím: nejběžnější rarita v zóně zůstává ×1, nejvzácnější dostane ×luck,
+-- ostatní plynule mezi tím (geometricky). Vzácné věci tedy padají až "luck"-krát častěji,
+-- ale nic nového se neodemkne (žádná rarita, která v zóně není).
+-- orders = pořadí rarit (Order), aby výsledek nezávisel na pořadí v tabulce.
+function Formulas.LuckyChances(chances: { [string]: number }, orders: { [string]: number }, luck: number): { [string]: number }
+	if luck <= 1 then
+		return chances
+	end
+	local minOrder, maxOrder = math.huge, -math.huge
+	for name in chances do
+		local order = orders[name] or 1
+		minOrder = math.min(minOrder, order)
+		maxOrder = math.max(maxOrder, order)
+	end
+	local result: { [string]: number } = {}
+	for name, chance in chances do
+		local t = if maxOrder > minOrder then ((orders[name] or 1) - minOrder) / (maxOrder - minOrder) else 0
+		result[name] = chance * luck ^ t
+	end
+	return result
 end
 
 function Formulas.ZoneIndex(distance: number): number
