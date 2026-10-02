@@ -5,7 +5,7 @@
 --  • barva dárku podle počtu znovuzrození
 --  • otáčení a vznášení předmětů na podstavcích a nad hlavou, ruce nahoře při nošení
 --  • zapínání výzev (Pick Up / Place / Swap jen ve vlastním domečku, Gift a Sell jen s předmětem)
---  • časovač na kole štěstí a animace kola
+--  • časovač na kole štěstí, animace kola a blikající žárovky kolem něj
 --  • záložní hlava s obličejem, když se hlava avatara nenačte
 
 local CollectionService = game:GetService("CollectionService")
@@ -58,6 +58,12 @@ end
 
 local horizonGift: Model
 local horizonBodies: { BasePart } = {}
+-- Zmenšenina skutečného ostrova s dárkem (MapBuilder.buildGift). Počátek modelu = střed dárku u hladiny,
+-- lokální −Z míří ke kameře (skutečné −X), lokální +X je skutečné −Z.
+local HORIZON_SCALE = 0.85 -- větší, aby byl dárek na obzoru dobře vidět
+local HORIZON_BASE_Y = 5 -- horní plocha ostrůvku (počátek je 4 study pod hladinou)
+local HORIZON_BOX_HEIGHT = 300 * HORIZON_SCALE
+local HORIZON_BOX_Y = HORIZON_BASE_Y + HORIZON_BOX_HEIGHT / 2 -- střed krabice (PrimaryPart)
 
 local function createHorizonGift()
 	local m = Instance.new("Model")
@@ -77,23 +83,77 @@ local function createHorizonGift()
 		p.Parent = m
 		return p
 	end
+	local S = HORIZON_SCALE
+	local UP = CFrame.Angles(0, 0, math.rad(90)) -- válec postavený svisle
 	local gold = Color3.fromRGB(255, 200, 40)
-	local red = Color3.fromRGB(230, 40, 50)
-	local box = add(Vector3.new(60, 70, 60), CFrame.new(0, 35, 0), gold)
-	local lid = add(Vector3.new(66, 12, 66), CFrame.new(0, 76, 0), gold)
+	local ribbon = Color3.fromRGB(255, 50, 80)
+	local leaf = Color3.fromRGB(60, 160, 70)
+	local top = HORIZON_BASE_Y
+	-- ostrůvek: mělčina, písek a tráva (střed ostrova je 40 studů před dárkem)
+	add(Vector3.new(1, 470 * S, 470 * S), CFrame.new(0, top - 1.2, -40 * S) * UP, Color3.fromRGB(110, 230, 235), nil, Enum.PartType.Cylinder)
+	add(Vector3.new(8, 380 * S, 380 * S), CFrame.new(0, top - 4, -40 * S) * UP, Color3.fromRGB(246, 222, 160), Enum.Material.Sand, Enum.PartType.Cylinder)
+	add(Vector3.new(1, 240 * S, 240 * S), CFrame.new(0, top, 10 * S) * UP, Color3.fromRGB(110, 200, 80), Enum.Material.Grass, Enum.PartType.Cylinder)
+	-- dárek
+	local box = add(Vector3.new(220 * S, HORIZON_BOX_HEIGHT, 220 * S), CFrame.new(0, HORIZON_BOX_Y, 0), gold)
+	local lidY = top + HORIZON_BOX_HEIGHT + 20 * S
+	local lid = add(Vector3.new(236 * S, 40 * S, 236 * S), CFrame.new(0, lidY, 0), gold)
 	table.insert(horizonBodies, box)
 	table.insert(horizonBodies, lid)
-	add(Vector3.new(62, 84, 10), CFrame.new(0, 41, 0), red)
-	add(Vector3.new(10, 84, 62), CFrame.new(0, 41, 0), red)
-	add(Vector3.new(24, 14, 12), CFrame.new(0, 88, 9), red, nil, Enum.PartType.Ball)
-	add(Vector3.new(24, 14, 12), CFrame.new(0, 88, -9), red, nil, Enum.PartType.Ball)
-	local beam = add(Vector3.new(1400, 14, 14), CFrame.new(0, 780, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 240, 170), Enum.Material.Neon, Enum.PartType.Cylinder)
-	beam.Transparency = 0.4
-	-- ostrůvek
-	add(Vector3.new(4, 140, 140), CFrame.new(0, -1, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(246, 222, 160), Enum.Material.Sand, Enum.PartType.Cylinder)
+	local ribbonHeight = HORIZON_BOX_HEIGHT + 42 * S
+	add(Vector3.new(222 * S, ribbonHeight, 36 * S), CFrame.new(0, top + ribbonHeight / 2, 0), ribbon, Enum.Material.Neon)
+	add(Vector3.new(36 * S, ribbonHeight, 222 * S), CFrame.new(0, top + ribbonHeight / 2, 0), ribbon, Enum.Material.Neon)
+	local bowY = top + HORIZON_BOX_HEIGHT + 40 * S
+	for _, s in { -1, 1 } do
+		-- smyčky mašle (kolečka natočená ke kameře)
+		add(Vector3.new(28 * S, 80 * S, 80 * S), CFrame.new(s * 40 * S, bowY + 34 * S, 0) * CFrame.Angles(0, math.rad(90), 0), ribbon, Enum.Material.Neon, Enum.PartType.Cylinder)
+	end
+	add(Vector3.one * 40 * S, CFrame.new(0, bowY + 16 * S, 0), ribbon, Enum.Material.Neon, Enum.PartType.Ball)
+	-- paprsek do nebe: jádro + široká záře
+	local beamBottom = bowY
+	local beam = add(Vector3.new(1600, 18, 18), CFrame.new(0, beamBottom + 800, 0) * UP, Color3.fromRGB(255, 240, 170), Enum.Material.Neon, Enum.PartType.Cylinder)
+	beam.Transparency = 0.3
+	local glow = add(Vector3.new(1600, 54, 54), CFrame.new(0, beamBottom + 800, 0) * UP, Color3.fromRGB(255, 245, 200), Enum.Material.Neon, Enum.PartType.Cylinder)
+	glow.Transparency = 0.8
+	-- maják (o něco větší než skutečný, aby byl z dálky vidět)
+	local lighthouse = Vector3.new(150 * S, top, -120 * S)
+	add(Vector3.new(36, 7, 7), CFrame.new(lighthouse + Vector3.new(0, 18, 0)) * UP, Color3.new(1, 1, 1), nil, Enum.PartType.Cylinder)
+	add(Vector3.new(10, 7.4, 7.4), CFrame.new(lighthouse + Vector3.new(0, 14, 0)) * UP, Color3.fromRGB(235, 50, 55), nil, Enum.PartType.Cylinder)
+	add(Vector3.new(10, 7.4, 7.4), CFrame.new(lighthouse + Vector3.new(0, 32, 0)) * UP, Color3.fromRGB(235, 50, 55), nil, Enum.PartType.Cylinder)
+	add(Vector3.one * 8, CFrame.new(lighthouse + Vector3.new(0, 40, 0)), Color3.fromRGB(255, 240, 150), Enum.Material.Neon, Enum.PartType.Ball)
+	-- siluety palem
+	for _, pos in { Vector3.new(94, 0, -169), Vector3.new(-94, 0, -169), Vector3.new(152, 0, 9), Vector3.new(-152, 0, 9) } do
+		local base = Vector3.new(pos.X * S, top, pos.Z * S)
+		add(Vector3.new(16, 1.6, 1.6), CFrame.new(base + Vector3.new(0, 8, 0)) * UP, Color3.fromRGB(170, 115, 70), Enum.Material.Wood, Enum.PartType.Cylinder)
+		add(Vector3.new(12, 2.5, 12), CFrame.new(base + Vector3.new(0, 16.5, 0)), leaf, Enum.Material.Grass)
+	end
 	m.PrimaryPart = box
 	m.Parent = Workspace
 	horizonGift = m
+end
+
+-- ===== Blikající žárovky kolem kola štěstí =====
+-- Žárovky (tag "WheelBulb", atribut BulbIndex) staví MapBuilder; tady jim jen dokola měníme barvu (běžící světla).
+local WHEEL_BULB_COLORS = {
+	Color3.fromRGB(255, 90, 90),
+	Color3.fromRGB(255, 210, 60),
+	Color3.fromRGB(90, 220, 120),
+	Color3.fromRGB(80, 180, 255),
+	Color3.fromRGB(255, 130, 220),
+}
+local TWINKLE_INTERVAL = 0.3
+local twinkleStep = 0
+
+local function twinkleWheelBulbs()
+	twinkleStep += 1
+	for _, bulb in CollectionService:GetTagged("WheelBulb") do
+		if bulb:IsA("BasePart") then
+			local index = bulb:GetAttribute("BulbIndex")
+			local i = if typeof(index) == "number" then index else 0
+			bulb.Color = WHEEL_BULB_COLORS[(i + twinkleStep) % #WHEEL_BULB_COLORS + 1]
+			-- každá třetí žárovka na chvíli pohasne
+			bulb.Transparency = if (i + twinkleStep) % 3 == 0 then 0.6 else 0
+		end
+	end
 end
 
 local function giftColor(rebirths: number): Color3
@@ -336,6 +396,7 @@ function WorldController.Init()
 	Players.PlayerAdded:Connect(watchHeads)
 
 	local lastTimerUpdate = 0
+	local lastTwinkle = 0
 	RunService.RenderStepped:Connect(function()
 		local camera = Workspace.CurrentCamera
 		if not camera then
@@ -361,7 +422,7 @@ function WorldController.Init()
 		if flat.Magnitude > World.RealGiftShowDistance then
 			local dir = flat.Unit
 			local horizonPos = Vector3.new(camPos.X, World.WaterY - 4, camPos.Z) + dir * World.HorizonGiftDistance
-			horizonGift:PivotTo(CFrame.lookAt(horizonPos, horizonPos - dir) * CFrame.new(0, 35, 0))
+			horizonGift:PivotTo(CFrame.lookAt(horizonPos, horizonPos - dir) * CFrame.new(0, HORIZON_BOX_Y, 0))
 		else
 			horizonGift:PivotTo(CFrame.new(0, -2000, 0))
 		end
@@ -380,6 +441,11 @@ function WorldController.Init()
 		end
 		for weld, base in carryBase do
 			weld.C0 = base * CFrame.new(0, math.sin(t * 3) * 0.3, 0) * CFrame.Angles(0, t * 2, 0)
+		end
+		-- blikání žárovek kolem kola štěstí
+		if t - lastTwinkle > TWINKLE_INTERVAL then
+			lastTwinkle = t
+			twinkleWheelBulbs()
 		end
 		-- časovač kola štěstí
 		if t - lastTimerUpdate > 0.5 then

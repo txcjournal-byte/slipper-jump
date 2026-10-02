@@ -4,11 +4,14 @@
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Products = require(Shared.Config.Products)
 local Swim = require(Shared.Config.Swim)
+local Catalog = require(Shared.Catalog)
 local FormatNumber = require(Shared.Util.FormatNumber)
+local Net = require(Shared.Net)
 
 local Registry = require(script.Parent.Registry)
 
@@ -45,6 +48,8 @@ local function applyPass(session: Session, key: string)
 		Registry.Avatar.ApplySlippers(session)
 	elseif key == "AutoCollect" then
 		Registry.Economy.CollectPiggy(session)
+	elseif key == "AllSneakers" then
+		Registry.Avatar.ApplySlippers(session)
 	end
 	Registry.House.Render(session)
 	Registry.Player.MarkDirty(session)
@@ -74,15 +79,52 @@ local function moneyPack(session: Session, seconds: number): number
 	return math.max(Products.MinMoneyPack, math.floor(income * seconds))
 end
 
+-- Skin tenisek z cenové skupiny: přednostně ten, který si hráč vybral (SelectSkin), jinak první nevlastněný
+local function grantSkinTier(session: Session, tier: number)
+	local player: Player = session.Player
+	local chosen: string? = nil
+	local pending = session.PendingSkin
+	if pending then
+		local index = Catalog.SlipperIndex(pending)
+		if Products.SkinTier(index) == tier and not Registry.Shop.OwnsSkin(session, pending) then
+			chosen = pending
+		end
+	end
+	if not chosen then
+		for index, cfg in Catalog.Sneakers do
+			if Products.SkinTier(index) == tier and not Registry.Shop.OwnsSkin(session, cfg.Id) then
+				chosen = cfg.Id
+				break
+			end
+		end
+	end
+	session.PendingSkin = nil
+	if chosen then
+		Registry.Shop.GrantSkin(session, chosen)
+		local cfg = Catalog.Slipper(chosen)
+		Registry.Player.Notify(player, "New skin: " .. (if cfg then cfg.Name else chosen) .. "! You're wearing it now.", "Success")
+		Net.Event("PlayEffect"):FireClient(player, "Purchase", { Id = chosen })
+	else
+		-- všechny skiny skupiny už má → aspoň peníze, ať nákup nepropadne
+		local amount = moneyPack(session, Products.MoneyBagSeconds)
+		Registry.Economy.AddMoney(session, amount)
+		Registry.Player.Notify(player, "You already own all these skins! Here is " .. FormatNumber.Money(amount) .. " instead.", "Money")
+	end
+end
+
 local function grantProduct(session: Session, product: Products.DevProduct)
 	local player: Player = session.Player
 	local key = product.Key
-	if key == "StarterPack" then
+	local skinTier = string.match(key, "^SkinTier(%d)$")
+	if skinTier then
+		grantSkinTier(session, tonumber(skinTier) or 1)
+	elseif key == "StarterPack" then
 		local pack = Products.StarterPack
 		session.Data.StarterPackBought = true
 		Registry.Economy.AddMoney(session, pack.Money)
 		Registry.Spinner.AddSpins(session, pack.Spins)
 		session.Data.Repellents += pack.Repellents
+		Registry.Shop.GrantSkin(session, pack.Skin)
 		Registry.Player.Notify(player, "Starter Pack unlocked! Have fun!", "Success")
 	elseif key == "SharkRepellent" then
 		session.Data.Repellents += Swim.RepellentSwims
@@ -102,6 +144,9 @@ local function grantProduct(session: Session, product: Products.DevProduct)
 	elseif key == "Spins5" then
 		Registry.Spinner.AddSpins(session, 5)
 		Registry.Player.Notify(player, "+5 Spins!", "Success")
+	elseif key == "Spins10" then
+		Registry.Spinner.AddSpins(session, 10)
+		Registry.Player.Notify(player, "+10 Spins!", "Success")
 	elseif key == "Boost30" then
 		Registry.Economy.AddBoost(session, Products.BoostMinutes)
 		Registry.Player.Notify(player, "2x Money for " .. Products.BoostMinutes .. " minutes!", "Success")
@@ -170,6 +215,35 @@ end
 
 function MonetizationService.Start()
 	MarketplaceService.ProcessReceipt = processReceipt
+	-- hráč si v obchodě vybral konkrétní skin, pak se otevře nákup jeho cenové skupiny
+	Net.Event("SelectSkin").OnServerEvent:Connect(function(player, id)
+		local session = Registry.Player.Get(player)
+		if session and type(id) == "string" and Catalog.Slipper(id) then
+			session.PendingSkin = id
+		end
+	end)
+	-- jen ve Studiu: "nákup" zdarma, aby šlo všechno vyzkoušet bez založených produktů
+	Net.Event("StudioTestPurchase").OnServerEvent:Connect(function(player, key)
+		if not RunService:IsStudio() or type(key) ~= "string" then
+			return
+		end
+		local session = Registry.Player.Get(player)
+		if not session then
+			return
+		end
+		local pass = passByKey[key]
+		if pass then
+			applyPass(session, key)
+			Registry.Player.Notify(player, "[Studio test] " .. pass.Name .. " is now active!", "Success")
+			return
+		end
+		for _, product in Products.DevProducts do
+			if product.Key == key then
+				grantProduct(session, product)
+				return
+			end
+		end
+	end)
 	-- Roblox Premium (+10 % peněz): po koupi nebo zrušení Premium během hry přepočítat příjem
 	Players.PlayerMembershipChanged:Connect(function(player)
 		local session = Registry.Player.Get(player)

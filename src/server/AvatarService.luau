@@ -82,13 +82,17 @@ function AvatarService.ApplySlippers(session: Session)
 		end
 	end
 	local id = session.Data.EquippedSlippers
-	local cfg = Catalog.Slipper(id)
-	if not cfg then
+	local power = Catalog.Slipper(id)
+	if not power then
 		return
 	end
+	-- skin tenisek mění jen vzhled (model, stopa, efekty); síla a záře podle úrovně zůstávají z pantoflí
+	local skin = session.Data.EquippedSkin
+	local lookId = if skin and skin ~= "" and Registry.Shop.OwnsSkin(session, skin) then skin else id
+	local cfg = Catalog.Slipper(lookId) or power
 	local rainbow = session.Passes.RainbowTrail == true
 	for _, foot in findFeet(character) do
-		local m = Models.Slipper(id)
+		local m = Models.Slipper(lookId)
 		m.Name = "SlipperModel"
 		-- větší, kreslené boty, aby byly na postavě dobře vidět
 		Models.Scale(m, SHOE_SCALE)

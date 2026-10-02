@@ -31,6 +31,8 @@ local EVENTS = {
 	"ContestBoard", -- server → všichni: živá tabulka soutěže o nejdelší skok (nebo nil = konec)
 	"Teleport", -- klient → server: rychlý přesun (House / Pier)
 	"QuickSell", -- klient → server: prodat běžný předmět z rukou kdekoli (tlačítko SELL)
+	"SelectSkin", -- klient → server: který skin tenisek chce koupit (před nákupem za Robux)
+	"StudioTestPurchase", -- klient → server: jen ve Studiu – vyzkoušet nákup zdarma
 }
 
 local FUNCTIONS = {

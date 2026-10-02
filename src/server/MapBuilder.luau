@@ -75,6 +75,8 @@ local LEAF = Color3.fromRGB(70, 175, 70)
 local LEAF_DARK = Color3.fromRGB(45, 140, 60)
 local ROCK = Color3.fromRGB(140, 140, 150)
 local BUOY_RED = Color3.fromRGB(235, 50, 55)
+local WARM_LIGHT = Color3.fromRGB(255, 214, 130) -- teplé světlo v oknech a lucernách
+local GOLD = Color3.fromRGB(255, 205, 50)
 
 local BALL = Enum.PartType.Ball
 local BLOCK = Enum.PartType.Block
@@ -116,6 +118,29 @@ local function deco(p: BasePart): BasePart
 	p.CanQuery = false
 	p.CanTouch = false
 	return p
+end
+
+-- Drobná ozdoba: bez kolizí a bez stínu (žárovky, kytky, provázky…)
+local function tiny(p: BasePart): BasePart
+	deco(p)
+	p.CastShadow = false
+	return p
+end
+
+-- Třpytky (ParticleEmitter) pro ozdoby
+local function sparkles(parent: BasePart, rate: number, size: number, speed: number, color: Color3)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "Sparkles"
+	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	emitter.Rate = rate
+	emitter.Lifetime = NumberRange.new(1, 2)
+	emitter.Speed = NumberRange.new(speed * 0.5, speed)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, size), NumberSequenceKeypoint.new(1, 0) })
+	emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 0.8) })
+	emitter.Color = ColorSequence.new(color)
+	emitter.LightEmission = 1
+	emitter.Parent = parent
 end
 
 local function model(name: string, parent: Instance): Model
@@ -657,10 +682,14 @@ local function buildHouse(root: Instance, index: number, frontX: number, zCenter
 		part(m, Vector3.new(L, H, 1), CFrame.new(centerX, floorY + 1 + H / 2, zCenter + side * (W / 2 - 0.5)), color, Enum.Material.WoodPlanks, BLOCK, "Wall")
 		-- bílé lemování
 		deco(part(m, Vector3.new(L + 0.2, 0.8, 1.3), CFrame.new(centerX, floorY + 1 + H, zCenter + side * (W / 2 - 0.5)), trim))
-		-- okna
+		-- okna: bílý rám, teple svítící sklo a příčka
 		for w = 0, 2 do
-			local window = deco(part(m, Vector3.new(8, 5, 1.2), CFrame.new(frontX + 25 + w * 32, floorY + 1 + H * 0.6, zCenter + side * (W / 2 - 0.5)), Color3.fromRGB(170, 225, 255), Enum.Material.Glass))
-			window.Transparency = 0.3
+			local windowCF = CFrame.new(frontX + 25 + w * 32, floorY + 1 + H * 0.6, zCenter + side * (W / 2 - 0.5))
+			deco(part(m, Vector3.new(9.6, 6.6, 1.3), windowCF, trim))
+			local window = deco(part(m, Vector3.new(8, 5, 1.5), windowCF, WARM_LIGHT, Enum.Material.Neon))
+			window.Transparency = 0.25
+			window.CastShadow = false
+			tiny(part(m, Vector3.new(0.4, 5, 1.7), windowCF, trim))
 		end
 	end
 	-- přední i zadní stěna s širokým vchodem (domeček je průchozí z obou stran)
@@ -813,14 +842,69 @@ local function buildHouse(root: Instance, index: number, frontX: number, zCenter
 	padLight.Parent = teleportPad
 	billboard(teleportPad, Vector3.new(0, 4, 0), UDim2.fromOffset(180, 40), "To SELL", Color3.fromRGB(120, 255, 150), 60)
 
-	-- rostliny a surfy u vchodu
-	for _, s in { -1, 1 } do
-		local potPos = Vector3.new(frontX - 2, floorY, zCenter + s * (entranceWidth / 2 + 3))
-		deco(part(m, Vector3.new(2.4, 2.4, 2.4), CFrame.new(potPos + Vector3.new(0, 1.2, 0)) * UP, Color3.fromRGB(200, 110, 70), nil, CYL))
-		for leaf = 0, 3 do
-			deco(part(m, Vector3.new(0.8, 3, 0.3), CFrame.new(potPos + Vector3.new(0, 3.6, 0)) * CFrame.Angles(0, leaf * math.pi / 2, math.rad(25)) * CFrame.new(0.6, 0, 0), LEAF, Enum.Material.Grass))
+	-- ===== Ozdoby domečku =====
+	-- Vše jen dekorace bez kolizí. Nic nestojí ve vchodu (z = ±8), na podstavcích, u kasičky ani na teleportu.
+	local darkColor = color:Lerp(Color3.new(0, 0, 0), 0.3)
+	local flowerColors = { Color3.fromRGB(255, 90, 140), Color3.fromRGB(255, 220, 60), Color3.fromRGB(255, 110, 70), Color3.fromRGB(190, 110, 255), WHITE }
+	-- přední (outward = -1) i zadní (outward = 1) průčelí – zadní je vidět ze spawnu
+	for _, facadeInfo in { { frontX + 0.5, -1 }, { backX - 0.5, 1 } } do
+		local wallX, outward = facadeInfo[1], facadeInfo[2]
+		local outerX = wallX + outward * 0.5
+		for _, s in { -1, 1 } do
+			-- okno s truhlíkem plným kytek po každé straně vchodu
+			local wz = zCenter + s * 12.5
+			local windowCF = CFrame.new(wallX, floorY + 9.5, wz)
+			deco(part(m, Vector3.new(1.3, 5.6, 5), windowCF, trim))
+			local pane = deco(part(m, Vector3.new(1.5, 4.4, 3.8), windowCF, WARM_LIGHT, Enum.Material.Neon))
+			pane.Transparency = 0.25
+			pane.CastShadow = false
+			deco(part(m, Vector3.new(1.4, 1.2, 5.2), CFrame.new(outerX + outward * 0.7, floorY + 6.6, wz), darkColor, Enum.Material.Wood))
+			for f = -1, 1, 2 do
+				tiny(part(m, Vector3.one * 1.5, CFrame.new(outerX + outward * 0.7, floorY + 7.6, wz + f * 1.3), flowerColors[(index + f + s + 2) % #flowerColors + 1], Enum.Material.SmoothPlastic, BALL))
+			end
+			-- svítící lucerna na zdi vedle vchodu
+			tiny(part(m, Vector3.new(0.9, 1.3, 0.9), CFrame.new(outerX + outward * 0.85, floorY + 11.2, zCenter + s * 9.2), WARM_LIGHT, Enum.Material.Neon))
+			-- květináč s kulatým keříkem (vedle schůdku, mimo vchod)
+			local potPos = Vector3.new(outerX + outward * 2, floorY, zCenter + s * (entranceWidth / 2 + 3))
+			deco(part(m, Vector3.new(2.4, 2.4, 2.4), CFrame.new(potPos + Vector3.new(0, 1.2, 0)) * UP, Color3.fromRGB(200, 110, 70), nil, CYL))
+			deco(part(m, Vector3.one * 2.8, CFrame.new(potPos + Vector3.new(0, 3.3, 0)), if s == 1 then LEAF else LEAF_DARK, Enum.Material.Grass, BALL))
+		end
+		-- pruhovaná stříška nad vchodem (barva domečku + bílá)
+		local tilt = CFrame.Angles(0, 0, -outward * math.rad(22))
+		for stripe = 0, 3 do
+			deco(part(m, Vector3.new(5, 0.35, 5), CFrame.new(outerX + outward * 2.3, floorY + 14.6, zCenter - 7.5 + stripe * 5) * tilt, if stripe % 2 == 0 then color else trim))
+		end
+		-- rohožka před schůdkem (placatá, nepřekáží)
+		tiny(part(m, Vector3.new(3, 0.12, 9), CFrame.new(outerX + outward * 4.6, floorY + 0.06, zCenter), darkColor, Enum.Material.Fabric))
+	end
+	-- barevné žárovky podél hran střechy na obou štítech
+	local roofTopY = floorY + 1 + H + gableHeight / 2 + 0.6 + 0.5 / math.cos(roofAngle)
+	for _, edgeX in { frontX - 1.5, backX + 1.5 } do
+		for _, s in { -1, 1 } do
+			for b = 0, 3 do
+				local zOffset = 15 - b * 4.2
+				local bulbY = roofTopY + (W / 4 - zOffset) * math.tan(roofAngle)
+				tiny(part(m, Vector3.one * 0.8, CFrame.new(edgeX, bulbY, zCenter + s * zOffset), BULB_COLORS[(b + index + (if s == 1 then 2 else 0)) % #BULB_COLORS + 1], Enum.Material.Neon, BALL))
+			end
 		end
 	end
+	-- komín s kouřem (na střeše vzadu)
+	-- (spodek komína sedí přesně na střeše, aby nečouhal dovnitř domečku)
+	local chimneyCF = CFrame.new(backX - 22, floorY + 1 + H + 10.2, zCenter + 7)
+	deco(part(m, Vector3.new(4, 9, 3), chimneyCF, Color3.fromRGB(190, 90, 70), Enum.Material.Brick))
+	local chimneyCap = deco(part(m, Vector3.new(5, 1, 4), chimneyCF * CFrame.new(0, 5, 0), Color3.fromRGB(80, 70, 70)))
+	local smoke = Instance.new("ParticleEmitter")
+	smoke.Name = "Smoke"
+	smoke.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	smoke.Rate = 1.5
+	smoke.Lifetime = NumberRange.new(3, 4)
+	smoke.Speed = NumberRange.new(3, 5)
+	smoke.SpreadAngle = Vector2.new(10, 10)
+	smoke.EmissionDirection = Enum.NormalId.Top
+	smoke.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.5), NumberSequenceKeypoint.new(1, 5) })
+	smoke.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.4), NumberSequenceKeypoint.new(1, 1) })
+	smoke.Color = ColorSequence.new(Color3.fromRGB(240, 240, 245))
+	smoke.Parent = chimneyCap
 
 	return {
 		Index = index,
@@ -983,6 +1067,79 @@ local function buildSpinner(root: Instance, origin: CFrame): (Model, BasePart)
 	local timer = billboard(timerAnchor, Vector3.zero, UDim2.fromOffset(260, 60), "FREE SPIN!", Color3.fromRGB(255, 240, 120), 120)
 	timer.Name = "TimerLabel"
 	CollectionService:AddTag(timer, "SpinnerTimer")
+
+	-- ===== Ozdoby kola (statické, mimo model Wheel, takže se při točení nehýbou) =====
+	local decor = model("Decor", m)
+	local red = Color3.fromRGB(210, 30, 45)
+	-- kulaté pódium se zlatým lemem (o 1 stud výš než písek, dá se na něj vyjít)
+	local stage = part(decor, Vector3.new(1, 40, 40), origin * CFrame.new(0, y + 0.5, 0) * UP, Color3.fromRGB(150, 60, 200), Enum.Material.SmoothPlastic, CYL, "Stage")
+	stage.CanTouch = false
+	deco(part(decor, Vector3.new(0.9, 41.2, 41.2), origin * CFrame.new(0, y + 0.45, 0) * UP, GOLD, Enum.Material.Metal, CYL))
+	-- červený koberec od kola k hráčům
+	tiny(part(decor, Vector3.new(7, 0.1, 16), origin * CFrame.new(0, y + 1.05, -12), red, Enum.Material.Fabric))
+	tiny(part(decor, Vector3.new(7, 0.1, 16), origin * CFrame.new(0, y + 0.05, -28), red, Enum.Material.Fabric))
+	-- fialová deska se zlatým okrajem za kolem + třpytky
+	local backDisc = deco(part(decor, Vector3.new(0.6, 32, 32), center * CFrame.new(0, 0, 0.9) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(110, 40, 170), Enum.Material.SmoothPlastic, CYL))
+	deco(part(decor, Vector3.new(0.4, 33.6, 33.6), center * CFrame.new(0, 0, 1.3) * CFrame.Angles(0, math.rad(90), 0), GOLD, Enum.Material.Metal, CYL))
+	sparkles(backDisc, 6, 1.4, 3, Color3.fromRGB(255, 240, 160))
+	-- prstenec barevných žárovek kolem kola (klient je nechá blikat, tag "WheelBulb")
+	local bulbCount = 28
+	for i = 0, bulbCount - 1 do
+		local a = (i + 0.5) / bulbCount * math.pi * 2 -- posun o půl kroku, aby žádná nebyla pod ukazatelem
+		local dir = center.UpVector * math.cos(a) + center.RightVector * math.sin(a)
+		local bulb = tiny(part(decor, Vector3.one * 1.3, CFrame.new(center.Position + dir * 14.7 - normal * 0.1), BULB_COLORS[i % #BULB_COLORS + 1], Enum.Material.Neon, BALL, "WheelBulb"))
+		bulb:SetAttribute("BulbIndex", i)
+		CollectionService:AddTag(bulb, "WheelBulb")
+	end
+	-- dva sloupy jako cukrová hůlka a oblouk mezi nimi
+	local pillarTop = y + 34
+	local pillarHeight = pillarTop - (y + 1)
+	for _, sx in { -18, 18 } do
+		deco(part(decor, Vector3.new(pillarHeight, 2.4, 2.4), origin * CFrame.new(sx, y + 1 + pillarHeight / 2, 0.5) * UP, WHITE, nil, CYL))
+		for band = 1, 3 do
+			tiny(part(decor, Vector3.new(1.4, 2.7, 2.7), origin * CFrame.new(sx, y + 1 + pillarHeight * band / 4, 0.5) * UP, red, nil, CYL))
+		end
+		deco(part(decor, Vector3.one * 3.2, origin * CFrame.new(sx, pillarTop, 0.5), GOLD, Enum.Material.Metal, BALL))
+	end
+	local archRise = 10
+	local archSegments = 8
+	local function archPoint(t: number): Vector3
+		return (origin * CFrame.new(18 * math.cos(t), pillarTop + archRise * math.sin(t), 0.5)).Position
+	end
+	for k = 0, archSegments - 1 do
+		local p0 = archPoint(math.pi * (1 - k / archSegments))
+		local p1 = archPoint(math.pi * (1 - (k + 1) / archSegments))
+		deco(part(decor, Vector3.new(1.8, 1.8, (p1 - p0).Magnitude + 0.6), CFrame.lookAt((p0 + p1) / 2, p1), if k % 2 == 0 then GOLD else CORAL))
+	end
+	-- velká cedule LUCKY WHEEL na oblouku (nad časovačem)
+	local signCF = origin * CFrame.new(0, pillarTop + 8, -0.6)
+	deco(part(decor, Vector3.new(25.2, 7.2, 0.5), signCF * CFrame.new(0, 0, 0.4), GOLD, Enum.Material.Metal))
+	local wheelSign = deco(part(decor, Vector3.new(24, 6, 0.6), signCF, Color3.fromRGB(200, 30, 70), Enum.Material.SmoothPlastic, BLOCK, "WheelSign"))
+	surfaceLabel(wheelSign, Enum.NormalId.Front, "LUCKY WHEEL", Color3.fromRGB(255, 235, 90), Color3.fromRGB(90, 20, 40), 30)
+	-- zlatá hvězda na vrcholu oblouku
+	local starCF = origin * CFrame.new(0, pillarTop + archRise + 4.5, 0.5)
+	for arm = 0, 4 do
+		tiny(part(decor, Vector3.new(1.6, 3.6, 0.8), starCF * CFrame.Angles(0, 0, arm / 5 * math.pi * 2) * CFrame.new(0, 1.8, 0), GOLD, Enum.Material.Neon))
+	end
+	local starCore = tiny(part(decor, Vector3.one * 2.4, starCF, GOLD, Enum.Material.Neon, BALL))
+	sparkles(starCore, 10, 2, 6, Color3.fromRGB(255, 230, 120))
+	local starLight = Instance.new("PointLight")
+	starLight.Color = Color3.fromRGB(255, 220, 120)
+	starLight.Range = 20
+	starLight.Brightness = 2
+	starLight.Parent = starCore
+	-- trsy balónků uvázané na sloupech
+	local balloonColors = { CORAL, ROYAL, Color3.fromRGB(255, 210, 50), Color3.fromRGB(110, 220, 120), Color3.fromRGB(255, 120, 200), Color3.fromRGB(170, 100, 255) }
+	for si, sx in { -18, 18 } do
+		local knot = origin * CFrame.new(sx, pillarTop + 1.5, 0.5)
+		for b = 0, 2 do
+			local balloonCF = knot * CFrame.new(math.sign(sx) * (2 + b * 1.6), 6 + (b % 2) * 2.2, (b - 1) * 1.8)
+			tiny(part(decor, Vector3.one * 2.8, balloonCF, balloonColors[(si * 3 + b) % #balloonColors + 1], Enum.Material.SmoothPlastic, BALL))
+			local from = knot.Position
+			local to = (balloonCF * CFrame.new(0, -1.4, 0)).Position
+			tiny(part(decor, Vector3.new(0.1, 0.1, (to - from).Magnitude), CFrame.lookAt((from + to) / 2, to), WHITE))
+		end
+	end
 	return m, standPart
 end
 
@@ -1051,55 +1208,185 @@ local function buildLeaderboard(root: Instance, origin: CFrame): LeaderboardInfo
 end
 
 -- ===== Obří dárek =====
+-- Ostrov s dárkem na 100 000 studech. Dopad hráče řeší JumpService jen podle vzdálenosti
+-- (GiftLanding = landingX, výška písku). Proto je v místě dopadu jen placaté molo (horní plocha
+-- o 0,15 studu nad pískem) a na přistávací dráze (z = ±50 před dopadem) nestojí nic vysokého.
+
+local function miniGift(parent: Instance, position: Vector3, size: number, boxColor: Color3, ribbonColor: Color3, yaw: number)
+	local cf = CFrame.new(position + Vector3.new(0, size / 2, 0)) * CFrame.Angles(0, yaw, 0)
+	deco(part(parent, Vector3.one * size, cf, boxColor))
+	deco(part(parent, Vector3.new(size + 0.2, size + 0.2, size * 0.22), cf, ribbonColor))
+	deco(part(parent, Vector3.new(size * 0.22, size + 0.2, size + 0.2), cf, ribbonColor))
+end
+
+local function buildLighthouse(parent: Instance, base: Vector3)
+	local lh = model("Lighthouse", parent)
+	part(lh, Vector3.new(3, 20, 20), CFrame.new(base + Vector3.new(0, 1.5, 0)) * UP, ROCK, Enum.Material.Slate, CYL, "LighthouseBase")
+	-- věž z červenobílých pruhů
+	local towerY = base.Y + 3
+	local bandHeight = 12
+	local bands = 5
+	for k = 0, bands - 1 do
+		local d = 14 - k
+		deco(part(lh, Vector3.new(bandHeight, d, d), CFrame.new(base.X, towerY + bandHeight * (k + 0.5), base.Z) * UP, if k % 2 == 0 then WHITE else BUOY_RED, nil, CYL))
+	end
+	local galleryY = towerY + bands * bandHeight
+	deco(part(lh, Vector3.new(1, 15, 15), CFrame.new(base.X, galleryY + 0.5, base.Z) * UP, Color3.fromRGB(60, 60, 70), Enum.Material.Metal, CYL))
+	-- svítící lucerna nahoře
+	local lamp = deco(part(lh, Vector3.new(7, 8, 8), CFrame.new(base.X, galleryY + 4.5, base.Z) * UP, Color3.fromRGB(255, 240, 150), Enum.Material.Neon, CYL, "Lamp"))
+	lamp.CastShadow = false
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 235, 150)
+	light.Range = 60
+	light.Brightness = 4
+	light.Parent = lamp
+	-- střecha
+	deco(part(lh, Vector3.new(2, 11, 11), CFrame.new(base.X, galleryY + 9.5, base.Z) * UP, BUOY_RED, nil, CYL))
+	deco(part(lh, Vector3.new(2, 6, 6), CFrame.new(base.X, galleryY + 11.5, base.Z) * UP, BUOY_RED, nil, CYL))
+	deco(part(lh, Vector3.one * 2.4, CFrame.new(base.X, galleryY + 13.4, base.Z), GOLD, Enum.Material.Metal, BALL))
+end
 
 local function buildGift(root: Instance): (Model, Vector3)
 	local landingX = World.PierEndX + World.GiftDistance
 	local islandCenter = Vector3.new(landingX + 90, World.WaterY, 0)
+	local radius = World.GiftIslandRadius
 	local m = model("GiantGift", root)
 	m.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
-	-- ostrůvek
-	local islandTop = World.WaterY + 4
-	part(m, Vector3.new(8, World.GiftIslandRadius * 2, World.GiftIslandRadius * 2), CFrame.new(islandCenter + Vector3.new(0, islandTop - 4, 0)) * UP, SAND, Enum.Material.Sand, CYL, "Island")
-	deco(part(m, Vector3.new(2, World.GiftIslandRadius * 2 + 16, World.GiftIslandRadius * 2 + 16), CFrame.new(islandCenter + Vector3.new(0, World.WaterY - 0.2, 0)) * UP, Color3.fromRGB(120, 230, 240), nil, CYL))
 	local rng = Random.new(100)
-	for i = 0, 9 do
+
+	-- ostrov: tyrkysová mělčina, mokrý písek, písečný ostrov (pochozí) a tráva pod dárkem
+	local islandTop = World.WaterY + 4
+	part(m, Vector3.new(8, radius * 2, radius * 2), CFrame.new(islandCenter + Vector3.new(0, islandTop - 4, 0)) * UP, SAND, Enum.Material.Sand, CYL, "Island")
+	tiny(part(m, Vector3.new(2, radius * 2 + 90, radius * 2 + 90), CFrame.new(islandCenter + Vector3.new(0, World.WaterY - 0.85, 0)) * UP, Color3.fromRGB(110, 230, 235), nil, CYL))
+	deco(part(m, Vector3.new(3, radius * 2 + 28, radius * 2 + 28), CFrame.new(islandCenter + Vector3.new(0, World.WaterY - 0.2, 0)) * UP, SAND_DARK, Enum.Material.Sand, CYL))
+	-- tráva začíná až 20 studů za místem dopadu (dopad je na písku / molu)
+	local grassCenter = islandCenter + Vector3.new(50, 0, 0)
+	local grass = part(m, Vector3.new(1, 240, 240), CFrame.new(grassCenter + Vector3.new(0, islandTop - 0.3, 0)) * UP, Color3.fromRGB(110, 200, 80), Enum.Material.Grass, CYL, "Grass")
+	grass.CanTouch = false
+
+	-- přistávací molo v místě dopadu + dřevěná lávka k vodě a kus mola do moře
+	local deckTop = islandTop + 0.15
+	local deck = part(m, Vector3.new(30, 0.6, 26), CFrame.new(landingX, deckTop - 0.3, 0), WOOD_LIGHT, Enum.Material.WoodPlanks, BLOCK, "LandingDeck")
+	deck.CanTouch = false
+	local walkFrom, walkTo = landingX - 140, landingX - 15
+	local walk = part(m, Vector3.new(walkTo - walkFrom, 0.6, 10), CFrame.new((walkFrom + walkTo) / 2, deckTop - 0.3, 0), WOOD, Enum.Material.WoodPlanks, BLOCK, "Boardwalk")
+	walk.CanTouch = false
+	for k = 0, 2 do
+		for _, side in { -1, 1 } do
+			local postHeight = deckTop - (World.WaterY - 3) + 1
+			deco(part(m, Vector3.new(postHeight, 1.4, 1.4), CFrame.new(landingX - 110 - k * 14, World.WaterY - 3 + postHeight / 2, side * 5.6) * UP, WOOD_DARK, Enum.Material.Wood, CYL))
+		end
+	end
+	-- nízké lucerny podél lávky (mimo přistávací dráhu, nejvýš 5 studů nad pískem)
+	for k = 0, 2 do
+		for _, side in { -1, 1 } do
+			local x = landingX - 30 - k * 25
+			deco(part(m, Vector3.new(4, 0.5, 0.5), CFrame.new(x, islandTop + 2, side * 7.5) * UP, WOOD_DARK, Enum.Material.Wood, CYL))
+			tiny(part(m, Vector3.new(1, 1.4, 1), CFrame.new(x, islandTop + 4.6, side * 7.5), WARM_LIGHT, Enum.Material.Neon))
+		end
+	end
+	-- uvítací cedule vedle místa dopadu
+	local signOrigin = facing(Vector3.new(landingX - 4, 0, -19), Vector3.new(-1, 0, 0.35))
+	for _, sx in { -5.5, 5.5 } do
+		deco(part(m, Vector3.new(0.8, 7, 0.8), signOrigin * CFrame.new(sx, islandTop + 3.5, 0), WOOD_DARK, Enum.Material.Wood))
+	end
+	local welcome = deco(part(m, Vector3.new(13, 4.5, 0.6), signOrigin * CFrame.new(0, islandTop + 5.5, 0), WOOD, Enum.Material.Wood, BLOCK, "WelcomeSign"))
+	surfaceLabel(welcome, Enum.NormalId.Front, "GIANT GIFT ISLAND", WHITE, Color3.fromRGB(70, 40, 20), 30)
+
+	-- maják na kraji ostrova (vpravo, daleko od přistávací dráhy)
+	buildLighthouse(m, Vector3.new(landingX + 10, islandTop, -150))
+
+	-- palmy po obvodu (vynechané jsou ty na přistávací dráze a uvnitř dárku)
+	for _, i in { 2, 3, 4, 6, 7, 8 } do
 		local a = i / 10 * math.pi * 2
 		palm(m, islandCenter + Vector3.new(math.cos(a) * 160, islandTop, math.sin(a) * 160), rng:NextNumber(22, 32), 10, a)
 	end
+	for _, side in { -1, 1 } do
+		palm(m, Vector3.new(landingX - 45, islandTop, side * 62), rng:NextNumber(18, 24), 12, if side == 1 then 1.2 else -1.2)
+	end
+	-- kameny na břehu
+	for _, a in { 0.35, -0.35, 0.75, -0.75 } do
+		local angle = a * math.pi
+		rockCluster(m, islandCenter + Vector3.new(math.cos(angle) * 188, World.WaterY + 1, math.sin(angle) * 188), rng:NextNumber(9, 14), false, rng)
+	end
+	-- malé dárečky kolem
+	local miniColors = { Color3.fromRGB(80, 180, 255), Color3.fromRGB(255, 120, 200), Color3.fromRGB(120, 220, 120), Color3.fromRGB(180, 120, 255) }
+	for i, pos in { Vector3.new(landingX + 6, 0, 26), Vector3.new(landingX + 14, 0, -32), Vector3.new(landingX + 70, 0, 135), Vector3.new(landingX + 150, 0, -132) } do
+		miniGift(m, Vector3.new(pos.X, islandTop, pos.Z), rng:NextNumber(6, 10), miniColors[i], if i % 2 == 0 then GOLD else WHITE, rng:NextNumber(0, 6))
+	end
+
 	-- dárek
 	local custom = Models.MapAsset("GiantGift")
 	local giftCenter = islandCenter + Vector3.new(40, 0, 0)
+	local boxHeight = World.GiftHeight
 	if custom then
 		custom:PivotTo(CFrame.new(giftCenter + Vector3.new(0, islandTop, 0)))
 		custom.Parent = m
 	else
-		local boxSize = 200
-		local boxHeight = 250
+		-- přední stěna krabice je 20 studů za místem dopadu
+		local boxSize = 220
+		local lidHeight = 40
 		local gold = Color3.fromRGB(255, 200, 40)
-		local red = Color3.fromRGB(230, 40, 50)
-		local box = part(m, Vector3.new(boxSize, boxHeight, boxSize), CFrame.new(giftCenter + Vector3.new(0, islandTop + boxHeight / 2, 0)), gold, Enum.Material.SmoothPlastic, BLOCK, "Box")
+		local ribbon = Color3.fromRGB(255, 50, 80)
+		local boxBottom = islandTop
+		local lidY = boxBottom + boxHeight + lidHeight / 2
+		local box = part(m, Vector3.new(boxSize, boxHeight, boxSize), CFrame.new(giftCenter + Vector3.new(0, boxBottom + boxHeight / 2, 0)), gold, Enum.Material.SmoothPlastic, BLOCK, "Box")
 		CollectionService:AddTag(box, "GiftBody")
-		local lid = part(m, Vector3.new(boxSize + 16, 36, boxSize + 16), CFrame.new(giftCenter + Vector3.new(0, islandTop + boxHeight + 18, 0)), gold, Enum.Material.SmoothPlastic, BLOCK, "Lid")
+		local lid = part(m, Vector3.new(boxSize + 16, lidHeight, boxSize + 16), CFrame.new(giftCenter + Vector3.new(0, lidY, 0)), gold, Enum.Material.SmoothPlastic, BLOCK, "Lid")
 		CollectionService:AddTag(lid, "GiftBody")
-		-- mašle přes celý dárek
-		deco(part(m, Vector3.new(boxSize + 2, boxHeight + 38, 34), CFrame.new(giftCenter + Vector3.new(0, islandTop + (boxHeight + 36) / 2, 0)), red, Enum.Material.SmoothPlastic))
-		deco(part(m, Vector3.new(34, boxHeight + 38, boxSize + 18), CFrame.new(giftCenter + Vector3.new(0, islandTop + (boxHeight + 36) / 2, 0)), red, Enum.Material.SmoothPlastic))
-		deco(part(m, Vector3.new(boxSize + 18, 38, 34), CFrame.new(giftCenter + Vector3.new(0, islandTop + boxHeight + 18, 0)), red))
-		-- velká mašle nahoře
-		for _, s in { -1, 1 } do
-			deco(part(m, Vector3.new(70, 44, 36), CFrame.new(giftCenter + Vector3.new(0, islandTop + boxHeight + 58, s * 34)) * CFrame.Angles(math.rad(s * 25), 0, 0), red, Enum.Material.SmoothPlastic, BALL))
+		-- svítící mašle přes celý dárek
+		local ribbonHeight = boxHeight + lidHeight + 2
+		for _, size in { Vector3.new(boxSize + 2, ribbonHeight, 36), Vector3.new(36, ribbonHeight, boxSize + 2) } do
+			tiny(part(m, size, CFrame.new(giftCenter + Vector3.new(0, boxBottom + ribbonHeight / 2, 0)), ribbon, Enum.Material.Neon))
 		end
-		deco(part(m, Vector3.new(34, 34, 34), CFrame.new(giftCenter + Vector3.new(0, islandTop + boxHeight + 50, 0)), red, Enum.Material.SmoothPlastic, BALL))
+		for _, size in { Vector3.new(boxSize + 18, lidHeight + 2, 36), Vector3.new(36, lidHeight + 2, boxSize + 18) } do
+			tiny(part(m, size, CFrame.new(giftCenter + Vector3.new(0, lidY, 0)), ribbon, Enum.Material.Neon))
+		end
+		-- velká mašle nahoře (dvě smyčky + uzel)
+		local bowY = boxBottom + boxHeight + lidHeight
+		for _, s in { -1, 1 } do
+			tiny(part(m, Vector3.new(28, 80, 80), CFrame.new(giftCenter + Vector3.new(0, bowY + 34, s * 40)), ribbon, Enum.Material.Neon, CYL))
+		end
+		tiny(part(m, Vector3.one * 40, CFrame.new(giftCenter + Vector3.new(0, bowY + 16, 0)), ribbon, Enum.Material.Neon, BALL))
+		-- světla a třpytky
 		local light = Instance.new("PointLight")
 		light.Range = 60
-		light.Brightness = 3
+		light.Brightness = 4
 		light.Color = Color3.fromRGB(255, 230, 150)
 		light.Parent = lid
+		local frontLight = Instance.new("SurfaceLight")
+		frontLight.Face = Enum.NormalId.Left -- strana k místu dopadu (−X)
+		frontLight.Range = 60
+		frontLight.Brightness = 3
+		frontLight.Angle = 120
+		frontLight.Color = Color3.fromRGB(255, 225, 150)
+		frontLight.Parent = box
+		local glitter = Instance.new("ParticleEmitter")
+		glitter.Name = "Sparkles"
+		glitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		glitter.Rate = 40
+		glitter.Lifetime = NumberRange.new(2, 3)
+		glitter.Speed = NumberRange.new(15, 30)
+		glitter.SpreadAngle = Vector2.new(35, 35)
+		glitter.EmissionDirection = Enum.NormalId.Top
+		glitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 7), NumberSequenceKeypoint.new(1, 0) })
+		glitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 0.7) })
+		glitter.Color = ColorSequence.new(Color3.fromRGB(255, 240, 170))
+		glitter.LightEmission = 1
+		glitter.Parent = lid
 	end
-	-- svítící paprsek do nebe
-	local beam = deco(part(m, Vector3.new(2048, 40, 40), CFrame.new(giftCenter + Vector3.new(0, 1024 + 250, 0)) * UP, Color3.fromRGB(255, 240, 170), Enum.Material.Neon, CYL, "Beam"))
+	-- keříky u paty dárku (mimo krabici i mimo přistávací molo)
+	for k, pos in { Vector3.new(12, 0, 60), Vector3.new(12, 0, -70), Vector3.new(14, 0, 100), Vector3.new(10, 0, -96), Vector3.new(100, 0, 126), Vector3.new(200, 0, -126) } do
+		local bush = deco(part(m, Vector3.one * rng:NextNumber(8, 12), CFrame.new(landingX + pos.X, islandTop + 2, pos.Z), if k % 2 == 0 then LEAF else LEAF_DARK, Enum.Material.Grass, BALL))
+		bush.CastShadow = false
+	end
+
+	-- svítící paprsek do nebe (jádro + široká průsvitná záře)
+	local beamBottom = islandTop + boxHeight + 40 -- od víka nahoru
+	local beam = tiny(part(m, Vector3.new(2048, 40, 40), CFrame.new(giftCenter + Vector3.new(0, beamBottom + 1024, 0)) * UP, Color3.fromRGB(255, 240, 170), Enum.Material.Neon, CYL, "Beam"))
 	beam.Transparency = 0.35
-	beam.CastShadow = false
+	local halo = tiny(part(m, Vector3.new(2048, 110, 110), CFrame.new(giftCenter + Vector3.new(0, beamBottom + 1024, 0)) * UP, Color3.fromRGB(255, 245, 200), Enum.Material.Neon, CYL, "BeamGlow"))
+	halo.Transparency = 0.82
 	CollectionService:AddTag(m, "GiantGift")
 	return m, Vector3.new(landingX, islandTop, 0)
 end

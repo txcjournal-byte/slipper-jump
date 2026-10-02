@@ -46,6 +46,7 @@ Dokud mají produkty `Id = 0`, v obchodě se neukazují (a tlačítka jen ukáž
 | Game pass | **Super Jumper** (`SuperJumper`) | 199 R$ | +25 % ke vzdálenosti skoku natrvalo (limity 95 000 / 100 000 platí dál) |
 | Game pass | **Lucky Charm** (`LuckyCharm`) | 179 R$ | 1,5× štěstí na vzácné předměty z vody natrvalo |
 | Game pass | VIP (`VIP`) | 249 R$ | zlaté jméno, +1 denní točení |
+| Game pass | **All Sneaker Skins** (`AllSneakers`) | 299 R$ | všech 20 skinů tenisek natrvalo |
 | Developer product | Starter Pack (`StarterPack`) | 49 R$ | jednorázový balíček |
 | Developer product | Shark Repellent (`SharkRepellent`) | 29 R$ | 3 plavání bez žraloka |
 | Developer product | Super Jump (`SuperJump`) | 15 R$ | příští skok +20 % |
@@ -56,6 +57,26 @@ Dokud mají produkty `Id = 0`, v obchodě se neukazují (a tlačítka jen ukáž
 | Developer product | Money Bag (`MoneyBag`) | 49 R$ | příjem domečku za 15 min |
 | Developer product | 5 Spins (`Spins5`) | 99 R$ | 5 točení (šance jsou vidět) |
 | Developer product | Money Chest (`MoneyChest`) | 149 R$ | příjem domečku za 1 h |
+| Developer product | **10 Spins** (`Spins10`) | 179 R$ | 10 točení (nejvýhodnější) |
+| Developer product | **Sneaker Skin** (`SkinTier1`) | 19 R$ | 1 skin tenisek (pozice 2–5) |
+| Developer product | **Cool Sneaker Skin** (`SkinTier2`) | 39 R$ | 1 skin tenisek (pozice 6–10) |
+| Developer product | **Epic Sneaker Skin** (`SkinTier3`) | 69 R$ | 1 skin tenisek (pozice 11–15) |
+| Developer product | **Legendary Sneaker Skin** (`SkinTier4`) | 99 R$ | 1 skin tenisek (pozice 16–20) |
+
+**Tenisky = skiny za Robux.** Mění jen vzhled bot (model, stopu, efekty), síla skoku je vždy z pantoflí.
+Hráč si v ITEMS → Sneakers vybere skin, hra si zapamatuje který a otevře nákup správné cenové skupiny
+(stačí tedy 4 produkty místo 20). První skin (Muddy Old Sneakers) má každý zdarma, Starter Pack přidává Street Runners.
+
+**Testování ve Studiu:** dokud mají produkty `Id = 0`, ve Studiu se všechno ukazuje a „koupí“ se zdarma
+(nápis *[Studio test]*), takže jde vše vyzkoušet. Ve zveřejněné hře se nezaložené produkty skryjí.
+
+### Zveřejnění hry – krok za krokem
+1. Ve Studiu **File → Publish to Roblox** (pojmenuj hru *Slipper Jump!*).
+2. Game Settings → Security → zapni **Enable Studio Access to API Services** (ukládání dat).
+3. Creator Dashboard → hra → **Monetization → Passes**: založ 9 passů z tabulky (název, cena, ikonka).
+4. **Monetization → Developer Products**: založ 15 produktů z tabulky.
+5. ID všech passů a produktů vlož do `src/shared/Config/Products.luau` (pole `Id`) a hru znovu publikuj.
+6. Vyplň dotazník **Maturity & Compliance**, nahraj ikonu a obrázky a hru přepni na **Public**.
 
 ## 3. Co otestovat ve Studiu
 

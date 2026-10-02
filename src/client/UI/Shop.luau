@@ -13,6 +13,8 @@ local Kit = require(script.Parent.Kit)
 local HUD = require(script.Parent.HUD)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Sound = require(script.Parent.Parent.Sound)
+local Purchase = require(script.Parent.Parent.Purchase)
+local Products = require(Shared.Config.Products)
 
 local Shop = {}
 
@@ -58,26 +60,47 @@ local function card(parent: Instance, order: number, color: Color3): Frame
 	return frame
 end
 
+local skinCards: { [string]: { Button: TextButton, Status: TextLabel, Index: number } } = {}
+
+local function ownsSkin(data: { [string]: any }, id: string): boolean
+	return id == Products.FreeSkin or table.find(data.OwnedSkins or {}, id) ~= nil or (data.Passes and data.Passes.AllSneakers == true)
+end
+
 local function buildSlippers(page: ScrollingFrame, line: { any })
+	local skins = line == Catalog.Sneakers
 	for index, cfg in line do
 		local frame = card(page, index, cfg.Color:Lerp(Color3.new(1, 1, 1), 0.55))
 		local top = frame:FindFirstChild("Top") :: Frame
 		local model = Models.Slipper(cfg.Id)
 		Kit.Viewport(top, model)
 		Kit.Text(frame, { Text = cfg.Name, Size = UDim2.new(1, -12, 0, 26), Position = UDim2.fromOffset(6, 128), TextColor3 = Kit.Colors.Text, NoStroke = true })
-		local distance = Jump.BaseDistance * cfg.Multiplier
-		Kit.Text(frame, { Text = "x" .. cfg.Multiplier .. "  •  " .. FormatNumber.Studs(distance), Size = UDim2.new(1, -12, 0, 22), Position = UDim2.fromOffset(6, 156), TextColor3 = Kit.Colors.Blue, NoStroke = true })
-		-- tenisky mají stejnou sílu jako pantofle na stejné pozici – ať to hráč ví, než je koupí
-		local sameAs = if line == Catalog.Sneakers then Catalog.Slippers[index] else nil
-		local statusText = if sameAs then "Same jump as " .. sameAs.Name else cfg.EffectText
-		local status = Kit.Text(frame, { Text = statusText, Size = UDim2.new(1, -12, 0, 18), Position = UDim2.fromOffset(6, 180), TextColor3 = Kit.Colors.Gray, NoStroke = true })
-		local button = Kit.Button(frame, { Text = "", Size = UDim2.new(1, -16, 0, 50), Position = UDim2.new(0, 8, 1, -58), Color = Kit.Colors.Green })
-		button.Activated:Connect(function()
-			local data = ClientState.Get()
-			local owned = table.find(data.OwnedSlippers or {}, cfg.Id) ~= nil
-			action("Slippers", if owned then "Equip" else "Buy", cfg.Id)
-		end)
-		slipperCards[cfg.Id] = { Button = button, Status = status }
+		if skins then
+			-- tenisky = skiny za Robux: mění jen vzhled, skok je pořád z pantoflí
+			Kit.Text(frame, { Text = "✨ SKIN  •  " .. cfg.EffectText, Size = UDim2.new(1, -12, 0, 22), Position = UDim2.fromOffset(6, 156), TextColor3 = Kit.Colors.Purple, NoStroke = true })
+			local status = Kit.Text(frame, { Text = "Looks only – your jump stays the same", Size = UDim2.new(1, -12, 0, 18), Position = UDim2.fromOffset(6, 180), TextColor3 = Kit.Colors.Gray, NoStroke = true })
+			local button = Kit.Button(frame, { Text = "", Size = UDim2.new(1, -16, 0, 50), Position = UDim2.new(0, 8, 1, -58), Color = Kit.Colors.Green })
+			button.Activated:Connect(function()
+				Sound.Play("Click")
+				local data = ClientState.Get()
+				if ownsSkin(data, cfg.Id) then
+					action("Skin", "Equip", if data.EquippedSkin == cfg.Id then "" else cfg.Id)
+				elseif not Purchase.Skin(cfg.Id, index) then
+					HUD.Notify("Skins are coming soon!", "Info")
+				end
+			end)
+			skinCards[cfg.Id] = { Button = button, Status = status, Index = index }
+		else
+			local distance = Jump.BaseDistance * cfg.Multiplier
+			Kit.Text(frame, { Text = "x" .. cfg.Multiplier .. "  •  " .. FormatNumber.Studs(distance), Size = UDim2.new(1, -12, 0, 22), Position = UDim2.fromOffset(6, 156), TextColor3 = Kit.Colors.Blue, NoStroke = true })
+			local status = Kit.Text(frame, { Text = cfg.EffectText, Size = UDim2.new(1, -12, 0, 18), Position = UDim2.fromOffset(6, 180), TextColor3 = Kit.Colors.Gray, NoStroke = true })
+			local button = Kit.Button(frame, { Text = "", Size = UDim2.new(1, -16, 0, 50), Position = UDim2.new(0, 8, 1, -58), Color = Kit.Colors.Green })
+			button.Activated:Connect(function()
+				local data = ClientState.Get()
+				local owned = table.find(data.OwnedSlippers or {}, cfg.Id) ~= nil
+				action("Slippers", if owned then "Equip" else "Buy", cfg.Id)
+			end)
+			slipperCards[cfg.Id] = { Button = button, Status = status }
+		end
 	end
 end
 
@@ -163,14 +186,6 @@ end
 
 local swimCards: { [number]: TextButton } = {}
 
-local function allShoes(): { any }
-	local list = table.clone(Catalog.Slippers) :: { any }
-	for _, cfg in Catalog.Sneakers do
-		table.insert(list, cfg)
-	end
-	return list
-end
-
 local function buildSwim(page: ScrollingFrame)
 	for index, upgrade in Swim.Upgrades do
 		local frame = card(page, index, upgrade.Color)
@@ -191,7 +206,13 @@ local function refresh(data: { [string]: any })
 	if not window or ClientState.Data == nil then
 		return
 	end
-	for _, cfg in allShoes() do
+	for id, entry in skinCards do
+		local owned = ownsSkin(data, id)
+		local wearing = data.EquippedSkin == id
+		entry.Button.BackgroundColor3 = if wearing then Kit.Colors.Gray elseif owned then Kit.Colors.Blue else Kit.Colors.Green
+		Kit.SetButtonText(entry.Button, if wearing then "TAKE OFF" elseif owned then "WEAR" else "R$ " .. Purchase.Price("SkinTier" .. Products.SkinTier(entry.Index)))
+	end
+	for _, cfg in Catalog.Slippers do
 		local entry = slipperCards[cfg.Id]
 		local owned = table.find(data.OwnedSlippers, cfg.Id) ~= nil
 		local equipped = data.EquippedSlippers == cfg.Id

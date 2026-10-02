@@ -2,15 +2,13 @@
 -- Robux obchod (tlačítko s košíkem). Všechno, co ovlivňuje hru, jde získat i hraním –
 -- Robuxy jen zrychlují nebo přidávají vzhled.
 
-local MarketplaceService = game:GetService("MarketplaceService")
-local Players = game:GetService("Players")
-
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Products = require(Shared.Config.Products)
 local Spinner = require(Shared.Config.Spinner)
 local Kit = require(script.Parent.Kit)
 local HUD = require(script.Parent.HUD)
 local ClientState = require(script.Parent.Parent.ClientState)
+local Purchase = require(script.Parent.Parent.Purchase)
 
 local RobuxShop = {}
 
@@ -66,37 +64,30 @@ function RobuxShop.Init(screen: ScreenGui)
 	local passGrid = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2, Parent = scroll })
 	Kit.new("UIGridLayout", { CellSize = UDim2.fromOffset(220, 200), CellPadding = UDim2.fromOffset(12, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = passGrid })
 	for i, pass in Products.GamePasses do
-		if pass.Id == 0 then
-			continue -- nezaložené passy se neukazují
+		if not Products.IsConfigured(pass.Key) then
+			continue -- nezaložené passy se ve zveřejněné hře neukazují
 		end
 		passButtons[pass.Key] = item(passGrid, i, pass.Name, pass.Description, pass.Price, pass.Color, function()
-			if pass.Id == 0 then
-				HUD.Notify("This pass is not set up yet (Config/Products.luau).", "Warning")
-				return
-			end
-			MarketplaceService:PromptGamePassPurchase(Players.LocalPlayer, pass.Id)
+			RobuxShop.PromptKey(pass.Key)
 		end)
 	end
 	Kit.Text(scroll, { Text = "BOOSTS & ITEMS", Size = UDim2.new(1, 0, 0, 40), LayoutOrder = 3, TextColor3 = Kit.Colors.Yellow, TextXAlignment = Enum.TextXAlignment.Left })
 	local productGrid = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 4, Parent = scroll })
 	Kit.new("UIGridLayout", { CellSize = UDim2.fromOffset(220, 200), CellPadding = UDim2.fromOffset(12, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = productGrid })
 	for i, product in Products.DevProducts do
-		if product.Id == 0 then
-			continue
+		if product.Hidden or not Products.IsConfigured(product.Key) then
+			continue -- skiny se kupují v záložce Sneakers
 		end
 		local button = item(productGrid, i, product.Name, product.Description, product.Price, product.Color, function()
-			if product.Id == 0 then
-				HUD.Notify("This product is not set up yet (Config/Products.luau).", "Warning")
-				return
-			end
-			MarketplaceService:PromptProductPurchase(Players.LocalPlayer, product.Id)
+			RobuxShop.PromptKey(product.Key)
 		end)
 		if product.Key == "StarterPack" then
 			starterCard = button.Parent :: GuiObject
 		end
 	end
+	Kit.Text(scroll, { Text = "👟 Sneaker skins: open ITEMS → Sneakers", Size = UDim2.new(1, 0, 0, 36), LayoutOrder = 5, TextColor3 = Kit.Colors.Purple, NoStroke = true, TextXAlignment = Enum.TextXAlignment.Left })
 	-- šance pro placená točení musí být vidět
-	Kit.Text(scroll, { Text = oddsText(), Size = UDim2.new(1, 0, 0, 60), LayoutOrder = 5, TextColor3 = Kit.Colors.Text, NoStroke = true, TextWrapped = true })
+	Kit.Text(scroll, { Text = oddsText(), Size = UDim2.new(1, 0, 0, 60), LayoutOrder = 6, TextColor3 = Kit.Colors.Text, NoStroke = true, TextWrapped = true })
 
 	ClientState.Changed:Connect(function(data)
 		if starterCard then
@@ -113,32 +104,15 @@ function RobuxShop.Init(screen: ScreenGui)
 	end)
 end
 
-function RobuxShop.Prompt(key: string)
-	for _, product in Products.DevProducts do
-		if product.Key == key then
-			if product.Id == 0 then
-				HUD.Notify("This product is not set up yet (Config/Products.luau).", "Warning")
-			else
-				MarketplaceService:PromptProductPurchase(Players.LocalPlayer, product.Id)
-			end
-			return
-		end
+-- Nákup podle klíče – game pass i developer product (např. z kontextové nabídky)
+function RobuxShop.PromptKey(key: string)
+	if not Purchase.Prompt(key) then
+		HUD.Notify("This is not available yet. Check back soon!", "Warning")
 	end
 end
 
--- Nákup podle klíče – game pass i developer product (např. z kontextové nabídky)
-function RobuxShop.PromptKey(key: string)
-	for _, pass in Products.GamePasses do
-		if pass.Key == key then
-			if pass.Id == 0 then
-				HUD.Notify("This pass is not set up yet (Config/Products.luau).", "Warning")
-			else
-				MarketplaceService:PromptGamePassPurchase(Players.LocalPlayer, pass.Id)
-			end
-			return
-		end
-	end
-	RobuxShop.Prompt(key)
+function RobuxShop.Prompt(key: string)
+	RobuxShop.PromptKey(key)
 end
 
 function RobuxShop.Toggle()

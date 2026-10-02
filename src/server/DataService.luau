@@ -15,6 +15,8 @@ export type Data = {
 	TotalEarned: number,
 	OwnedSlippers: { string },
 	EquippedSlippers: string,
+	OwnedSkins: { string }, -- skiny tenisek (za Robux, jen vzhled)
+	EquippedSkin: string, -- "" = bez skinu (vidět jsou pantofle)
 	OwnedHats: { string },
 	EquippedHat: string,
 	HouseSlots: { [string]: ItemData },
@@ -58,8 +60,10 @@ export type Data = {
 local TEMPLATE: Data = {
 	Money = Economy.StartingMoney,
 	TotalEarned = 0,
-	OwnedSlippers = { "BasicBlackSlippers", "MuddyOldSneakers" },
+	OwnedSlippers = { "BasicBlackSlippers" },
 	EquippedSlippers = "BasicBlackSlippers",
+	OwnedSkins = { "MuddyOldSneakers" },
+	EquippedSkin = "",
 	OwnedHats = {},
 	EquippedHat = "",
 	HouseSlots = {},

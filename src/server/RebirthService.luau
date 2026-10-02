@@ -57,8 +57,8 @@ local function rebirth(player: Player)
 	data.GiftOpenedThisLife = false
 	data.Rebirths += 1
 	data.Money = 0
-	data.OwnedSlippers = { "BasicBlackSlippers", "MuddyOldSneakers" }
-	data.EquippedSlippers = "BasicBlackSlippers"
+	data.OwnedSlippers = { "BasicBlackSlippers" }
+	data.EquippedSlippers = "BasicBlackSlippers" -- skiny tenisek (koupené za Robux) zůstávají
 	local titles = GiantGift.RebirthTitles
 	local title = titles[math.min(data.Rebirths, #titles)]
 	if data.Rebirths > #titles then

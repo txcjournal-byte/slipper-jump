@@ -3,8 +3,6 @@
 -- tlačítko SPIN s odpočtem a nákup extra točení.
 
 local TweenService = game:GetService("TweenService")
-local MarketplaceService = game:GetService("MarketplaceService")
-local Players = game:GetService("Players")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Spinner = require(Shared.Config.Spinner)
@@ -17,6 +15,7 @@ local HUD = require(script.Parent.HUD)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Sound = require(script.Parent.Parent.Sound)
 local Effects = require(script.Parent.Parent.Effects.Effects)
+local Purchase = require(script.Parent.Parent.Purchase)
 
 local SpinnerUI = {}
 
@@ -139,15 +138,8 @@ local function priceOf(key: string): number
 end
 
 local function promptProduct(key: string)
-	for _, product in Products.DevProducts do
-		if product.Key == key then
-			if product.Id == 0 then
-				HUD.Notify("This product is not set up yet (Config/Products.luau).", "Warning")
-			else
-				MarketplaceService:PromptProductPurchase(Players.LocalPlayer, product.Id)
-			end
-			return
-		end
+	if not Purchase.Prompt(key) then
+		HUD.Notify("This is not available yet. Check back soon!", "Warning")
 	end
 end
 

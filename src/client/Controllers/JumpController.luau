@@ -68,6 +68,12 @@ local distanceLabel: TextLabel
 local coinsLabel: TextLabel
 local ringsLabel: TextLabel
 local steerHint: TextLabel
+-- ukazatel cesty k Obřímu dárku (pod vzdáleností)
+local giftBar: Frame
+local giftFill: Frame
+local giftIcon: TextLabel
+local giftMessage: TextLabel
+local giftStage = 0 -- 0 = nic, 1 = „Almost there“ (80 %), 2 = „SO CLOSE“ (95 %), 3 = dárek
 
 local inZone = false
 local charging = false
@@ -309,6 +315,50 @@ local function checkCollect(state: FlightState, fromX: number, toX: number, y: n
 	end
 end
 
+-- ===== Cesta k Obřímu dárku =====
+
+-- Podíl délky pruhu: napůl logaritmicky (i krátké skoky jsou vidět), napůl lineárně (konec je napínavý)
+local function giftBarFraction(distance: number): number
+	local p = math.clamp(distance / World.GiftDistance, 0, 1)
+	local logPart = math.log10(1 + 999 * p) / 3
+	return math.clamp(0.5 * logPart + 0.5 * p, 0, 1)
+end
+
+local function resetGiftProgress()
+	giftStage = 0
+	giftFill.Size = UDim2.fromScale(0, 1)
+	giftFill.BackgroundColor3 = Kit.Colors.Yellow
+	giftMessage.Visible = false
+	giftIcon.Rotation = 0
+end
+
+local function updateGiftProgress(distance: number)
+	local p = distance / World.GiftDistance
+	giftFill.Size = UDim2.fromScale(giftBarFraction(distance), 1)
+	local stage = if p >= 1 then 3 elseif p >= 0.95 then 2 elseif p >= 0.8 then 1 else 0
+	local left = FormatNumber.Commas(math.max(1, math.ceil(World.GiftDistance - distance)))
+	if stage == 1 then
+		giftMessage.Text = "Almost there! " .. left .. " studs to the Giant Gift!"
+	elseif stage == 2 then
+		giftMessage.Text = "SO CLOSE! Just " .. left .. " more studs!"
+	elseif stage == 3 then
+		giftMessage.Text = "GIANT GIFT!!!"
+	end
+	if stage ~= giftStage then
+		-- nový stupeň: barva, zvětšení a krátký „pop“
+		giftStage = stage
+		giftMessage.Visible = stage > 0
+		giftMessage.TextColor3 = if stage == 1 then Kit.Colors.Yellow elseif stage == 2 then Kit.Colors.Pink else Kit.Colors.Green
+		giftFill.BackgroundColor3 = if stage >= 2 then Kit.Colors.Pink elseif stage == 1 then Kit.Colors.Orange else Kit.Colors.Yellow
+		if stage > 0 then
+			Kit.Pop(giftMessage, 1.4)
+			Kit.Pop(giftIcon, 1.6)
+		end
+	end
+	-- dárek se vrtí, čím blíž, tím víc
+	giftIcon.Rotation = if stage > 0 then math.sin(os.clock() * (8 + stage * 4)) * (6 + stage * 5) else 0
+end
+
 -- ===== Let =====
 
 local function getControls(): any?
@@ -426,6 +476,7 @@ local function startFlight(info: { [string]: any })
 	flightHud.Visible = true
 	coinsLabel.Text = "Coins: 0"
 	ringsLabel.Text = "⭕ 0"
+	resetGiftProgress()
 	steerHint.Visible = true
 	task.delay(2.5, function()
 		steerHint.Visible = false
@@ -520,39 +571,191 @@ local function raftModel(position: Vector3, parent: Instance): Model
 	return m
 end
 
+-- Žralok z dílů (~37 dílů): torpédové tělo z elipsoidů, šedomodrý hřbet a bílé břicho,
+-- vysoká hřbetní ploutev, prsní ploutve, srpovitá ocasní ploutev, žábry, oči a tlama se zuby.
+-- Model pluje ve směru -Z, neviditelný kořen (PrimaryPart) je v počátku.
+-- Tělo je posunuté pod kořen, takže u hladiny čouhá z vody hlavně hřbetní ploutev.
+type SharkPart = { Part: BasePart, Offset: CFrame, Seg: string }
+type SharkRig = { Root: BasePart, Parts: { SharkPart }, Teeth: { BasePart }, Attack: number, TeethShown: boolean }
+
+local sharkRigs: { [Model]: SharkRig } = setmetatable({}, { __mode = "k" }) :: any
+
+local SHARK_Y = -1.9 -- výška osy těla pod kořenem
+local SHARK_REAR_HINGE = Vector3.new(0, SHARK_Y, 2)
+local SHARK_TAIL_HINGE = Vector3.new(0, SHARK_Y + 0.15, 6.7)
+local SHARK_JAW_HINGE = Vector3.new(0, SHARK_Y - 0.8, -3.2)
+local SHARK_FIN_HINGE = Vector3.new(1.4, SHARK_Y - 0.75, -1.6)
+
 local function sharkModel(parent: Instance): Model
 	local m = Instance.new("Model")
 	m.Name = "Shark"
-	local gray = Color3.fromRGB(110, 125, 145)
-	local function add(className: string, size: Vector3, cf: CFrame, color: Color3, shape: Enum.PartType?): BasePart
+	local top = Color3.fromRGB(92, 112, 134) -- šedomodrý hřbet
+	local finColor = Color3.fromRGB(80, 98, 120)
+	local belly = Color3.fromRGB(236, 238, 240) -- světlé břicho (protistínování)
+	local rig: SharkRig = { Root = nil :: any, Parts = {}, Teeth = {}, Attack = 0, TeethShown = true }
+	local yc = SHARK_Y
+
+	local function add(className: string, size: Vector3, cf: CFrame, color: Color3, seg: string): BasePart
 		local p = Instance.new(className) :: BasePart
 		p.Anchored = true
 		p.CanCollide = false
 		p.CanQuery = false
 		p.CanTouch = false
+		p.CastShadow = false
 		p.Size = size
 		p.CFrame = cf
 		p.Color = color
 		p.Material = Enum.Material.SmoothPlastic
-		if shape and p:IsA("Part") then
-			p.Shape = shape
-		end
 		p.Parent = m
+		table.insert(rig.Parts, { Part = p, Offset = cf, Seg = seg })
 		return p
 	end
-	-- žralok pluje ve směru -Z modelu
-	local body = add("Part", Vector3.new(4.5, 3.6, 12), CFrame.new(0, -0.8, 0), gray, Enum.PartType.Ball)
-	add("Part", Vector3.new(3.4, 1.6, 9), CFrame.new(0, -1.8, -0.5), Color3.fromRGB(235, 235, 240), Enum.PartType.Ball)
-	add("WedgePart", Vector3.new(0.6, 3.6, 3.2), CFrame.new(0, 2.4, 0.6), gray)
-	add("WedgePart", Vector3.new(0.5, 3, 2.4), CFrame.new(0, 0.2, 7) * CFrame.Angles(math.rad(180), 0, 0), gray)
-	for _, side in { -1, 1 } do
-		add("Part", Vector3.new(0.7, 0.7, 0.7), CFrame.new(side * 1.6, 0, -4.2), Color3.fromRGB(20, 20, 25), Enum.PartType.Ball)
+	-- elipsoid = blok + SpecialMesh koule (koule se roztáhne na celý rozměr dílu)
+	local function ellipsoid(size: Vector3, position: Vector3, color: Color3, seg: string): BasePart
+		local p = add("Part", size, CFrame.new(position), color, seg)
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.Sphere
+		mesh.Parent = p
+		return p
 	end
-	-- usměvavé zuby (kreslený styl, nic strašidelného)
-	add("Part", Vector3.new(2.6, 0.35, 0.3), CFrame.new(0, -1.2, -5.6), Color3.new(1, 1, 1))
-	m.PrimaryPart = body
+	-- tenký proužek mezi dvěma body (žábry)
+	local function strip(a: Vector3, b: Vector3, thickness: number, color: Color3, seg: string): BasePart
+		return add("Part", Vector3.new(thickness, thickness, (b - a).Magnitude), CFrame.lookAt((a + b) / 2, b), color, seg)
+	end
+	-- šířka středního elipsoidu těla v dané výšce a hloubce (aby žábry seděly na povrchu)
+	local function midHalfWidth(y: number, z: number): number
+		local ry = (y - yc) / 1.65
+		local rz = (z + 0.4) / 4
+		return 1.9 * math.sqrt(math.max(0, 1 - ry * ry - rz * rz))
+	end
+
+	local root = Instance.new("Part")
+	root.Name = "Root"
+	root.Anchored = true
+	root.CanCollide = false
+	root.CanQuery = false
+	root.CanTouch = false
+	root.Transparency = 1
+	root.Size = Vector3.new(1, 1, 1)
+	root.CFrame = CFrame.identity
+	root.Parent = m
+	rig.Root = root
+
+	-- tělo: čenich → hlava → trup → zadek → ocasní násadec (zužuje se jako torpédo)
+	ellipsoid(Vector3.new(2, 1.6, 3.6), Vector3.new(0, yc + 0.25, -5.9), top, "Body")
+	ellipsoid(Vector3.new(3.2, 2.4, 6), Vector3.new(0, yc + 0.3, -3.4), top, "Body")
+	ellipsoid(Vector3.new(3.8, 3.3, 8), Vector3.new(0, yc, -0.4), top, "Body")
+	ellipsoid(Vector3.new(2.6, 2.3, 6), Vector3.new(0, yc + 0.05, 3), top, "Rear")
+	ellipsoid(Vector3.new(1.2, 1.3, 4), Vector3.new(0, yc + 0.15, 5.6), top, "Rear")
+	-- bílé břicho trochu níž, aby vykukovalo zespodu a po bocích
+	ellipsoid(Vector3.new(2.6, 2, 4.4), Vector3.new(0, yc - 0.75, -1.4), belly, "Body")
+	ellipsoid(Vector3.new(3.3, 2.6, 8), Vector3.new(0, yc - 0.65, 0.6), belly, "Body")
+	ellipsoid(Vector3.new(2, 1.4, 5), Vector3.new(0, yc - 0.5, 3.8), belly, "Rear")
+
+	-- vysoká trojúhelníková hřbetní ploutev (přední šikmá hrana + krátká zadní)
+	add("WedgePart", Vector3.new(0.3, 3.4, 2.8), CFrame.new(0, yc + 3.1, -0.2), finColor, "Body")
+	add("WedgePart", Vector3.new(0.3, 3.4, 0.7), CFrame.new(0, yc + 3.1, 1.55) * CFrame.Angles(0, math.pi, 0), finColor, "Body")
+	-- malá druhá hřbetní a řitní ploutev u ocasu
+	add("WedgePart", Vector3.new(0.2, 0.7, 0.8), CFrame.new(0, yc + 1.1, 4.6), finColor, "Rear")
+	add("WedgePart", Vector3.new(0.2, 0.6, 0.8), CFrame.new(0, yc - 0.75, 4.4) * CFrame.Angles(0, 0, math.pi), finColor, "Rear")
+
+	-- prsní ploutve: tenké trojúhelníky do stran, mírně dolů a dozadu
+	for _, side in { -1, 1 } do
+		local hinge = Vector3.new(side * SHARK_FIN_HINGE.X, SHARK_FIN_HINGE.Y, SHARK_FIN_HINGE.Z)
+		local cf = CFrame.new(hinge) * CFrame.Angles(0, 0, -side * math.rad(110)) * CFrame.Angles(math.rad(25), 0, 0) * CFrame.new(0, 1.6, 0)
+		add("WedgePart", Vector3.new(0.2, 3.2, 2.2), cf, finColor, if side < 0 then "FinL" else "FinR")
+	end
+
+	-- srpovitá ocasní ploutev: delší horní a kratší dolní lalok, vnitřní hrany tvoří vidlici
+	add("WedgePart", Vector3.new(0.22, 3.6, 1.6), CFrame.new(0, yc + 0.25, 6.9) * CFrame.Angles(math.rad(48), 0, 0) * CFrame.new(0, 1.8, 0), finColor, "Tail")
+	add("WedgePart", Vector3.new(0.22, 2.4, 1.3), CFrame.new(0, yc + 0.05, 6.9) * CFrame.Angles(math.rad(125), 0, 0) * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 1.2, 0), finColor, "Tail")
+
+	-- žaberní štěrbiny (4 na každé straně)
+	local gill = Color3.fromRGB(45, 55, 68)
+	for _, side in { -1, 1 } do
+		for i = 0, 3 do
+			local z = -2.4 + i * 0.35
+			local a = Vector3.new(side * (midHalfWidth(yc + 0.55, z) + 0.02), yc + 0.55, z)
+			local b = Vector3.new(side * (midHalfWidth(yc - 0.45, z + 0.15) + 0.02), yc - 0.45, z + 0.15)
+			strip(a, b, 0.1, gill, "Body")
+		end
+	end
+
+	-- malá černá lesklá očka
+	for _, side in { -1, 1 } do
+		local eye = add("Part", Vector3.new(0.42, 0.42, 0.42), CFrame.new(side * 1.35, yc + 0.45, -4.7), Color3.fromRGB(12, 12, 16), "Body") :: Part
+		eye.Shape = Enum.PartType.Ball
+		eye.Reflectance = 0.3
+	end
+
+	-- tlama: tmavá linka (vnitřek tlamy) mezi hlavou a bílou dolní čelistí
+	ellipsoid(Vector3.new(1.7, 0.3, 2.6), Vector3.new(0, yc - 0.8, -4.6), Color3.fromRGB(90, 25, 35), "Body")
+	ellipsoid(Vector3.new(2, 0.6, 2.6), Vector3.new(0, yc - 1.05, -4.4), belly, "Jaw")
+	-- zuby: horní řada visí dolů, dolní stojí na čelisti; ukážou se, až je žralok blízko
+	local white = Color3.fromRGB(250, 250, 245)
+	for _, u in { -1, -0.33, 0.33, 1 } do
+		local cf = CFrame.new(0.6 * math.sin(u), yc - 0.78, -4.4 - 0.95 * math.cos(u)) * CFrame.Angles(0, u, 0) * CFrame.Angles(math.pi, 0, 0)
+		table.insert(rig.Teeth, add("WedgePart", Vector3.new(0.1, 0.32, 0.18), cf, white, "Body"))
+	end
+	for _, u in { -0.7, 0, 0.7 } do
+		local cf = CFrame.new(0.55 * math.sin(u), yc - 0.72, -4.4 - 0.9 * math.cos(u)) * CFrame.Angles(0, u, 0)
+		table.insert(rig.Teeth, add("WedgePart", Vector3.new(0.1, 0.28, 0.18), cf, white, "Jaw"))
+	end
+
+	m.PrimaryPart = root
 	m.Parent = parent
+	sharkRigs[m] = rig
 	return m
+end
+
+-- otočení kolem kloubu (v souřadnicích modelu)
+local function aroundHinge(hinge: Vector3, rotation: CFrame): CFrame
+	return CFrame.new(hinge) * rotation * CFrame.new(-hinge)
+end
+
+-- Animace žraloka: vlnění těla, mávání ocasem, prsní ploutve, a když je blízko hráče,
+-- vynoří hlavu, otevře tlamu a ukáže zuby. Volá se po PivotTo (pohyb se nemění).
+local function animateShark(shark: Model, target: Vector3, dt: number)
+	local rig = sharkRigs[shark]
+	if not rig then
+		return
+	end
+	local root = rig.Root.CFrame
+	local distance = (root.Position - target).Magnitude
+	local want = math.clamp((14 - distance) / 8, 0, 1)
+	rig.Attack += (want - rig.Attack) * (1 - math.exp(-dt * 6))
+	local a = rig.Attack
+	local t = os.clock() * (6 + a * 4)
+	local base = root * CFrame.new(0, a * 1.1, 0) * CFrame.Angles(a * 0.28, 0, 0)
+	local body = base * CFrame.Angles(0, 0.06 * math.sin(t + 0.8), 0)
+	local rear = body * aroundHinge(SHARK_REAR_HINGE, CFrame.Angles(0, 0.2 * math.sin(t - 0.9), 0))
+	local tail = rear * aroundHinge(SHARK_TAIL_HINGE, CFrame.Angles(0, 0.45 * math.sin(t - 1.9), 0))
+	local gape = a * 0.55 + a * 0.12 * math.sin(os.clock() * 9)
+	local jaw = body * aroundHinge(SHARK_JAW_HINGE, CFrame.Angles(-gape, 0, 0))
+	local flap = 0.12 * math.sin(t * 0.5)
+	local finHingeL = Vector3.new(-SHARK_FIN_HINGE.X, SHARK_FIN_HINGE.Y, SHARK_FIN_HINGE.Z)
+	local frames: { [string]: CFrame } = {
+		Body = body,
+		Rear = rear,
+		Tail = tail,
+		Jaw = jaw,
+		FinL = body * aroundHinge(finHingeL, CFrame.Angles(0, 0, flap)),
+		FinR = body * aroundHinge(SHARK_FIN_HINGE, CFrame.Angles(0, 0, -flap)),
+	}
+	local parts: { BasePart } = table.create(#rig.Parts)
+	local cframes: { CFrame } = table.create(#rig.Parts)
+	for i, entry in rig.Parts do
+		parts[i] = entry.Part
+		cframes[i] = frames[entry.Seg] * entry.Offset
+	end
+	Workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+	local show = a > 0.25
+	if show ~= rig.TeethShown then
+		rig.TeethShown = show
+		for _, tooth in rig.Teeth do
+			tooth.Transparency = if show then 0 else 1
+		end
+	end
 end
 
 local function startSwim(info: { [string]: any })
@@ -582,7 +785,7 @@ local function startSwim(info: { [string]: any })
 		task.delay(info.SharkDelay, function()
 			if flight == state and not state.SwimEnded then
 				Effects.BigText("SHARK!!! SWIM FASTER!", Kit.Colors.Coral, 1.2, 0.3)
-				Sound.Play("Fanfare", 0.6)
+				Sound.Play("SharkAlert")
 			end
 		end)
 	end
@@ -632,6 +835,7 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 			local sharkPos = Vector3.new(sx, info.Y + 0.6, state.Z + math.sin(os.clock() * 3) * 1.5)
 			shark:PivotTo(CFrame.lookAt(sharkPos, sharkPos - Vector3.xAxis))
 		end
+		animateShark(shark, position, dt)
 	end
 	-- ukazatel: ty vs. žralok
 	swimBarYou.Size = UDim2.fromScale(math.clamp(state.SwimProgress / info.Distance, 0, 1), 1)
@@ -790,6 +994,7 @@ local function updateFlight(dt: number)
 	-- vzdálenost od konce mola
 	local distance = math.max(0, x - World.PierEndX)
 	distanceLabel.Text = FormatNumber.Studs(math.floor(distance))
+	updateGiftProgress(distance)
 end
 
 -- ===== Výsledek skoku =====
@@ -804,6 +1009,13 @@ local function showResult(result: { [string]: any })
 	Effects.BigText(FormatNumber.Studs(result.Distance) .. "!", Kit.Colors.White, 2.2, 0.2)
 	if result.PersonalRecord then
 		HUD.Notify("NEW PERSONAL BEST!", "Record")
+	end
+	-- skok skončil kousek před dárkem → povzbudit
+	if not result.ReachedGift and result.Distance >= World.GiftDistance * 0.8 and result.Distance < World.GiftDistance then
+		local left = FormatNumber.Commas(math.max(1, math.ceil(World.GiftDistance - result.Distance)))
+		task.delay(0.6, function()
+			Effects.BigText("Only " .. left .. " studs from the Giant Gift!", Kit.Colors.Yellow, 2.4, 0.42)
+		end)
 	end
 	if result.CoinMoney > 0 then
 		Effects.FloatText("+" .. FormatNumber.Money(result.CoinMoney) .. " from coins", Kit.Colors.Yellow)
@@ -836,6 +1048,7 @@ local function showResult(result: { [string]: any })
 	if result.ReachedGift then
 		Effects.WorldConfetti(landing + Vector3.new(60, 40, 0), 120, 6)
 		Effects.ScreenConfetti(150)
+		Sound.Play("Confetti")
 	end
 	if not result.ReachedGift then
 		return -- dál pokračuje plavání (SwimStart / SwimResult)
@@ -948,6 +1161,13 @@ function JumpController.Init(parentScreen: ScreenGui)
 	distanceLabel = Kit.Text(flightHud, { Text = "0 studs", Size = UDim2.fromOffset(520, 80), Position = UDim2.new(0.5, 0, 0, 20), AnchorPoint = Vector2.new(0.5, 0), StrokeThickness = 4 })
 	coinsLabel = Kit.Text(flightHud, { Text = "Coins: 0", Size = UDim2.fromOffset(260, 54), Position = UDim2.new(0, 24, 0, 30), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Kit.Colors.Yellow })
 	ringsLabel = Kit.Text(flightHud, { Text = "⭕ 0", Size = UDim2.fromOffset(340, 54), Position = UDim2.new(0, 24, 0, 90), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(255, 230, 120) })
+	-- pruh cesty k Obřímu dárku: hned pod vzdáleností, dárek na konci
+	giftBar = Kit.Panel(flightHud, { Size = UDim2.fromOffset(360, 20), Position = UDim2.new(0.5, -20, 0, 106), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.fromRGB(30, 50, 95), Radius = 10, StrokeThickness = 3 })
+	giftFill = Kit.new("Frame", { BackgroundColor3 = Kit.Colors.Yellow, BorderSizePixel = 0, Size = UDim2.fromScale(0, 1), ZIndex = 2, Parent = giftBar })
+	Kit.Corner(giftFill, 10)
+	Kit.new("UIGradient", { Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(215, 215, 215)), Rotation = 90, Parent = giftFill })
+	giftIcon = Kit.Text(giftBar, { Text = "🎁", Size = UDim2.fromOffset(46, 46), Position = UDim2.new(1, 6, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), NoStroke = true, ZIndex = 3 })
+	giftMessage = Kit.Text(flightHud, { Text = "", Size = UDim2.fromOffset(620, 40), Position = UDim2.new(0.5, 0, 0, 136), AnchorPoint = Vector2.new(0.5, 0), TextColor3 = Kit.Colors.Yellow, StrokeThickness = 3, Visible = false })
 	steerHint = Kit.Text(flightHud, { Text = "Steer with A / D or the joystick!", Size = UDim2.fromOffset(600, 44), Position = UDim2.new(0.5, 0, 1, -60), AnchorPoint = Vector2.new(0.5, 1), TextColor3 = Kit.Colors.White })
 
 	swimHud = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Visible = false, Parent = screen })

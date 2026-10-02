@@ -4,6 +4,7 @@
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Catalog = require(Shared.Catalog)
 local Swim = require(Shared.Config.Swim)
+local Products = require(Shared.Config.Products)
 local Formulas = require(Shared.Formulas)
 local FormatNumber = require(Shared.Util.FormatNumber)
 local Net = require(Shared.Net)
@@ -17,6 +18,17 @@ local ShopService = {}
 
 local SHOP_RANGE = 45
 
+-- tenisky jsou skiny (za Robux), ne pantofle za peníze
+local function isSkin(id: string): boolean
+	for _, cfg in Catalog.Sneakers do
+		if cfg.Id == id then
+			return true
+		end
+	end
+	return false
+end
+
+
 local function nearShop(player: Player): boolean
 	local root = Registry.Player.GetRoot(player)
 	return root ~= nil and (root.Position - Registry.Map.ShopPosition).Magnitude <= SHOP_RANGE
@@ -24,7 +36,7 @@ end
 
 local function buySlippers(session: Session, id: string): Result
 	local cfg = Catalog.Slipper(id)
-	if not cfg then
+	if not cfg or isSkin(id) then
 		return { Ok = false, Message = "Unknown slippers." }
 	end
 	local data = session.Data
@@ -93,6 +105,59 @@ local function buySwim(session: Session, id: string): Result
 	return { Ok = true, Message = "You bought " .. nextUpgrade.Name .. "! You swim faster now." }
 end
 
+-- ===== Skiny tenisek (za Robux, jen vzhled – síla skoku je z pantoflí) =====
+
+function ShopService.OwnsSkin(session: Session, id: string): boolean
+	if not isSkin(id) then
+		return false
+	end
+	return table.find(session.Data.OwnedSkins, id) ~= nil or session.Passes.AllSneakers == true or id == Products.FreeSkin
+end
+
+-- Přidá skin a rovnou ho oblékne. Vrací false, když už ho hráč má.
+function ShopService.GrantSkin(session: Session, id: string, wear: boolean?): boolean
+	if not isSkin(id) or table.find(session.Data.OwnedSkins, id) then
+		return false
+	end
+	table.insert(session.Data.OwnedSkins, id)
+	if wear ~= false then
+		session.Data.EquippedSkin = id
+		Registry.Avatar.ApplySlippers(session)
+	end
+	Registry.Player.MarkDirty(session)
+	return true
+end
+
+-- Starší data: tenisky bývaly v OwnedSlippers (kupovaly se za peníze) → převést na skiny
+function ShopService.MigrateSkins(session: Session)
+	local data = session.Data
+	data.OwnedSkins = data.OwnedSkins or { Products.FreeSkin }
+	data.EquippedSkin = data.EquippedSkin or ""
+	for i = #data.OwnedSlippers, 1, -1 do
+		local id = data.OwnedSlippers[i]
+		if isSkin(id) then
+			table.remove(data.OwnedSlippers, i)
+			if not table.find(data.OwnedSkins, id) then
+				table.insert(data.OwnedSkins, id)
+			end
+		end
+	end
+	if isSkin(data.EquippedSlippers) then
+		data.EquippedSkin = data.EquippedSlippers
+		-- nejlepší vlastněné pantofle
+		local best = Catalog.Slippers[1].Id
+		for _, cfg in Catalog.Slippers do
+			if table.find(data.OwnedSlippers, cfg.Id) then
+				best = cfg.Id
+			end
+		end
+		data.EquippedSlippers = best
+	end
+	if data.EquippedSkin ~= "" and not ShopService.OwnsSkin(session, data.EquippedSkin) then
+		data.EquippedSkin = ""
+	end
+end
+
 function ShopService.GrantHat(session: Session, id: string)
 	local data = session.Data
 	if Catalog.Hat(id) and not table.find(data.OwnedHats, id) then
@@ -114,6 +179,13 @@ local function handleAction(player: Player, action: unknown, kind: unknown, id: 
 		result = buyHat(session, id)
 	elseif action == "Buy" and kind == "Swim" then
 		result = buySwim(session, id)
+	elseif action == "Equip" and kind == "Skin" then
+		if id ~= "" and not ShopService.OwnsSkin(session, id) then
+			return { Ok = false, Message = "Get this skin in the Sneakers tab first!" }
+		end
+		data.EquippedSkin = id
+		Registry.Avatar.ApplySlippers(session)
+		result = { Ok = true, Message = if id == "" then "Skin removed – showing your slippers." else "Looking fresh!" }
 	elseif action == "Equip" and kind == "Slippers" then
 		if not table.find(data.OwnedSlippers, id) then
 			return { Ok = false, Message = "You don't own these yet." }

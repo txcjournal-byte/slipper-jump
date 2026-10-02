@@ -7,12 +7,16 @@ local PING = "rbxasset://sounds/electronicpingshort.wav"
 local SWOOSH = "rbxasset://sounds/swoosh.wav"
 
 return {
-	-- Hudba a smyčky: vestavěný klient nic vhodného nemá → vložte ID z Creator Store
-	Music = "", -- veselá ukulele hudba (smyčka)
-	Waves = "", -- vlny (smyčka)
-	Seagulls = "", -- racci (smyčka)
-	Fanfare = "", -- vzácný předmět (fanfára) – vložte ID z Creator Store
-	Confetti = "", -- „prásk“ konfet – vložte ID z Creator Store
+	-- Hudba: licencovaná hudba z Creator Store (APM Music) – hraje dokola za sebou
+	MusicPlaylist = {
+		"rbxassetid://1845913205", -- Walking On The Beach (havajské ukulele)
+		"rbxassetid://1840007391", -- Lucky 7 (veselá kytara)
+	},
+	Music = "", -- (staré nastavení jedné skladby; používá se MusicPlaylist)
+	Waves = "rbxassetid://99082731841653", -- vlny na pobřeží (smyčka)
+	Seagulls = "rbxassetid://9112870701", -- racci v dálce (smyčka, Pro Sound Effects)
+	Fanfare = "rbxassetid://9041792228", -- vzácný předmět / dárek (krátká radostná znělka, APM)
+	Confetti = "rbxassetid://1839982934", -- velká oslava (funky znělka, APM)
 
 	Splash = "rbxasset://sounds/impact_water.mp3", -- "žbluňk" při dopadu
 	Coin = PING,
@@ -23,12 +27,13 @@ return {
 	Boing = "rbxasset://sounds/action_jump.mp3", -- Spring Slippers
 	Buy = PING,
 	Click = PING,
-	LevelUp = PING,
+	LevelUp = "rbxassetid://9045119921", -- level up (veselá znělka, APM)
 	Spin = SWOOSH,
-	Takeoff = "rbxasset://sounds/action_jump.mp3", -- odraz z mola
+	Takeoff = "rbxassetid://9126229267", -- odraz z mola (svist, Pro Sound Effects)
 	Wind = "rbxasset://sounds/action_falling.mp3", -- vítr během letu (smyčka)
 	Swim = "rbxasset://sounds/action_swim.mp3", -- tempa při plavání
 	Land = "rbxasset://sounds/action_jump_land.mp3", -- doskok na vor
+	SharkAlert = PING, -- varování před žralokem (hluboký tón)
 
 	-- Výchozí výška tónu (když volající žádnou nepředá; jinak se násobí)
 	Pitch = {
@@ -36,12 +41,11 @@ return {
 		Ring = 1.6,
 		Click = 2,
 		Buy = 1.15,
-		LevelUp = 0.8,
 		Squeak = 2.6,
 		Good = 1.2,
 		Perfect = 0.9,
 		Spin = 0.8,
-		Takeoff = 0.9,
+		SharkAlert = 0.45,
 	} :: { [string]: number },
 	-- Hlasitost jednotlivých zvuků (násobí SfxVolume)
 	Volume = {
@@ -49,8 +53,12 @@ return {
 		Click = 0.5,
 		Wind = 0.5,
 		Swim = 0.7,
+		Waves = 0.45,
+		Seagulls = 0.18,
+		Fanfare = 0.9,
+		LevelUp = 0.9,
 	} :: { [string]: number },
 
-	MusicVolume = 0.35,
+	MusicVolume = 0.3,
 	SfxVolume = 0.6,
 }

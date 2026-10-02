@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local World = require(Shared.Config.World)
+local Jump = require(Shared.Config.Jump)
 local Spinner = require(Shared.Config.Spinner)
 local Economy = require(Shared.Config.Economy)
 local Formulas = require(Shared.Formulas)
@@ -24,6 +25,7 @@ export type Session = {
 	Passes: { [string]: boolean },
 	Flight: any?, -- JumpService.Flight
 	Swim: any?, -- SwimService.SwimState
+	PendingSkin: string?, -- skin vybraný v obchodě před nákupem za Robux
 	Charge: { Start: number, Period: number }?,
 	LastJump: number,
 	PerfectStreak: number, -- série PERFECT skoků za sebou (neukládá se)
@@ -104,6 +106,8 @@ function PlayerService.BuildState(session: Session): { [string]: any }
 		Rebirths = data.Rebirths,
 		OwnedSlippers = data.OwnedSlippers,
 		EquippedSlippers = data.EquippedSlippers,
+		OwnedSkins = data.OwnedSkins,
+		EquippedSkin = data.EquippedSkin,
 		OwnedHats = data.OwnedHats,
 		EquippedHat = data.EquippedHat,
 		Carried = data.Carried,
@@ -195,6 +199,7 @@ local function onPlayerAdded(player: Player)
 		Passes = {},
 		Flight = nil,
 		Swim = nil,
+		PendingSkin = nil,
 		Charge = nil,
 		LastJump = 0,
 		PerfectStreak = 0,
@@ -212,18 +217,17 @@ local function onPlayerAdded(player: Player)
 		return -- hráč odešel během načítání
 	end
 	createLeaderstats(session)
+	Registry.Shop.MigrateSkins(session) -- tenisky ze starších dat → skiny (před oblékáním avatara)
 	Registry.House.Assign(session)
 	Registry.Items.OnJoin(session)
 	session.Loaded = true
 	Registry.Economy.ApplyOffline(session)
 	Registry.Avatar.OnSessionLoaded(session)
 	Registry.Tutorial.OnJoin(session)
-	-- obě startovní boty (pantofle i tenisky) zdarma, i pro starší uložená data
-	for _, line in { Catalog.Slippers, Catalog.Sneakers } do
-		local free = line[1]
-		if free and not table.find(session.Data.OwnedSlippers, free.Id) then
-			table.insert(session.Data.OwnedSlippers, free.Id)
-		end
+	-- startovní pantofle zdarma, i pro starší uložená data
+	local freeSlipper = Catalog.Slippers[1]
+	if freeSlipper and not table.find(session.Data.OwnedSlippers, freeSlipper.Id) then
+		table.insert(session.Data.OwnedSlippers, freeSlipper.Id)
 	end
 	Registry.Quests.OnJoin(session)
 	PlayerService.SendState(session)
@@ -322,7 +326,9 @@ function PlayerService.Start()
 		if target == "House" and session.House then
 			character:PivotTo(session.House.Entrance)
 		elseif target == "Pier" then
-			character:PivotTo(Registry.Map.ReturnPoint)
+			-- rovnou do zóny skoku na konci mola, čelem k moři (tlačítko JUMP se hned ukáže)
+			local spot = Vector3.new(World.PierEndX - Jump.JumpZoneLength / 2, World.PierDeckY + 3, 0)
+			character:PivotTo(CFrame.lookAt(spot, spot + Vector3.xAxis))
 		end
 	end)
 

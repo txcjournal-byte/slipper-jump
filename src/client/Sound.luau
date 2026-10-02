@@ -101,14 +101,34 @@ local function refresh()
 end
 
 function Sound.Start()
-	music = make("Music", true, Sounds.MusicVolume)
+	-- hudba: skladby z playlistu dokola (jedna instance Sound, po skončení přepne na další)
+	local playlist: { string } = (Sounds :: any).MusicPlaylist or {}
+	if #playlist > 0 then
+		local track = Instance.new("Sound")
+		track.Name = "Music"
+		track.Volume = Sounds.MusicVolume
+		track.SoundId = playlist[1]
+		track.Parent = SoundService
+		local index = 1
+		track.Ended:Connect(function()
+			index = index % #playlist + 1
+			track.SoundId = playlist[index]
+			if settings().Music then
+				track:Play()
+			end
+		end)
+		music = track
+	else
+		music = make("Music", true, Sounds.MusicVolume)
+	end
 	for _, key in { "Waves", "Seagulls" } do
-		local s = make(key, true, 0.25)
+		local s = make(key, true, Sounds.SfxVolume * (Sounds.Volume[key] or 0.4))
 		if s then
 			table.insert(ambience, s)
 		end
 	end
 	ClientState.Changed:Connect(refresh)
+	refresh()
 end
 
 return Sound
