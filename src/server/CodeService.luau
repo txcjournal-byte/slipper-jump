@@ -43,6 +43,10 @@ local function redeem(player: Player, raw: unknown): { Ok: boolean, Message: str
 		Registry.Economy.AddBoost(session, reward.BoostMinutes)
 		table.insert(parts, "2x Money for " .. reward.BoostMinutes .. " min")
 	end
+	if reward.LuckMinutes then
+		Registry.Economy.AddLuck(session, reward.LuckMinutes)
+		table.insert(parts, "2x Luck for " .. reward.LuckMinutes .. " min")
+	end
 	Registry.Player.MarkDirty(session)
 	return { Ok = true, Message = "Code redeemed: " .. table.concat(parts, ", ") .. "!" }
 end

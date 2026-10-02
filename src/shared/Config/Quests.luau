@@ -31,7 +31,7 @@ return {
 		{ Money = 2_500 },
 		{ Money = 4_000, Spins = 1 },
 		{ Money = 6_000 },
-		{ Money = 10_000, Spins = 3 },
+		{ Money = 10_000, Spins = 3, LuckMinutes = 15 }, -- 7. den: i Lucky Potion zdarma
 	},
 	MoneyLevelDivisor = 5,
 }

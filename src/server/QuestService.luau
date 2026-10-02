@@ -122,6 +122,11 @@ function QuestService.OnJoin(session: Session)
 	if reward.Spins then
 		Registry.Spinner.AddSpins(session, reward.Spins)
 	end
+	local luckMinutes = (reward :: any).LuckMinutes
+	if type(luckMinutes) == "number" then
+		Registry.Economy.AddLuck(session, luckMinutes)
+		Registry.Player.Notify(session.Player, `7-day streak bonus: 2x Luck for {luckMinutes} min!`, "Success")
+	end
 	Net.Event("OpenUI"):FireClient(session.Player, "DailyReward", { Streak = data.LoginStreak, Money = money, Spins = reward.Spins or 0 })
 	Registry.Player.MarkDirty(session)
 end

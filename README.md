@@ -69,7 +69,7 @@ Dokud mají produkty `Id = 0`, v obchodě se neukazují (a tlačítka jen ukáž
 7. Dostaneš 100 $ → ve stánku **SHOP** kup Beach Blue Slippers. Tutoriál skončí.
 8. U podstavce drž **E** → předmět nad hlavou → zelené kolečko vzadu tě hodí k **SELL** → drž „Sell“.
 9. Kolo štěstí vpravo u vody: 1 točení zdarma, šance vidíš u kola.
-10. Nastavení (⚙): kód **SPLASH** (+500 $), **SLIPPERS** (+1 točení), **BIGGIFT** (2× peníze 15 min).
+10. Nastavení (⚙): kód **SPLASH** (+500 $), **SLIPPERS** (+1 točení), **BIGGIFT** (2× peníze 15 min), **LUCKY** (2× štěstí 15 min).
 
 **Víc hráčů (Test → Clients and Servers → 2 hráči):**
 - každý má svůj domeček, hráči přes sebe procházejí,
