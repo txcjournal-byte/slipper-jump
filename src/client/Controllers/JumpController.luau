@@ -76,6 +76,20 @@ local chargePeriod = Jump.Meter.Period
 local flight: FlightState? = nil
 local awaitingFlight = false
 
+-- kamera během letu: základní CFrame (bez otřesu) a plynulé zorné pole
+local cameraBase: CFrame? = nil
+local flightFov = Jump.Flight.CameraFov
+local flightFovTarget = Jump.Flight.CameraFlightFov
+local lastStroke = 0
+
+-- Nastaví kameru: základ + otřes a FOV rána z Effects (otřes se nesčítá do dalšího snímku)
+local function applyCamera(camera: Camera, base: CFrame, dt: number)
+	cameraBase = base
+	flightFov += (flightFovTarget - flightFov) * (1 - math.exp(-dt * 3))
+	camera.CFrame = base * Effects.CameraOffset()
+	camera.FieldOfView = math.clamp(flightFov + Effects.FovOffset(), 40, 120)
+end
+
 -- ===== Ukazatel síly nad hlavou =====
 
 local function destroyMeter()
@@ -271,6 +285,7 @@ local function checkCollect(state: FlightState, fromX: number, toX: number, y: n
 				table.insert(state.CollectedCoins, coin.Id)
 				collectEffect(coin.Part, Color3.fromRGB(255, 255, 200))
 				Sound.Play("Coin", 1 + #state.CollectedCoins * 0.02)
+				Effects.FovKick(1.5)
 				coinsLabel.Text = "Coins: " .. #state.CollectedCoins
 				Kit.Pop(coinsLabel, 1.25)
 			end
@@ -283,6 +298,8 @@ local function checkCollect(state: FlightState, fromX: number, toX: number, y: n
 				table.insert(state.CollectedRings, ring.Id)
 				collectEffect(ring.Part, Color3.fromRGB(255, 255, 255))
 				Sound.Play("Ring")
+				Effects.FovKick(9)
+				Effects.Shake(0.12)
 				local ringBonus = state.Info.RingBonus or c.RingBonus
 				ringsLabel.Text = "⭕ " .. #state.CollectedRings .. "  (+" .. math.floor(#state.CollectedRings * ringBonus * 100 + 0.5) .. "%)"
 				Kit.Pop(ringsLabel, 1.3)
@@ -333,6 +350,9 @@ local function endFlightVisuals()
 		camera.CameraType = Enum.CameraType.Custom
 		TweenService:Create(camera, TweenInfo.new(0.5), { FieldOfView = Jump.Flight.CameraFov }):Play()
 	end
+	cameraBase = nil
+	Effects.SetSpeed(0)
+	Sound.SetLoop("Wind", false)
 	flightHud.Visible = false
 	HUD.SetVisible(true)
 end
@@ -346,6 +366,16 @@ local function finishFlight(state: FlightState)
 	end
 	Net.Event("FlightLanded"):FireServer(state.Id, state.CollectedCoins, state.CollectedRings)
 	Sound.Play("Splash")
+	Sound.SetLoop("Wind", false)
+	Effects.SetSpeed(0)
+	-- velké šplouchnutí s vlnami a otřes podle délky skoku (100 studů → 0, 100 000 → 1)
+	local power = math.clamp((math.log10(math.max(state.FinalDistance, 100)) - 2) / 3, 0, 1)
+	local land = state.LandPosition
+	if land and state.FinalDistance < World.GiftDistance then
+		Effects.LandingSplash(Vector3.new(land.X, World.WaterY, land.Z), power)
+	end
+	Effects.Shake(0.3 + power * 0.3)
+	Effects.FovKick(-6)
 end
 
 local function startFlight(info: { [string]: any })
@@ -400,14 +430,22 @@ local function startFlight(info: { [string]: any })
 	task.delay(2.5, function()
 		steerHint.Visible = false
 	end)
+	Sound.Play("Takeoff")
 	if info.Tier == "Perfect" then
 		Effects.BigText("PERFECT!", Kit.Colors.Green, 1.1)
 		Effects.ScreenConfetti(60)
 		Sound.Play("Perfect")
+		Effects.Shake(0.45)
+		Effects.FovKick(16)
 	elseif info.Tier == "Good" then
 		Effects.BigText("GOOD!", Kit.Colors.Yellow, 0.9)
 		Sound.Play("Good")
+		Effects.Shake(0.2)
+		Effects.FovKick(12)
+	else
+		Effects.FovKick(9)
 	end
+	Sound.SetLoop("Wind", true, 0.3)
 	if info.SuperJump then
 		HUD.Notify("SUPER JUMP! +20%", "Success")
 	end
@@ -420,7 +458,10 @@ local function startFlight(info: { [string]: any })
 	local camera = Workspace.CurrentCamera
 	if camera then
 		camera.CameraType = Enum.CameraType.Scriptable
-		TweenService:Create(camera, TweenInfo.new(0.8), { FieldOfView = Jump.Flight.CameraFlightFov }):Play()
+		-- FOV se roztahuje plynule v applyCamera (+ rána z Effects.FovKick)
+		cameraBase = camera.CFrame
+		flightFov = camera.FieldOfView
+		flightFovTarget = Jump.Flight.CameraFlightFov
 	end
 end
 
@@ -555,6 +596,12 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 		local forward = math.clamp(-move.Z, 0, 1)
 		state.SwimProgress = math.min(info.Distance, state.SwimProgress + info.Speed * forward * dt)
 		state.Z = math.clamp(state.Z - move.X * info.Speed * 0.5 * dt, -40, 40)
+		-- tempa: zvuk a čeření
+		if forward > 0.2 and os.clock() - lastStroke > 0.55 then
+			lastStroke = os.clock()
+			Sound.Play("Swim", 0.9 + math.random() * 0.2)
+			Effects.Ripple(Vector3.new(info.StartX - state.SwimProgress, info.Y, state.Z), 0.7)
+		end
 	end
 	local position = Vector3.new(info.StartX - state.SwimProgress, info.Y + 0.4 + math.sin(os.clock() * 6) * 0.15, state.Z)
 	state.ExpectedPosition = position
@@ -583,7 +630,8 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 	local camera = Workspace.CurrentCamera
 	if camera then
 		local camPos = position + Vector3.new(24, 11, 0)
-		camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(camPos, position - Vector3.new(18, 2, 0)), 0.15)
+		flightFovTarget = Jump.Flight.CameraFov + 8
+		applyCamera(camera, (cameraBase or camera.CFrame):Lerp(CFrame.lookAt(camPos, position - Vector3.new(18, 2, 0)), 0.15), dt)
 	end
 end
 
@@ -597,12 +645,16 @@ local function endSwim(result: { [string]: any })
 		Effects.BigText("SAFE! +" .. FormatNumber.Money(result.Bonus), Kit.Colors.Green, 1.4, 0.28)
 		Effects.ScreenConfetti(60)
 		Sound.Play("Coin")
+		Sound.Play("Land")
+		Effects.FovKick(6)
 	elseif result.Reason == "Shark" then
 		Effects.BigText("CHOMP! The shark got you!", Kit.Colors.Coral, 1.4, 0.28)
 		local pos = state.ExpectedPosition
 		if pos then
 			Effects.Splash(pos, true)
 		end
+		Sound.Play("Splash", 0.8)
+		Effects.Shake(0.55)
 		if state.SwimInfo and state.SwimInfo.CanUpgrade then
 			HUD.Notify("Swim faster! Buy swim gear in the SHOP (Swim tab).", "Info")
 		end
@@ -670,6 +722,9 @@ local function updateFlight(dt: number)
 				state.GlideStart = os.clock()
 				state.GlideDuration = Formulas.ExtraGlideTime(extra, info.BaseDistance)
 				Effects.BigText("RING BOOST!", Kit.Colors.Yellow, 0.8, 0.36)
+				Effects.FovKick(12)
+				Effects.Shake(0.2)
+				Sound.Play("Perfect", 1.3)
 			else
 				finishFlight(state)
 			end
@@ -691,6 +746,15 @@ local function updateFlight(dt: number)
 	end
 	assert(x and y)
 	checkCollect(state, state.LastX, x, y)
+	-- rychlost → čáry, vítr, zorné pole (krátký skok ≈ 0, dlouhé skoky = 1)
+	local speed = 0
+	if state.Phase == "Main" or state.Phase == "Glide" then
+		local horizontal = math.abs(x - state.LastX) / math.max(dt, 1 / 240)
+		speed = math.clamp(0.15 + (horizontal - 30) / 260, 0.15, 1)
+		Effects.SetSpeed(speed)
+		Sound.SetLoop("Wind", true, 0.3 + speed * 0.7, 0.8 + speed * 0.45)
+		flightFovTarget = Jump.Flight.CameraFlightFov - 5 + speed * 10
+	end
 	state.LastX = x
 	-- směr pohybu (natočení postavy)
 	local position = Vector3.new(x, y, state.Z)
@@ -705,11 +769,13 @@ local function updateFlight(dt: number)
 	-- kamera za hráčem
 	local camera = Workspace.CurrentCamera
 	if camera and state.Phase ~= "Landed" then
-		local behind = position + Vector3.new(-22, 9, 0)
-		camera.CFrame = CFrame.lookAt(behind, position + Vector3.new(30, -2, 0))
+		-- při velké rychlosti kamera trochu odjede dozadu a nakloní se do zatáčky
+		local behind = position + Vector3.new(-22 - speed * 5, 9 + speed * 2, 0)
+		applyCamera(camera, CFrame.lookAt(behind, position + Vector3.new(30, -2, 0)) * CFrame.Angles(0, 0, -lean * 0.06), dt)
 	elseif camera then
 		local behind = position + Vector3.new(-26, 12, 10)
-		camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(behind, position), 0.1)
+		flightFovTarget = Jump.Flight.CameraFov + 5
+		applyCamera(camera, (cameraBase or camera.CFrame):Lerp(CFrame.lookAt(behind, position), 0.1), dt)
 	end
 	-- vzdálenost od konce mola
 	local distance = math.max(0, x - World.PierEndX)
@@ -721,7 +787,10 @@ end
 local function showResult(result: { [string]: any })
 	local state = flight
 	local landing = if state and state.LandPosition then state.LandPosition else Vector3.new(World.PierEndX + result.Distance, World.WaterY, 0)
-	Effects.Splash(Vector3.new(landing.X, World.WaterY, landing.Z), result.Distance > 10_000)
+	if not (state and state.LandPosition) then
+		-- velké šplouchnutí už udělal finishFlight; tohle je jen pojistka
+		Effects.Splash(Vector3.new(landing.X, World.WaterY, landing.Z), result.Distance > 10_000)
+	end
 	Effects.BigText(FormatNumber.Studs(result.Distance) .. "!", Kit.Colors.White, 2.2, 0.2)
 	if result.PersonalRecord then
 		HUD.Notify("NEW PERSONAL BEST!", "Record")

@@ -292,6 +292,100 @@ local function starfish(parent: Instance, position: Vector3, color: Color3, yaw:
 	end
 end
 
+-- Lucerny na tyčích nad kůly mola, mezi nimi řetězy barevných žárovek a vlajky na konci mola.
+-- Jen dekorace (bez kolizí), nic nepřekáží skoku: vše je po stranách mola, nad koncem nic nevisí.
+local BULB_COLORS = { Color3.fromRGB(255, 90, 90), Color3.fromRGB(255, 210, 60), Color3.fromRGB(90, 220, 120), Color3.fromRGB(80, 180, 255), Color3.fromRGB(255, 130, 220) }
+
+local function buildPierLights(pier: Model, startX: number, endX: number, deckY: number, width: number)
+	local lights = model("PierLights", pier)
+	local poleTop = deckY + 9
+	local wire = Color3.fromRGB(50, 45, 40)
+	local posts: { number } = {}
+	local postX = startX - 10
+	while postX <= endX do
+		table.insert(posts, postX)
+		postX += 15
+	end
+	for _, side in { -1, 1 } do
+		local z = side * (width / 2 + 0.4)
+		for index, x in posts do
+			-- tenká tyč na kůlu + lucerna
+			deco(part(lights, Vector3.new(poleTop - (deckY + 4), 0.4, 0.4), CFrame.new(x, (poleTop + deckY + 4) / 2, z) * UP, WOOD_DARK, Enum.Material.Wood, CYL))
+			deco(part(lights, Vector3.new(1, 1.3, 1), CFrame.new(x, poleTop + 0.6, z), Color3.fromRGB(255, 225, 140), Enum.Material.Neon))
+			deco(part(lights, Vector3.new(1.4, 0.3, 1.4), CFrame.new(x, poleTop + 1.4, z), wire, Enum.Material.Metal))
+			-- řetěz žárovek k další tyči (prověšený do V)
+			local nextX = posts[index + 1]
+			if nextX then
+				local sag = 1.4
+				local a = Vector3.new(x, poleTop, z)
+				local b = Vector3.new(nextX, poleTop, z)
+				local mid = (a + b) / 2 - Vector3.new(0, sag, 0)
+				for _, pair in { { a, mid }, { mid, b } } do
+					local from, to = pair[1], pair[2]
+					deco(part(lights, Vector3.new(0.12, 0.12, (to - from).Magnitude), CFrame.lookAt((from + to) / 2, to), wire, Enum.Material.SmoothPlastic))
+				end
+				for bulb = 1, 3 do
+					local t = bulb / 4
+					local p = a:Lerp(b, t) - Vector3.new(0, sag * (1 - math.abs(1 - 2 * t)) + 0.35, 0)
+					local bulbPart = deco(part(lights, Vector3.one * 0.6, CFrame.new(p), BULB_COLORS[(index + bulb) % #BULB_COLORS + 1], Enum.Material.Neon, BALL))
+					bulbPart.CastShadow = false
+				end
+			end
+		end
+	end
+	-- vlajky na konci mola (vlají směrem k pláži)
+	for _, side in { -1, 1 } do
+		local z = side * (width / 2 + 0.4)
+		local x = endX - 1
+		local poleHeight = 16
+		deco(part(lights, Vector3.new(poleHeight, 0.5, 0.5), CFrame.new(x, deckY + poleHeight / 2, z) * UP, WHITE, Enum.Material.Metal, CYL))
+		deco(part(lights, Vector3.one * 0.9, CFrame.new(x, deckY + poleHeight + 0.3, z), Color3.fromRGB(255, 205, 40), Enum.Material.Metal, BALL))
+		local flagColor = if side == 1 then CORAL else ROYAL
+		deco(part(lights, Vector3.new(5.5, 3.2, 0.15), CFrame.new(x - 3, deckY + poleHeight - 1.8, z) * CFrame.Angles(0, math.rad(side * 8), 0), flagColor, Enum.Material.Fabric))
+		deco(part(lights, Vector3.new(5.5, 0.8, 0.2), CFrame.new(x - 3, deckY + poleHeight - 1.8, z) * CFrame.Angles(0, math.rad(side * 8), 0), WHITE, Enum.Material.Fabric))
+	end
+end
+
+-- Plavčická věž na pláži (vlevo od mola, mimo cesty a stánky)
+local function lifeguardTower(parent: Instance, base: Vector3)
+	local m = model("LifeguardTower", parent)
+	local legHeight = 10
+	local red = Color3.fromRGB(230, 60, 55)
+	for _, dx in { -3.2, 3.2 } do
+		for _, dz in { -3.2, 3.2 } do
+			part(m, Vector3.new(0.8, legHeight, 0.8), CFrame.new(base + Vector3.new(dx, legHeight / 2, dz)), WHITE, Enum.Material.Wood, BLOCK, "Leg")
+		end
+	end
+	local floorY = base.Y + legHeight
+	part(m, Vector3.new(8, 0.6, 8), CFrame.new(base.X, floorY + 0.3, base.Z), WOOD, Enum.Material.WoodPlanks, BLOCK, "Platform")
+	-- kabina s nápisem směrem k moři (+X)
+	local cabin = deco(part(m, Vector3.new(5, 4.5, 6), CFrame.new(base.X - 1, floorY + 2.85, base.Z), WHITE, Enum.Material.WoodPlanks))
+	surfaceLabel(cabin, Enum.NormalId.Right, "LIFEGUARD", red, WHITE, 30)
+	deco(part(m, Vector3.new(5.2, 0.6, 6.2), CFrame.new(base.X - 1, floorY + 1.6, base.Z), red))
+	-- sedlová střecha (hřeben podél X; vysoká strana klínu míří ke středu)
+	for _, side in { -1, 1 } do
+		deco(wedge(m, Vector3.new(5.8, 2, 3.4), CFrame.new(base.X - 1, floorY + 6.1, base.Z + side * 1.7) * CFrame.Angles(0, if side == 1 then math.pi else 0, 0), red))
+	end
+	-- zábradlí vpředu
+	deco(part(m, Vector3.new(0.3, 0.3, 8), CFrame.new(base.X + 3.85, floorY + 1.8, base.Z), red))
+	for _, dz in { -3.85, 3.85 } do
+		deco(part(m, Vector3.new(8, 0.3, 0.3), CFrame.new(base.X, floorY + 1.8, base.Z + dz), red))
+	end
+	-- žebřík na straně k moři
+	for _, dz in { -0.9, 0.9 } do
+		deco(part(m, Vector3.new(0.3, legHeight + 1, 0.3), CFrame.new(base.X + 4.3, base.Y + (legHeight + 1) / 2, base.Z + dz), WOOD_LIGHT, Enum.Material.Wood))
+	end
+	for rung = 1, 5 do
+		deco(part(m, Vector3.new(0.25, 0.25, 1.8), CFrame.new(base.X + 4.3, base.Y + rung * 1.8, base.Z), WOOD_LIGHT, Enum.Material.Wood))
+	end
+	-- vlajka
+	deco(part(m, Vector3.new(6, 0.25, 0.25), CFrame.new(base.X - 3, floorY + 8, base.Z + 2.6) * UP, WHITE, Enum.Material.Metal, CYL))
+	deco(part(m, Vector3.new(2.8, 1.8, 0.12), CFrame.new(base.X - 1.5, floorY + 10, base.Z + 2.6), red, Enum.Material.Fabric))
+	-- záchranný kruh na noze
+	deco(part(m, Vector3.new(0.5, 2.4, 2.4), CFrame.new(base.X + 3.75, base.Y + 5, base.Z - 3.2), Color3.fromRGB(255, 120, 40), nil, CYL))
+	deco(part(m, Vector3.new(0.55, 1.2, 1.2), CFrame.new(base.X + 3.75, base.Y + 5, base.Z - 3.2), WHITE, nil, CYL))
+end
+
 -- ===== Pláž, cesta, molo =====
 
 local function buildBeach(root: Instance, rng: Random): Model
@@ -358,6 +452,8 @@ local function buildBeach(root: Instance, rng: Random): Model
 	deco(part(castle, Vector3.new(5, 4, 4), CFrame.new(castlePos + Vector3.new(0, 6, 0)) * UP, SAND_DARK, Enum.Material.Sand, CYL))
 	deco(part(castle, Vector3.new(0.2, 3, 0.2), CFrame.new(castlePos + Vector3.new(0, 9.5, 0)), WHITE))
 	deco(wedge(castle, Vector3.new(0.1, 1, 1.5), CFrame.new(castlePos + Vector3.new(0, 10.3, -0.8)), CORAL))
+	-- plavčická věž u vody (vlevo, daleko od domečků, stánků a cesty)
+	lifeguardTower(beach, Vector3.new(World.BeachFrontX - 25, World.SandY, -150))
 	return beach
 end
 
@@ -406,6 +502,7 @@ local function buildPier(root: Instance): Model
 		local wall = part(pier, Vector3.new(World.PierLength, 10, 1), CFrame.new(startX + World.PierLength / 2, deckY + 5, side * (width / 2 + 1)), WHITE, nil, BLOCK, "Rail")
 		wall.Transparency = 1
 	end
+	buildPierLights(pier, startX, endX, deckY, width)
 	return pier
 end
 
