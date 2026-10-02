@@ -12,6 +12,7 @@ local Sound = {}
 local cache: { [string]: Sound } = {}
 local music: Sound? = nil
 local ambience: { Sound } = {}
+local loops: { [string]: Sound } = {}
 
 local function settings(): { Music: boolean, Sfx: boolean }
 	local data = ClientState.Get()
@@ -38,7 +39,7 @@ function Sound.Play(key: string, pitch: number?)
 	end
 	local s = cache[key]
 	if not s then
-		local created = make(key, false, Sounds.SfxVolume)
+		local created = make(key, false, Sounds.SfxVolume * (Sounds.Volume[key] or 1))
 		if not created then
 			return
 		end
@@ -46,8 +47,34 @@ function Sound.Play(key: string, pitch: number?)
 		s = created
 	end
 	assert(s)
-	s.PlaybackSpeed = pitch or 1
+	-- výchozí výška tónu z Configu × výška od volajícího
+	s.PlaybackSpeed = (Sounds.Pitch[key] or 1) * (pitch or 1)
 	SoundService:PlayLocalSound(s)
+end
+
+-- Smyčka (např. vítr během letu): zapnout/vypnout, za běhu jde měnit hlasitost a výšku
+function Sound.SetLoop(key: string, playing: boolean, volume: number?, pitch: number?)
+	local s = loops[key]
+	if not playing or not settings().Sfx then
+		if s and s.IsPlaying then
+			s:Stop()
+		end
+		return
+	end
+	if not s then
+		local created = make(key, true, 0)
+		if not created then
+			return
+		end
+		loops[key] = created
+		s = created
+	end
+	assert(s)
+	s.Volume = Sounds.SfxVolume * (Sounds.Volume[key] or 1) * (volume or 1)
+	s.PlaybackSpeed = (Sounds.Pitch[key] or 1) * (pitch or 1)
+	if not s.IsPlaying then
+		s:Play()
+	end
 end
 
 local function refresh()
@@ -63,6 +90,11 @@ local function refresh()
 		if current.Sfx and not s.IsPlaying then
 			s:Play()
 		elseif not current.Sfx and s.IsPlaying then
+			s:Stop()
+		end
+	end
+	if not current.Sfx then
+		for _, s in loops do
 			s:Stop()
 		end
 	end

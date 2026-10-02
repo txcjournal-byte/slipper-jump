@@ -116,8 +116,9 @@ src/
     Main.client.luau
     ClientState, Sound
     UI/  Kit, HUD, Shop, SpinnerUI, RobuxShop, Offers, Settings, Dialogs, TutorialUI
-    Controllers/ JumpController (skok, let, kamera), WorldController (oceán, dárek na obzoru…)
-    Effects/ Effects (konfety, šplouchnutí, PERFECT!, zatmění)
+    Controllers/ JumpController (skok, let, kamera), WorldController (oceán, dárek na obzoru…),
+                 SeaLifeController (delfíni, rybky, rackové, třpytky – jen klient)
+    Effects/ Effects (konfety, šplouchnutí, vlny, PERFECT!, otřes kamery, rychlostní čáry, zatmění)
 assets/                   → ReplicatedStorage.Assets (hezké modely, viz assets/README.md)
 ```
 
