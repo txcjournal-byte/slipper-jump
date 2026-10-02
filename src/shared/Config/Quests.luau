@@ -11,7 +11,7 @@ local Pool: { QuestTemplate } = {
 	{ Kind = "Coins", Text = "Collect %d coins in the air", Goal = 50, Money = 2_500 },
 	{ Kind = "Rings", Text = "Fly through %d golden rings", Goal = 10, Money = 3_000 },
 	{ Kind = "Perfects", Text = "Get %d PERFECT jumps", Goal = 8, Money = 3_000 },
-	{ Kind = "Escapes", Text = "Escape the shark %d times", Goal = 5, Money = 3_500, Spins = 1 },
+	{ Kind = "Escapes", Text = "Escape sea creatures %d times", Goal = 5, Money = 3_500, Spins = 1 },
 	{ Kind = "Sells", Text = "Sell %d items", Goal = 3, Money = 2_000 },
 	{ Kind = "Spins", Text = "Spin the Lucky Wheel %d times", Goal = 1, Money = 1_000 },
 	{ Kind = "Distance", Text = "Jump %d studs in total", Goal = 5_000, Money = 2_500 },

@@ -4,7 +4,8 @@
 -- takže fungují vždy a nic se nemusí nahrávat. Hezčí zvuky z Creator Store je můžou kdykoli nahradit.
 
 local PING = "rbxasset://sounds/electronicpingshort.wav"
-local SWOOSH = "rbxasset://sounds/swoosh.wav"
+-- (rbxasset://sounds/swoosh.wav Roblox nepovolí – "Asset is not approved" – proto svist z Creator Store)
+local SWOOSH = "rbxassetid://9126229267"
 
 return {
 	-- Hudba: licencovaná hudba z Creator Store (APM Music) – hraje dokola za sebou

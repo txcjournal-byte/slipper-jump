@@ -22,6 +22,7 @@ export type SwimState = {
 	Distance: number,
 	Speed: number,
 	SharkSpeed: number,
+	CatchDistance: number, -- Swim.CatchDistance + dosah tvora (chapadla, velká tlama)
 	NoShark: boolean,
 	Done: boolean,
 	Character: Model?, -- postava, se kterou hráč začal plavat (reset = prohra, ne doplavání)
@@ -78,13 +79,16 @@ function SwimService.Begin(session: Session, flight: any, landDistance: number)
 		noShark = true
 		usedRepellent = true
 	end
+	-- kdo hráče honí (čím dál skočil, tím strašidelnější tvor); dva žraloci = jedna pozice, jen rychlejší
+	local chaser = Formulas.ChaserTier(landDistance)
 	local state: SwimState = {
 		Flight = flight,
 		StartClock = os.clock(),
 		StartX = root.Position.X,
 		Distance = Swim.Distance,
 		Speed = Formulas.SwimSpeed(data.SwimLevel, session.Passes.TurboFins == true),
-		SharkSpeed = Formulas.SharkSpeed(landDistance),
+		SharkSpeed = chaser.Speed,
+		CatchDistance = Swim.CatchDistance + chaser.Reach,
 		NoShark = noShark,
 		Done = false,
 		Character = session.Player.Character,
@@ -99,6 +103,8 @@ function SwimService.Begin(session: Session, flight: any, landDistance: number)
 		Speed = state.Speed,
 		SharkSpeed = state.SharkSpeed,
 		SharkDelay = Swim.SharkDelay,
+		Chaser = chaser.Key, -- klient podle toho postaví model a texty
+		ChaserName = chaser.Name,
 		NoShark = noShark,
 		UsedRepellent = usedRepellent,
 		MaxTime = Swim.MaxTime,
@@ -126,7 +132,8 @@ function SwimService.Start()
 					local shark = Formulas.SharkProgress(elapsed, state.SharkSpeed)
 					if progress >= state.Distance then
 						finish(session, state, true, "Safe")
-					elseif not state.NoShark and elapsed > Swim.SharkDelay and shark >= progress - Swim.CatchDistance then
+					elseif not state.NoShark and elapsed > Swim.SharkDelay and shark >= math.min(progress + state.Speed * Swim.LagGrace, state.Distance) - state.CatchDistance then
+						-- důvod je vždy "Shark" (ať je to kdokoli) – na to slyší nabídky a úkoly
 						finish(session, state, false, "Shark")
 					elseif elapsed > Swim.MaxTime then
 						finish(session, state, false, "Timeout")

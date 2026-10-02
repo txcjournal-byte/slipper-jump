@@ -209,8 +209,29 @@ function Formulas.SwimSpeed(swimLevel: number, turboFins: boolean): number
 	return speed * (if turboFins then 1 + Swim.TurboFinsBonus else 1)
 end
 
+-- Kdo hráče honí po dopadu v dané vzdálenosti (poslední tier, jehož MinDistance hráč překonal)
+function Formulas.ChaserTier(distance: number): Swim.ChaserTier
+	local tier = Swim.Chasers[1]
+	for _, t in Swim.Chasers do
+		if distance >= t.MinDistance then
+			tier = t
+		end
+	end
+	return tier
+end
+
+-- Tier podle klíče (např. ze serveru); neznámý nebo chybějící klíč = žralok
+function Formulas.ChaserByKey(key: any): Swim.ChaserTier
+	for _, t in Swim.Chasers do
+		if t.Key == key then
+			return t
+		end
+	end
+	return Swim.Chasers[1]
+end
+
 function Formulas.SharkSpeed(distance: number): number
-	return Swim.SharkSpeeds[Formulas.ZoneIndex(distance)] or Swim.SharkSpeeds[#Swim.SharkSpeeds]
+	return Formulas.ChaserTier(distance).Speed
 end
 
 -- Kde je žralok (studů od místa dopadu směrem k voru) v čase od začátku plavání

@@ -128,7 +128,7 @@ local function grantProduct(session: Session, product: Products.DevProduct)
 		Registry.Player.Notify(player, "Starter Pack unlocked! Have fun!", "Success")
 	elseif key == "SharkRepellent" then
 		session.Data.Repellents += Swim.RepellentSwims
-		Registry.Player.Notify(player, "Shark Repellent! No shark for your next " .. Swim.RepellentSwims .. " swims.", "Success")
+		Registry.Player.Notify(player, "Shark Repellent! No sharks or sea monsters for your next " .. Swim.RepellentSwims .. " swims.", "Success")
 	elseif key == "SuperJump" then
 		session.Data.SuperJumps += 1
 		Registry.Player.Notify(player, "Super Jump ready! Your next jump goes 20% farther.", "Success")

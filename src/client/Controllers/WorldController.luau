@@ -1,11 +1,12 @@
 --!strict
 -- Lokální věci ve světě:
 --  • oceán, který jede s kamerou (voda je vidět i daleko, kam StreamingEnabled ještě nedoletěl)
---  • zmenšený obří dárek na obzoru + paprsek (skutečný model je 100 000 studů daleko)
+--  • zmenšený obří dárek na obzoru se září, šikmými paprsky, třpytkami a hvězdami (skutečný model je 100 000 studů daleko)
+--  • pomalé otáčení ozdob s tagem "DecorSpin" (paprsky a hvězdy u dárku, obří pantofel a mince na stáncích)
 --  • barva dárku podle počtu znovuzrození
 --  • otáčení a vznášení předmětů na podstavcích a nad hlavou, ruce nahoře při nošení
 --  • zapínání výzev (Pick Up / Place / Swap jen ve vlastním domečku, Gift a Sell jen s předmětem)
---  • časovač na kole štěstí, animace kola a blikající žárovky kolem něj
+--  • časovač na kole štěstí, animace kola a blikající žárovky kolem něj a kolem cedulí stánků
 --  • záložní hlava s obličejem, když se hlava avatara nenačte
 
 local CollectionService = game:GetService("CollectionService")
@@ -58,12 +59,87 @@ end
 
 local horizonGift: Model
 local horizonBodies: { BasePart } = {}
+local horizonGlows: { BasePart } = {}
+local horizonRayHub: BasePart
+type HorizonStar = { Parts: { BasePart }, Phase: number, Height: number }
+local horizonStars: { HorizonStar } = {}
 -- Zmenšenina skutečného ostrova s dárkem (MapBuilder.buildGift). Počátek modelu = střed dárku u hladiny,
 -- lokální −Z míří ke kameře (skutečné −X), lokální +X je skutečné −Z.
 local HORIZON_SCALE = 0.85 -- větší, aby byl dárek na obzoru dobře vidět
 local HORIZON_BASE_Y = 5 -- horní plocha ostrůvku (počátek je 4 study pod hladinou)
 local HORIZON_BOX_HEIGHT = 300 * HORIZON_SCALE
 local HORIZON_BOX_Y = HORIZON_BASE_Y + HORIZON_BOX_HEIGHT / 2 -- střed krabice (PrimaryPart)
+local HORIZON_RAY_Y = HORIZON_BASE_Y + HORIZON_BOX_HEIGHT + 40 * HORIZON_SCALE + 45 -- střed paprsků nad mašlí
+local HORIZON_STAR_RADIUS = 165
+local GLOW_WHITE = Color3.new(1, 1, 1)
+
+-- Šikmé paprsky světla (Beam mezi dvěma Attachmenty v hub dílu), stejné jako u skutečného dárku v MapBuilderu
+local function addGiftRays(hub: BasePart, count: number, startRadius: number, longLength: number, shortLength: number, width0: number, width1: number)
+	for i = 0, count - 1 do
+		local yaw = i / count * math.pi * 2
+		local tilt = math.rad(if i % 2 == 0 then 38 else 62) -- odklon od svislice
+		local dir = Vector3.new(math.cos(yaw) * math.sin(tilt), math.cos(tilt), math.sin(yaw) * math.sin(tilt))
+		local length = if i % 2 == 0 then longLength else shortLength
+		local a0 = Instance.new("Attachment")
+		a0.Position = dir * startRadius
+		a0.Parent = hub
+		local a1 = Instance.new("Attachment")
+		a1.Position = dir * (startRadius + length)
+		a1.Parent = hub
+		local ray = Instance.new("Beam")
+		ray.Name = "Ray"
+		ray.Attachment0 = a0
+		ray.Attachment1 = a1
+		ray.FaceCamera = true
+		ray.Width0 = width0
+		ray.Width1 = width1
+		ray.Segments = 8
+		ray.LightEmission = 1
+		ray.LightInfluence = 0
+		ray.Color = ColorSequence.new(Color3.fromRGB(255, 252, 225), Color3.fromRGB(255, 215, 110))
+		ray.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.4), NumberSequenceKeypoint.new(0.5, 0.7), NumberSequenceKeypoint.new(1, 1) })
+		ray.Parent = hub
+	end
+end
+
+-- Velké třpytky stoupající nad dárkem (na obzoru musí být větší, aby byly z dálky vidět)
+local function addRisingSparkles(source: BasePart)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "RisingSparkles"
+	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	emitter.Rate = 14
+	emitter.Lifetime = NumberRange.new(5, 8)
+	emitter.Speed = NumberRange.new(18, 30)
+	emitter.SpreadAngle = Vector2.new(30, 30)
+	emitter.EmissionDirection = Enum.NormalId.Top
+	emitter.Acceleration = Vector3.new(0, 3, 0)
+	emitter.RotSpeed = NumberRange.new(-60, 60)
+	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 5), NumberSequenceKeypoint.new(0.25, 16), NumberSequenceKeypoint.new(1, 0) })
+	emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(0.7, 0.4), NumberSequenceKeypoint.new(1, 1) })
+	emitter.Color = ColorSequence.new(Color3.fromRGB(255, 235, 140), GLOW_WHITE)
+	emitter.LightEmission = 1
+	emitter.LockedToPart = true
+	emitter.Parent = source
+end
+
+-- Třpytky poblikávající po povrchu neviditelného dílu kolem dárku
+local function addTwinkles(source: BasePart)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "Twinkles"
+	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	emitter.Rate = 22
+	emitter.Lifetime = NumberRange.new(1.2, 2.2)
+	emitter.Speed = NumberRange.new(1, 4)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Shape = Enum.ParticleEmitterShape.Box
+	emitter.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
+	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.4, 14), NumberSequenceKeypoint.new(1, 0) })
+	emitter.Transparency = NumberSequence.new(0.1)
+	emitter.Color = ColorSequence.new(Color3.fromRGB(255, 245, 190))
+	emitter.LightEmission = 1
+	emitter.LockedToPart = true
+	emitter.Parent = source
+end
 
 local function createHorizonGift()
 	local m = Instance.new("Model")
@@ -108,12 +184,41 @@ local function createHorizonGift()
 		add(Vector3.new(28 * S, 80 * S, 80 * S), CFrame.new(s * 40 * S, bowY + 34 * S, 0) * CFrame.Angles(0, math.rad(90), 0), ribbon, Enum.Material.Neon, Enum.PartType.Cylinder)
 	end
 	add(Vector3.one * 40 * S, CFrame.new(0, bowY + 16 * S, 0), ribbon, Enum.Material.Neon, Enum.PartType.Ball)
-	-- paprsek do nebe: jádro + široká záře
-	local beamBottom = bowY
-	local beam = add(Vector3.new(1600, 18, 18), CFrame.new(0, beamBottom + 800, 0) * UP, Color3.fromRGB(255, 240, 170), Enum.Material.Neon, Enum.PartType.Cylinder)
-	beam.Transparency = 0.3
-	local glow = add(Vector3.new(1600, 54, 54), CFrame.new(0, beamBottom + 800, 0) * UP, Color3.fromRGB(255, 245, 200), Enum.Material.Neon, Enum.PartType.Cylinder)
-	glow.Transparency = 0.8
+	-- měkká záře kolem dárku: dvě průsvitné svítící skořápky (barvu mění RenderStepped podle znovuzrození)
+	local glowHeight = HORIZON_BOX_HEIGHT + 40 * S
+	for k, grow in { 14, 34 } do
+		local shell = add(Vector3.new(236 * S + grow, glowHeight + grow, 236 * S + grow), CFrame.new(0, top + glowHeight / 2, 0), Color3.fromRGB(255, 236, 160), Enum.Material.Neon)
+		shell.Transparency = if k == 1 then 0.82 else 0.9
+		table.insert(horizonGlows, shell)
+	end
+	-- kulatá záře za dárkem (kotouče natočené ke kameře, jako slunce za dárkem)
+	for k, diameter in { 470, 320 } do
+		local disc = add(Vector3.new(1, diameter, diameter), CFrame.new(0, 205, 122 + k) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(255, 228, 140), Enum.Material.Neon, Enum.PartType.Cylinder)
+		disc.Transparency = if k == 1 then 0.86 else 0.74
+	end
+	-- šikmé paprsky rozevřené od mašle do stran a nahoru (otáčí je RenderStepped)
+	horizonRayHub = add(Vector3.one * 2, CFrame.new(0, HORIZON_RAY_Y, 0), Color3.new(1, 1, 1))
+	horizonRayHub.Transparency = 1
+	addGiftRays(horizonRayHub, 10, 40, 470, 320, 16, 100)
+	-- stoupající třpytky nad víkem a poblikávání kolem celého dárku (LockedToPart: putují s dárkem)
+	local riseSource = add(Vector3.new(190, 2, 190), CFrame.new(0, bowY + 2, 0), Color3.new(1, 1, 1))
+	riseSource.Transparency = 1
+	addRisingSparkles(riseSource)
+	local twinkleSource = add(Vector3.new(236 * S + 40, glowHeight + 40, 236 * S + 40), CFrame.new(0, top + glowHeight / 2, 0), Color3.new(1, 1, 1))
+	twinkleSource.Transparency = 1
+	addTwinkles(twinkleSource)
+	-- zlaté hvězdy obíhající kolem dárku (pozice počítá RenderStepped)
+	for k = 0, 3 do
+		local parts: { BasePart } = {}
+		local core = add(Vector3.one * 12, CFrame.new(), Color3.fromRGB(255, 205, 50), Enum.Material.Neon, Enum.PartType.Ball)
+		table.insert(parts, core)
+		for _, size in { Vector3.new(3, 34, 3), Vector3.new(30, 3, 3), Vector3.new(3, 3, 30) } do
+			local arm = add(size, CFrame.new(), Color3.fromRGB(255, 240, 170), Enum.Material.Neon)
+			arm.Transparency = 0.25
+			table.insert(parts, arm)
+		end
+		table.insert(horizonStars, { Parts = parts, Phase = k / 4 * math.pi * 2, Height = 100 + (k % 2) * 110 + k * 12 })
+	end
 	-- maják (o něco větší než skutečný, aby byl z dálky vidět)
 	local lighthouse = Vector3.new(150 * S, top, -120 * S)
 	add(Vector3.new(36, 7, 7), CFrame.new(lighthouse + Vector3.new(0, 18, 0)) * UP, Color3.new(1, 1, 1), nil, Enum.PartType.Cylinder)
@@ -145,13 +250,15 @@ local twinkleStep = 0
 
 local function twinkleWheelBulbs()
 	twinkleStep += 1
-	for _, bulb in CollectionService:GetTagged("WheelBulb") do
-		if bulb:IsA("BasePart") then
-			local index = bulb:GetAttribute("BulbIndex")
-			local i = if typeof(index) == "number" then index else 0
-			bulb.Color = WHEEL_BULB_COLORS[(i + twinkleStep) % #WHEEL_BULB_COLORS + 1]
-			-- každá třetí žárovka na chvíli pohasne
-			bulb.Transparency = if (i + twinkleStep) % 3 == 0 then 0.6 else 0
+	for _, tag in { "WheelBulb", "StallBulb" } do
+		for _, bulb in CollectionService:GetTagged(tag) do
+			if bulb:IsA("BasePart") then
+				local index = bulb:GetAttribute("BulbIndex")
+				local i = if typeof(index) == "number" then index else 0
+				bulb.Color = WHEEL_BULB_COLORS[(i + twinkleStep) % #WHEEL_BULB_COLORS + 1]
+				-- každá třetí žárovka na chvíli pohasne
+				bulb.Transparency = if (i + twinkleStep) % 3 == 0 then 0.6 else 0
+			end
 		end
 	end
 end
@@ -189,6 +296,35 @@ local function trackCarry(instance: Instance)
 			end
 		end)
 	end
+end
+
+-- ===== Pomalé otáčení ozdob (tag "DecorSpin", atributy SpinSpeed v rad/s a volitelně SpinAxis) =====
+-- MapBuilder tak označuje paprsky a hvězdy u obřího dárku a obří pantofel / minci na stáncích.
+
+type DecorSpinInfo = { Base: CFrame, Axis: Vector3, Speed: number }
+local decorSpin: { [Instance]: DecorSpinInfo } = {}
+
+local function trackDecorSpin(instance: Instance)
+	local base: CFrame
+	if instance:IsA("Model") then
+		base = instance:GetPivot()
+	elseif instance:IsA("BasePart") then
+		base = instance.CFrame
+	else
+		return
+	end
+	local axis = instance:GetAttribute("SpinAxis")
+	local speed = instance:GetAttribute("SpinSpeed")
+	decorSpin[instance] = {
+		Base = base,
+		Axis = if typeof(axis) == "Vector3" and axis.Magnitude > 0 then axis.Unit else Vector3.yAxis,
+		Speed = if typeof(speed) == "number" then speed else 1,
+	}
+	instance.AncestryChanged:Connect(function()
+		if not instance:IsDescendantOf(Workspace) then
+			decorSpin[instance] = nil
+		end
+	end)
 end
 
 -- ===== Výzvy =====
@@ -369,6 +505,10 @@ function WorldController.Init()
 		trackCarry(instance)
 	end
 	CollectionService:GetInstanceAddedSignal("CarryWeld"):Connect(trackCarry)
+	for _, instance in CollectionService:GetTagged("DecorSpin") do
+		trackDecorSpin(instance)
+	end
+	CollectionService:GetInstanceAddedSignal("DecorSpin"):Connect(trackDecorSpin)
 	for _, tag in { "HousePrompt", "GiftPrompt", "SellPrompt" } do
 		for _, prompt in CollectionService:GetTagged(tag) do
 			watchPrompt(prompt)
@@ -426,13 +566,40 @@ function WorldController.Init()
 		else
 			horizonGift:PivotTo(CFrame.new(0, -2000, 0))
 		end
+		-- otáčející se paprsky a obíhající hvězdy (počítané od počátku zmenšeniny)
+		local horizonOrigin = horizonGift:GetPivot() * CFrame.new(0, -HORIZON_BOX_Y, 0)
+		horizonRayHub.CFrame = horizonOrigin * CFrame.new(0, HORIZON_RAY_Y, 0) * CFrame.Angles(0, t * 0.12, 0)
+		for _, star in horizonStars do
+			local starCF = horizonOrigin * CFrame.Angles(0, t * 0.25 + star.Phase, 0) * CFrame.new(HORIZON_STAR_RADIUS, star.Height + math.sin(t * 1.3 + star.Phase) * 8, 0)
+			for _, part in star.Parts do
+				part.CFrame = starCF
+			end
+		end
 		local color = giftColor(rebirths)
+		local glowColor = color:Lerp(GLOW_WHITE, 0.55)
 		for _, part in horizonBodies do
 			part.Color = color
+		end
+		for _, part in horizonGlows do
+			part.Color = glowColor
 		end
 		for _, part in CollectionService:GetTagged("GiftBody") do
 			if part:IsA("BasePart") then
 				part.Color = color
+			end
+		end
+		for _, part in CollectionService:GetTagged("GiftGlow") do
+			if part:IsA("BasePart") then
+				part.Color = glowColor
+			end
+		end
+		-- pomalé otáčení ozdob
+		for instance, info in decorSpin do
+			local cf = info.Base * CFrame.fromAxisAngle(info.Axis, t * info.Speed)
+			if instance:IsA("Model") then
+				instance:PivotTo(cf)
+			elseif instance:IsA("BasePart") then
+				instance.CFrame = cf
 			end
 		end
 		-- otáčení předmětů

@@ -54,7 +54,7 @@ type FlightState = {
 	SwimStart: number,
 	SwimProgress: number,
 	SwimEnded: boolean,
-	Shark: Model?,
+	Chasers: { Model }, -- pronásledovatelé (žralok, velryba, chobotnice…)
 	ExpectedPosition: Vector3?,
 }
 
@@ -466,7 +466,7 @@ local function startFlight(info: { [string]: any })
 		SwimStart = 0,
 		SwimProgress = 0,
 		SwimEnded = false,
-		Shark = nil,
+		Chasers = {},
 		ExpectedPosition = nil,
 	}
 	flight = state
@@ -530,7 +530,7 @@ end
 
 local swimHud: Frame
 local swimBarYou: Frame
-local swimBarShark: Frame
+local swimBarShark: TextLabel
 local swimHint: TextLabel
 
 local function raftModel(position: Vector3, parent: Instance): Model
@@ -571,14 +571,121 @@ local function raftModel(position: Vector3, parent: Instance): Model
 	return m
 end
 
--- Žralok z dílů (~37 dílů): torpédové tělo z elipsoidů, šedomodrý hřbet a bílé břicho,
--- vysoká hřbetní ploutev, prsní ploutve, srpovitá ocasní ploutev, žábry, oči a tlama se zuby.
--- Model pluje ve směru -Z, neviditelný kořen (PrimaryPart) je v počátku.
--- Tělo je posunuté pod kořen, takže u hladiny čouhá z vody hlavně hřbetní ploutev.
-type SharkPart = { Part: BasePart, Offset: CFrame, Seg: string }
-type SharkRig = { Root: BasePart, Parts: { SharkPart }, Teeth: { BasePart }, Attack: number, TeethShown: boolean }
+-- ===== Pronásledovatelé z dílů (žralok, velryba, dva žraloci, chobotnice, kraken, megalodon) =====
+-- Každý tvor je Model z ukotvených dílů s neviditelným kořenem (PrimaryPart) v počátku.
+-- Tvor pluje ve směru -Z. Díly patří do "segmentů" (Body, Rear, Tail, Jaw, chapadla…);
+-- animace spočítá CFrame každého segmentu a všechny díly přesune najednou přes BulkMoveTo.
+-- Model se staví v jednotkovém měřítku a rigAdd vše násobí rig.Scale (větší tvorové = větší model).
+type RigPart = { Part: BasePart, Offset: CFrame, Seg: string }
+-- chapadlo = řetěz segmentů; každý kloub se ohýbá kolem osy Axis (už v měřítku rigu)
+type Tentacle = { Segs: { string }, Joints: { Vector3 }, Axis: Vector3, Phase: number, Amp: number, Rising: boolean }
+type ChaserRig = {
+	Kind: string,
+	Root: BasePart,
+	Parts: { RigPart },
+	Teeth: { BasePart },
+	Attack: number,
+	TeethShown: boolean,
+	Scale: number,
+	Shift: CFrame, -- posun modelu vůči bodu, kde je pronásledovatel (do strany / výš / dozadu)
+	Phase: number, -- posun fáze animace (dva žraloci se nehýbou stejně)
+	Clock: number, -- nastřádaný čas animace (tempo se mění plynule, bez skoků při útoku)
+	Tentacles: { Tentacle },
+	Spout: ParticleEmitter?,
+	NextSpout: number,
+}
 
-local sharkRigs: { [Model]: SharkRig } = setmetatable({}, { __mode = "k" }) :: any
+local chaserRigs: { [Model]: ChaserRig } = setmetatable({}, { __mode = "k" }) :: any
+
+local function newRig(kind: string, scale: number, parent: Instance): (Model, ChaserRig)
+	local m = Instance.new("Model")
+	m.Name = kind
+	local root = Instance.new("Part")
+	root.Name = "Root"
+	root.Anchored = true
+	root.CanCollide = false
+	root.CanQuery = false
+	root.CanTouch = false
+	root.Transparency = 1
+	root.Size = Vector3.new(1, 1, 1)
+	root.CFrame = CFrame.identity
+	root.Parent = m
+	m.PrimaryPart = root
+	local rig: ChaserRig = {
+		Kind = kind,
+		Root = root,
+		Parts = {},
+		Teeth = {},
+		Attack = 0,
+		TeethShown = true,
+		Scale = scale,
+		Shift = CFrame.identity,
+		Phase = math.random() * 6,
+		Clock = 0,
+		Tentacles = {},
+		Spout = nil,
+		NextSpout = 0,
+	}
+	chaserRigs[m] = rig
+	m.Parent = parent
+	return m, rig
+end
+
+-- díl rigu; pozice i rozměr se násobí měřítkem rigu
+local function rigAdd(m: Model, rig: ChaserRig, className: string, size: Vector3, cf: CFrame, color: Color3, seg: string): BasePart
+	local k = rig.Scale
+	local offset = CFrame.new(cf.Position * k) * cf.Rotation
+	local p = Instance.new(className) :: BasePart
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Size = size * k
+	p.CFrame = offset
+	p.Color = color
+	p.Material = Enum.Material.SmoothPlastic
+	p.Parent = m
+	table.insert(rig.Parts, { Part = p, Offset = offset, Seg = seg })
+	return p
+end
+
+-- elipsoid = blok + SpecialMesh koule (koule se roztáhne na celý rozměr dílu)
+local function rigEllipsoid(m: Model, rig: ChaserRig, size: Vector3, cf: CFrame, color: Color3, seg: string): BasePart
+	local p = rigAdd(m, rig, "Part", size, cf, color, seg)
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = p
+	return p
+end
+
+local function rigBall(m: Model, rig: ChaserRig, diameter: number, position: Vector3, color: Color3, seg: string): Part
+	local p = rigAdd(m, rig, "Part", Vector3.new(diameter, diameter, diameter), CFrame.new(position), color, seg) :: Part
+	p.Shape = Enum.PartType.Ball
+	return p
+end
+
+-- svítící díl (oči megalodona a krakena)
+local function makeGlow(p: BasePart, color: Color3, range: number)
+	p.Material = Enum.Material.Neon
+	p.Color = color
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = range
+	light.Brightness = 2
+	light.Parent = p
+end
+
+-- otočení kolem kloubu (v souřadnicích modelu)
+local function aroundHinge(hinge: Vector3, rotation: CFrame): CFrame
+	return CFrame.new(hinge) * rotation * CFrame.new(-hinge)
+end
+
+-- ---- Žralok (a megalodon = velký tmavý žralok se svítícíma očima) ----
+-- Torpédové tělo z elipsoidů, šedomodrý hřbet a bílé břicho, vysoká hřbetní ploutev,
+-- prsní ploutve, srpovitá ocasní ploutev, žábry, oči a tlama se zuby (~37 dílů).
+-- Tělo je posunuté pod kořen, takže u hladiny čouhá z vody hlavně hřbetní ploutev.
+type SharkLook = { Kind: string, Scale: number, Top: Color3, Fin: Color3, Belly: Color3, Glow: Color3?, Shift: CFrame }
 
 local SHARK_Y = -1.9 -- výška osy těla pod kořenem
 local SHARK_REAR_HINGE = Vector3.new(0, SHARK_Y, 2)
@@ -586,37 +693,41 @@ local SHARK_TAIL_HINGE = Vector3.new(0, SHARK_Y + 0.15, 6.7)
 local SHARK_JAW_HINGE = Vector3.new(0, SHARK_Y - 0.8, -3.2)
 local SHARK_FIN_HINGE = Vector3.new(1.4, SHARK_Y - 0.75, -1.6)
 
-local function sharkModel(parent: Instance): Model
-	local m = Instance.new("Model")
-	m.Name = "Shark"
-	local top = Color3.fromRGB(92, 112, 134) -- šedomodrý hřbet
-	local finColor = Color3.fromRGB(80, 98, 120)
-	local belly = Color3.fromRGB(236, 238, 240) -- světlé břicho (protistínování)
-	local rig: SharkRig = { Root = nil :: any, Parts = {}, Teeth = {}, Attack = 0, TeethShown = true }
+local SHARK_LOOK: SharkLook = {
+	Kind = "Shark",
+	Scale = 1,
+	Top = Color3.fromRGB(92, 112, 134), -- šedomodrý hřbet
+	Fin = Color3.fromRGB(80, 98, 120),
+	Belly = Color3.fromRGB(236, 238, 240), -- světlé břicho (protistínování)
+	Glow = nil,
+	Shift = CFrame.identity,
+}
+-- megalodon: 2,3× větší, tmavý, svítící oči; posunutý dozadu, aby čenich byl tam, kde u žraloka,
+-- a trochu do strany, aby velká ploutev nezakrývala hráče z kamery
+local MEGALODON_LOOK: SharkLook = {
+	Kind = "Megalodon",
+	Scale = 2.3,
+	Top = Color3.fromRGB(52, 60, 74),
+	Fin = Color3.fromRGB(40, 46, 58),
+	Belly = Color3.fromRGB(196, 202, 210),
+	Glow = Color3.fromRGB(255, 90, 40),
+	Shift = CFrame.new(-4, 0.9, 10),
+}
+
+local function sharkModel(parent: Instance, look: SharkLook?): Model
+	local style = look or SHARK_LOOK
+	local m, rig = newRig(style.Kind, style.Scale, parent)
+	rig.Shift = style.Shift
+	local top = style.Top
+	local finColor = style.Fin
+	local belly = style.Belly
 	local yc = SHARK_Y
 
 	local function add(className: string, size: Vector3, cf: CFrame, color: Color3, seg: string): BasePart
-		local p = Instance.new(className) :: BasePart
-		p.Anchored = true
-		p.CanCollide = false
-		p.CanQuery = false
-		p.CanTouch = false
-		p.CastShadow = false
-		p.Size = size
-		p.CFrame = cf
-		p.Color = color
-		p.Material = Enum.Material.SmoothPlastic
-		p.Parent = m
-		table.insert(rig.Parts, { Part = p, Offset = cf, Seg = seg })
-		return p
+		return rigAdd(m, rig, className, size, cf, color, seg)
 	end
-	-- elipsoid = blok + SpecialMesh koule (koule se roztáhne na celý rozměr dílu)
 	local function ellipsoid(size: Vector3, position: Vector3, color: Color3, seg: string): BasePart
-		local p = add("Part", size, CFrame.new(position), color, seg)
-		local mesh = Instance.new("SpecialMesh")
-		mesh.MeshType = Enum.MeshType.Sphere
-		mesh.Parent = p
-		return p
+		return rigEllipsoid(m, rig, size, CFrame.new(position), color, seg)
 	end
 	-- tenký proužek mezi dvěma body (žábry)
 	local function strip(a: Vector3, b: Vector3, thickness: number, color: Color3, seg: string): BasePart
@@ -628,18 +739,6 @@ local function sharkModel(parent: Instance): Model
 		local rz = (z + 0.4) / 4
 		return 1.9 * math.sqrt(math.max(0, 1 - ry * ry - rz * rz))
 	end
-
-	local root = Instance.new("Part")
-	root.Name = "Root"
-	root.Anchored = true
-	root.CanCollide = false
-	root.CanQuery = false
-	root.CanTouch = false
-	root.Transparency = 1
-	root.Size = Vector3.new(1, 1, 1)
-	root.CFrame = CFrame.identity
-	root.Parent = m
-	rig.Root = root
 
 	-- tělo: čenich → hlava → trup → zadek → ocasní násadec (zužuje se jako torpédo)
 	ellipsoid(Vector3.new(2, 1.6, 3.6), Vector3.new(0, yc + 0.25, -5.9), top, "Body")
@@ -681,11 +780,15 @@ local function sharkModel(parent: Instance): Model
 		end
 	end
 
-	-- malá černá lesklá očka
+	-- oči: u žraloka malá černá lesklá, u megalodona větší a svítící
 	for _, side in { -1, 1 } do
-		local eye = add("Part", Vector3.new(0.42, 0.42, 0.42), CFrame.new(side * 1.35, yc + 0.45, -4.7), Color3.fromRGB(12, 12, 16), "Body") :: Part
-		eye.Shape = Enum.PartType.Ball
+		local eye = rigBall(m, rig, if style.Glow then 0.6 else 0.42, Vector3.new(side * 1.35, yc + 0.45, -4.7), Color3.fromRGB(12, 12, 16), "Body")
 		eye.Reflectance = 0.3
+		local glow = style.Glow
+		if glow then
+			eye.Reflectance = 0
+			makeGlow(eye, glow, 10)
+		end
 	end
 
 	-- tlama: tmavá linka (vnitřek tlamy) mezi hlavou a bílou dolní čelistí
@@ -701,59 +804,285 @@ local function sharkModel(parent: Instance): Model
 		local cf = CFrame.new(0.55 * math.sin(u), yc - 0.72, -4.4 - 0.9 * math.cos(u)) * CFrame.Angles(0, u, 0)
 		table.insert(rig.Teeth, add("WedgePart", Vector3.new(0.1, 0.28, 0.18), cf, white, "Jaw"))
 	end
-
-	m.PrimaryPart = root
-	m.Parent = parent
-	sharkRigs[m] = rig
 	return m
 end
 
--- otočení kolem kloubu (v souřadnicích modelu)
-local function aroundHinge(hinge: Vector3, rotation: CFrame): CFrame
-	return CFrame.new(hinge) * rotation * CFrame.new(-hinge)
+-- ---- Velryba: velké modré tělo, bílé břicho, vodorovná ocasní ploutev, gejzír z nozder (~24 dílů) ----
+local WHALE_REAR_HINGE = Vector3.new(0, -2.1, 3)
+local WHALE_TAIL_HINGE = Vector3.new(0, -1.7, 8.2)
+local WHALE_FIN_HINGE = Vector3.new(2.9, -3.3, -2.6)
+local WHALE_JAW_HINGE = Vector3.new(0, -3, -3.5)
+
+local function whaleModel(parent: Instance): Model
+	local m, rig = newRig("Whale", 1.15, parent)
+	-- celá velryba je za bodem pronásledování, aby tlama byla zhruba tam, kde u žraloka čenich
+	rig.Shift = CFrame.new(0, 0.8, 4)
+	local blue = Color3.fromRGB(70, 125, 205)
+	local dark = Color3.fromRGB(45, 85, 160)
+	local belly = Color3.fromRGB(235, 242, 250)
+	local function ell(size: Vector3, position: Vector3, color: Color3, seg: string): BasePart
+		return rigEllipsoid(m, rig, size, CFrame.new(position), color, seg)
+	end
+	-- hlava a trup (hřbet těsně nad hladinou)
+	ell(Vector3.new(6, 5, 8.5), Vector3.new(0, -2, -5.6), blue, "Body")
+	ell(Vector3.new(7, 5.6, 10), Vector3.new(0, -2.2, 0), blue, "Body")
+	ell(Vector3.new(5.6, 3.4, 12), Vector3.new(0, -3.5, -2.5), belly, "Body")
+	-- spodní čelist (bílá, otevře se při útoku)
+	ell(Vector3.new(4.8, 2, 6.5), Vector3.new(0, -3.8, -6.8), belly, "Jaw")
+	-- úsměv: tmavé linky tlamy po stranách
+	for _, side in { -1, 1 } do
+		local a = Vector3.new(side * 2.55, -3, -9.4)
+		local b = Vector3.new(side * 3.25, -2.6, -4.2)
+		rigAdd(m, rig, "Part", Vector3.new(0.2, 0.2, (b - a).Magnitude), CFrame.lookAt((a + b) / 2, b), dark, "Body")
+	end
+	-- velké přátelské oči (bílé oko + černá zornička + odlesk)
+	for _, side in { -1, 1 } do
+		rigBall(m, rig, 1.1, Vector3.new(side * 2.6, -1, -4.4), Color3.fromRGB(250, 250, 250), "Body")
+		local pupil = rigBall(m, rig, 0.6, Vector3.new(side * 2.98, -1, -4.6), Color3.fromRGB(15, 15, 25), "Body")
+		pupil.Reflectance = 0.25
+	end
+	-- nozdra na temeni + malá hřbetní ploutev
+	local blowhole = ell(Vector3.new(0.9, 0.35, 0.6), Vector3.new(0, 0.55, -4.3), dark, "Body")
+	rigAdd(m, rig, "WedgePart", Vector3.new(0.5, 1.1, 2.2), CFrame.new(0, 0.8, 3.2), dark, "Rear")
+	-- prsní ploutve (dlouhé, do stran)
+	for _, side in { -1, 1 } do
+		local hinge = Vector3.new(side * WHALE_FIN_HINGE.X, WHALE_FIN_HINGE.Y, WHALE_FIN_HINGE.Z)
+		local cf = CFrame.new(hinge) * CFrame.Angles(0, -side * 0.35, -side * 0.45) * CFrame.new(side * 2.2, 0, 0)
+		rigEllipsoid(m, rig, Vector3.new(4.8, 0.45, 1.7), cf, dark, if side < 0 then "FinL" else "FinR")
+	end
+	-- zadek a ocasní násadec
+	ell(Vector3.new(5, 4.2, 7), Vector3.new(0, -2.05, 5.8), blue, "Rear")
+	ell(Vector3.new(3.6, 2.4, 6), Vector3.new(0, -3, 5.4), belly, "Rear")
+	ell(Vector3.new(2.6, 2.2, 6), Vector3.new(0, -1.7, 10.2), blue, "Tail")
+	-- vodorovná ocasní ploutev (dva laloky do stran + střed)
+	for _, side in { -1, 1 } do
+		local cf = CFrame.new(side * 2.3, -1.5, 13.4) * CFrame.Angles(0, side * 0.45, 0)
+		rigEllipsoid(m, rig, Vector3.new(5.2, 0.5, 2.6), cf, dark, "Tail")
+	end
+	ell(Vector3.new(1.6, 0.6, 2), Vector3.new(0, -1.55, 12.6), dark, "Tail")
+	-- gejzír z nozder: kapky vystřelí nahoru a spadnou zpátky
+	local spout = Instance.new("ParticleEmitter")
+	spout.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	spout.Color = ColorSequence.new(Color3.fromRGB(235, 250, 255), Color3.fromRGB(170, 220, 255))
+	spout.LightEmission = 0.3
+	spout.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 3) })
+	spout.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(1, 1) })
+	spout.Lifetime = NumberRange.new(0.8, 1.2)
+	spout.Speed = NumberRange.new(22, 30)
+	spout.SpreadAngle = Vector2.new(10, 10)
+	spout.Acceleration = Vector3.new(0, -35, 0)
+	spout.EmissionDirection = Enum.NormalId.Top
+	spout.Rate = 0
+	spout.Parent = blowhole
+	rig.Spout = spout
+	return m
 end
 
--- Animace žraloka: vlnění těla, mávání ocasem, prsní ploutve, a když je blízko hráče,
--- vynoří hlavu, otevře tlamu a ukáže zuby. Volá se po PivotTo (pohyb se nemění).
-local function animateShark(shark: Model, target: Vector3, dt: number)
-	local rig = sharkRigs[shark]
+-- ---- Chobotnice a kraken: kulatá hlava, velké oči, vlnící se chapadla ----
+-- Chobotnice (~41 dílů): fialová, 8 chapadel po 4 článcích kolem hlavy.
+-- Kraken (~43 dílů): větší, tmavě červený s tyrkysovými skvrnami, svítící žluté oči,
+-- 6 chapadel pod hlavou a 4 obří chapadla, která se zvedají z vody kolem hráče.
+local function octopusModel(parent: Instance, kraken: boolean): Model
+	local m, rig = newRig(if kraken then "Kraken" else "Octopus", if kraken then 1.9 else 1.4, parent)
+	-- hlava hlouběji ve vodě (ať nezakrývá hráče), chapadla vepředu sahají k hráči
+	rig.Shift = if kraken then CFrame.new(0, -0.6, 3) else CFrame.new(0, -0.4, 1.5)
+	local k = rig.Scale
+	local head = if kraken then Color3.fromRGB(150, 30, 50) else Color3.fromRGB(170, 70, 205)
+	local spot = if kraken then Color3.fromRGB(40, 200, 180) else Color3.fromRGB(225, 140, 240)
+	local arm = if kraken then Color3.fromRGB(125, 25, 45) else Color3.fromRGB(150, 60, 190)
+	local tip = if kraken then Color3.fromRGB(40, 170, 160) else Color3.fromRGB(240, 160, 230)
+
+	-- hlava (plášť) nakloněná dozadu + spodní část hlavy
+	rigEllipsoid(m, rig, Vector3.new(5, 6, 5.5), CFrame.new(0, 1.3, 1.1) * CFrame.Angles(math.rad(-25), 0, 0), head, "Body")
+	rigEllipsoid(m, rig, Vector3.new(4.6, 2.8, 4.6), CFrame.new(0, -0.9, 0), head, "Body")
+	-- skvrny na hlavě
+	for _, s in { Vector3.new(1.5, 2.6, 1.6), Vector3.new(-1.3, 3, 2.1), Vector3.new(0.2, 3.6, 2.8) } do
+		rigEllipsoid(m, rig, Vector3.new(1.1, 1.1, 0.6), CFrame.lookAt(s, s * 2), spot, "Body")
+	end
+	-- velké oči po stranách hlavy (vidět i z kamery za hráčem)
+	for _, side in { -1, 1 } do
+		local eyePos = Vector3.new(side * 1.75, 1, -1.2)
+		local white = rigBall(m, rig, 1.7, eyePos, if kraken then Color3.fromRGB(255, 215, 60) else Color3.fromRGB(250, 250, 250), "Body")
+		if kraken then
+			makeGlow(white, Color3.fromRGB(255, 215, 60), 12)
+			-- svislá zornička
+			rigEllipsoid(m, rig, Vector3.new(0.35, 1.2, 0.5), CFrame.new(eyePos + Vector3.new(side * 0.55, 0, -0.45)), Color3.fromRGB(20, 10, 15), "Body")
+		else
+			local pupil = rigBall(m, rig, 0.85, eyePos + Vector3.new(side * 0.5, 0.05, -0.5), Color3.fromRGB(15, 10, 25), "Body")
+			pupil.Reflectance = 0.25
+		end
+	end
+
+	-- chapadla pod hlavou: řetěz článků od hlavy ven, konce se stáčejí nahoru
+	local lowerCount = if kraken then 6 else 8
+	local segCount = if kraken then 3 else 4
+	for i = 1, lowerCount do
+		local angle = (i - 0.5) / lowerCount * math.pi * 2
+		local dir = Vector3.new(math.sin(angle), 0, -math.cos(angle))
+		local tentacle: Tentacle = { Segs = {}, Joints = {}, Axis = Vector3.new(-dir.Z, 0, dir.X), Phase = i * 0.9, Amp = 0.32, Rising = false }
+		local start = dir * 1.6 + Vector3.new(0, -0.7, 0)
+		for j = 1, segCount do
+			local length = 1.9 - j * 0.2
+			local width = 1.25 - j * 0.2
+			-- první články skoro vodorovně, konec se stáčí nahoru
+			local rise = 0.8 * ((j - 1) / (segCount - 1)) ^ 1.5 - 0.05
+			local a = start
+			local b = a + dir * length + Vector3.new(0, rise, 0)
+			local seg = "T" .. i .. "_" .. j
+			rigEllipsoid(m, rig, Vector3.new(width, width * 0.85, length + 0.5), CFrame.lookAt((a + b) / 2, b), if j == segCount then tip else arm, seg)
+			table.insert(tentacle.Segs, seg)
+			table.insert(tentacle.Joints, a * k)
+			start = b
+		end
+		table.insert(rig.Tentacles, tentacle)
+	end
+
+	-- kraken: obří chapadla vystupující z vody po stranách (a trochu před ním)
+	if kraken then
+		local spots = { Vector3.new(-6.5, -1.2, -3.5), Vector3.new(6.5, -1.2, -3.5), Vector3.new(-5.5, -1.2, 3), Vector3.new(5.5, -1.2, 3) }
+		for i, base in spots do
+			local side = if base.X < 0 then -1 else 1
+			local tentacle: Tentacle = { Segs = {}, Joints = {}, Axis = Vector3.zAxis, Phase = i * 1.3, Amp = 0.22, Rising = true }
+			local start = base
+			for j = 1, 4 do
+				local length = 2.1 - j * 0.15
+				local width = 1.5 - j * 0.25
+				-- nahoru a na konci zahnuté dovnitř (k hráči)
+				local b = start + Vector3.new(-side * (j - 1) * 0.35, length, 0)
+				local seg = "R" .. i .. "_" .. j
+				rigEllipsoid(m, rig, Vector3.new(width, length + 0.5, width), CFrame.new((start + b) / 2) * CFrame.Angles(0, 0, side * (j - 1) * 0.17), if j == 4 then tip else arm, seg)
+				table.insert(tentacle.Segs, seg)
+				table.insert(tentacle.Joints, start * k)
+				start = b
+			end
+			table.insert(rig.Tentacles, tentacle)
+		end
+	end
+	return m
+end
+
+-- Postaví pronásledovatele pro daný tier (klíč z Config/Swim → Chasers); neznámý klíč = žralok
+local function chaserModels(key: string, parent: Instance): { Model }
+	if key == "Whale" then
+		return { whaleModel(parent) }
+	elseif key == "TwoSharks" then
+		local first = table.clone(SHARK_LOOK)
+		first.Shift = CFrame.new(3.5, 0, 0)
+		local second = table.clone(SHARK_LOOK)
+		second.Top = Color3.fromRGB(78, 98, 122)
+		second.Shift = CFrame.new(-4, 0, 5)
+		return { sharkModel(parent, first), sharkModel(parent, second) }
+	elseif key == "Octopus" then
+		return { octopusModel(parent, false) }
+	elseif key == "Kraken" then
+		return { octopusModel(parent, true) }
+	elseif key == "Megalodon" then
+		return { sharkModel(parent, MEGALODON_LOOK) }
+	end
+	return { sharkModel(parent, nil) }
+end
+
+-- Animace pronásledovatele (volá se po nastavení kořene): vlnění těla, ocas, ploutve, chapadla.
+-- Když je blízko hráče, "zaútočí" – žralok vynoří hlavu a ukáže zuby, velryba otevře tlamu,
+-- chobotnice natáhne chapadla.
+local function animateChaser(model: Model, target: Vector3, dt: number)
+	local rig = chaserRigs[model]
 	if not rig then
 		return
 	end
+	local k = rig.Scale
 	local root = rig.Root.CFrame
 	local distance = (root.Position - target).Magnitude
-	local want = math.clamp((14 - distance) / 8, 0, 1)
+	local want = math.clamp((14 * k - distance) / (8 * k), 0, 1)
 	rig.Attack += (want - rig.Attack) * (1 - math.exp(-dt * 6))
 	local a = rig.Attack
-	local t = os.clock() * (6 + a * 4)
-	local base = root * CFrame.new(0, a * 1.1, 0) * CFrame.Angles(a * 0.28, 0, 0)
-	local body = base * CFrame.Angles(0, 0.06 * math.sin(t + 0.8), 0)
-	local rear = body * aroundHinge(SHARK_REAR_HINGE, CFrame.Angles(0, 0.2 * math.sin(t - 0.9), 0))
-	local tail = rear * aroundHinge(SHARK_TAIL_HINGE, CFrame.Angles(0, 0.45 * math.sin(t - 1.9), 0))
-	local gape = a * 0.55 + a * 0.12 * math.sin(os.clock() * 9)
-	local jaw = body * aroundHinge(SHARK_JAW_HINGE, CFrame.Angles(-gape, 0, 0))
-	local flap = 0.12 * math.sin(t * 0.5)
-	local finHingeL = Vector3.new(-SHARK_FIN_HINGE.X, SHARK_FIN_HINGE.Y, SHARK_FIN_HINGE.Z)
-	local frames: { [string]: CFrame } = {
-		Body = body,
-		Rear = rear,
-		Tail = tail,
-		Jaw = jaw,
-		FinL = body * aroundHinge(finHingeL, CFrame.Angles(0, 0, flap)),
-		FinR = body * aroundHinge(SHARK_FIN_HINGE, CFrame.Angles(0, 0, -flap)),
-	}
+	local now = os.clock() + rig.Phase
+	-- tempo vlnění se mění s útokem; čas se proto střádá po snímcích (now * tempo by při změně
+	-- tempa skákal o stovky radiánů a tvor by sebou házel)
+	local function advance(rate: number): number
+		rig.Clock += dt * rate
+		return rig.Clock + rig.Phase
+	end
+	local frames: { [string]: CFrame } = {}
+	local kind = rig.Kind
+
+	if kind == "Shark" or kind == "Megalodon" then
+		local t = advance((6 + a * 4) / math.sqrt(k))
+		local base = root * CFrame.new(0, a * 1.1 * k, 0) * CFrame.Angles(a * 0.28, 0, 0)
+		local body = base * CFrame.Angles(0, 0.06 * math.sin(t + 0.8), 0)
+		local rear = body * aroundHinge(SHARK_REAR_HINGE * k, CFrame.Angles(0, 0.2 * math.sin(t - 0.9), 0))
+		local tail = rear * aroundHinge(SHARK_TAIL_HINGE * k, CFrame.Angles(0, 0.45 * math.sin(t - 1.9), 0))
+		-- megalodon má tlamu pořád pootevřenou a cvaká
+		local idle = if kind == "Megalodon" then 0.18 + 0.1 * math.sin(now * 3) else 0
+		local gape = idle + a * 0.55 + a * 0.12 * math.sin(now * 9)
+		local jaw = body * aroundHinge(SHARK_JAW_HINGE * k, CFrame.Angles(-gape, 0, 0))
+		local flap = 0.12 * math.sin(t * 0.5)
+		local finHinge = SHARK_FIN_HINGE * k
+		frames.Body = body
+		frames.Rear = rear
+		frames.Tail = tail
+		frames.Jaw = jaw
+		frames.FinL = body * aroundHinge(Vector3.new(-finHinge.X, finHinge.Y, finHinge.Z), CFrame.Angles(0, 0, flap))
+		frames.FinR = body * aroundHinge(finHinge, CFrame.Angles(0, 0, -flap))
+	elseif kind == "Whale" then
+		-- velryba plave vlněním nahoru a dolů (ocas mává svisle)
+		local t = advance(3.2 + a * 1.5)
+		local base = root * CFrame.new(0, a * 1.2 * k + 0.3 * math.sin(t * 0.5), 0) * CFrame.Angles(a * 0.15, 0, 0)
+		local body = base * CFrame.Angles(0.03 * math.sin(t + 0.6), 0, 0)
+		local rear = body * aroundHinge(WHALE_REAR_HINGE * k, CFrame.Angles(0.12 * math.sin(t - 0.8), 0, 0))
+		local tail = rear * aroundHinge(WHALE_TAIL_HINGE * k, CFrame.Angles(0.4 * math.sin(t - 1.8), 0, 0))
+		local finHinge = WHALE_FIN_HINGE * k
+		local flap = 0.25 * math.sin(t * 0.8)
+		frames.Body = body
+		frames.Rear = rear
+		frames.Tail = tail
+		frames.Jaw = body * aroundHinge(WHALE_JAW_HINGE * k, CFrame.Angles(-a * 0.35, 0, 0))
+		frames.FinL = body * aroundHinge(Vector3.new(-finHinge.X, finHinge.Y, finHinge.Z), CFrame.Angles(0, 0, flap))
+		frames.FinR = body * aroundHinge(finHinge, CFrame.Angles(0, 0, -flap))
+		local spout = rig.Spout
+		if spout and os.clock() >= rig.NextSpout then
+			rig.NextSpout = os.clock() + 2.4 - a
+			spout:Emit(28)
+		end
+	else
+		-- chobotnice / kraken: hlava se pohupuje, chapadla se vlní (vlna běží od hlavy ke konci)
+		local t = advance(2.6 + a * 2)
+		local body = root * CFrame.new(0, (0.35 * math.sin(t * 0.7) + a * 0.8) * k, 0) * CFrame.Angles(0.06 * math.sin(t * 0.7), 0, 0)
+		frames.Body = body
+		for _, tentacle in rig.Tentacles do
+			local frame = body
+			for j, seg in tentacle.Segs do
+				local wave = math.sin(t + tentacle.Phase - j * 0.9)
+				local rotation: CFrame
+				if tentacle.Rising then
+					-- obří chapadla se kývají a při útoku se nakloní nad hráče
+					local lean = if tentacle.Joints[j].X < 0 then -1 else 1
+					rotation = CFrame.Angles(tentacle.Amp * math.sin(t * 0.8 + tentacle.Phase - j * 0.7), 0, lean * (tentacle.Amp * wave + a * 0.12))
+				else
+					-- konce se zvedají z vody, při útoku se chapadla víc natahují
+					rotation = CFrame.fromAxisAngle(tentacle.Axis, (tentacle.Amp + a * 0.15) * wave) * CFrame.Angles(0, 0.15 * math.sin(t * 0.6 + tentacle.Phase + j), 0)
+				end
+				frame = frame * aroundHinge(tentacle.Joints[j], rotation)
+				frames[seg] = frame
+			end
+		end
+	end
+
 	local parts: { BasePart } = table.create(#rig.Parts)
 	local cframes: { CFrame } = table.create(#rig.Parts)
 	for i, entry in rig.Parts do
 		parts[i] = entry.Part
-		cframes[i] = frames[entry.Seg] * entry.Offset
+		cframes[i] = (frames[entry.Seg] or root) * entry.Offset
 	end
 	Workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
-	local show = a > 0.25
-	if show ~= rig.TeethShown then
-		rig.TeethShown = show
-		for _, tooth in rig.Teeth do
-			tooth.Transparency = if show then 0 else 1
+	-- zuby: žralok je ukáže až zblízka, megalodon pořád
+	if #rig.Teeth > 0 then
+		local show = a > 0.25 or kind == "Megalodon"
+		if show ~= rig.TeethShown then
+			rig.TeethShown = show
+			for _, tooth in rig.Teeth do
+				tooth.Transparency = if show then 0 else 1
+			end
 		end
 	end
 end
@@ -770,13 +1099,20 @@ local function startSwim(info: { [string]: any })
 	state.SwimEnded = false
 	state.Z = info.StartZ
 	raftModel(Vector3.new(info.StartX - info.Distance, info.Y, info.StartZ), state.Folder)
+	-- kdo honí: tier podle klíče ze serveru (chybí / neznámý → žralok)
+	local tier = Formulas.ChaserByKey(info.Chaser)
+	info.Tier = tier
+	state.Chasers = {}
 	if not info.NoShark then
-		local shark = sharkModel(state.Folder)
-		shark:PivotTo(CFrame.new(0, -500, 0))
-		state.Shark = shark
+		for _, model in chaserModels(tier.Key, state.Folder) do
+			model:PivotTo(CFrame.new(0, -500, 0))
+			table.insert(state.Chasers, model)
+		end
 	end
 	swimHud.Visible = true
 	swimBarShark.Visible = not info.NoShark
+	swimBarShark.Text = tier.Name
+	swimBarShark.TextColor3 = tier.Color
 	flightHud.Visible = false
 	if info.NoShark then
 		Effects.BigText(if info.UsedRepellent then "SHARK REPELLENT! SWIM!" else "SWIM TO THE RAFT!", Kit.Colors.Turquoise, 1.4, 0.25)
@@ -784,7 +1120,7 @@ local function startSwim(info: { [string]: any })
 		Effects.BigText("SWIM TO THE RAFT!", Kit.Colors.Turquoise, 1.2, 0.25)
 		task.delay(info.SharkDelay, function()
 			if flight == state and not state.SwimEnded then
-				Effects.BigText("SHARK!!! SWIM FASTER!", Kit.Colors.Coral, 1.2, 0.3)
+				Effects.BigText(tier.Warning, tier.Color, 1.2, 0.3)
 				Sound.Play("SharkAlert")
 			end
 		end)
@@ -822,20 +1158,32 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 	root.CFrame = CFrame.lookAt(position, position - Vector3.xAxis) * CFrame.Angles(math.rad(-80), 0, math.sin(os.clock() * 8) * 0.2)
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.AssemblyAngularVelocity = Vector3.zero
-	-- žralok
-	local sharkProgress = Formulas.SharkProgress(elapsed, info.SharkSpeed)
-	local shark = state.Shark
-	if shark then
+	-- pronásledovatel(é): server počítá jednu pozici, druhý žralok je jen posunutý do strany a dozadu (rig.Shift)
+	-- po úspěšném doplavání se pronásledovatel zastaví a zanoří (nehoní hráče na voru)
+	local escapedAt = info.EscapedAt
+	local chaseElapsed = if typeof(escapedAt) == "number" then math.min(elapsed, escapedAt) else elapsed
+	local dive = if typeof(escapedAt) == "number" then math.max(0, elapsed - escapedAt) * 6 else 0
+	local sharkProgress = Formulas.SharkProgress(chaseElapsed, info.SharkSpeed)
+	for _, model in state.Chasers do
+		local chaserCFrame: CFrame
 		if elapsed < info.SharkDelay then
 			-- ploutev se blíží zezadu
 			local behind = Vector3.new(info.StartX + 30 - (elapsed / info.SharkDelay) * 30, info.Y - 1.6, state.Z + 6)
-			shark:PivotTo(CFrame.lookAt(behind, behind - Vector3.xAxis))
+			chaserCFrame = CFrame.lookAt(behind, behind - Vector3.xAxis)
 		else
 			local sx = info.StartX - math.min(sharkProgress, state.SwimProgress + 2)
-			local sharkPos = Vector3.new(sx, info.Y + 0.6, state.Z + math.sin(os.clock() * 3) * 1.5)
-			shark:PivotTo(CFrame.lookAt(sharkPos, sharkPos - Vector3.xAxis))
+			-- oba žraloci se vlní stejně (jinak by se o sebe otírali), liší se jen posunem v rig.Shift
+			local sharkPos = Vector3.new(sx, info.Y + 0.6 - dive, state.Z + math.sin(os.clock() * 3) * 1.5)
+			chaserCFrame = CFrame.lookAt(sharkPos, sharkPos - Vector3.xAxis)
 		end
-		animateShark(shark, position, dt)
+		local rig = chaserRigs[model]
+		if rig then
+			-- stačí posunout kořen, animace pak přesune všechny díly najednou
+			rig.Root.CFrame = chaserCFrame * rig.Shift
+			animateChaser(model, position, dt)
+		else
+			model:PivotTo(chaserCFrame)
+		end
 	end
 	-- ukazatel: ty vs. žralok
 	swimBarYou.Size = UDim2.fromScale(math.clamp(state.SwimProgress / info.Distance, 0, 1), 1)
@@ -856,13 +1204,17 @@ local function endSwim(result: { [string]: any })
 	end
 	state.SwimEnded = true
 	if result.Success then
+		if state.SwimInfo then
+			state.SwimInfo.EscapedAt = os.clock() - state.SwimStart
+		end
 		Effects.BigText("SAFE! +" .. FormatNumber.Money(result.Bonus), Kit.Colors.Green, 1.4, 0.28)
 		Effects.ScreenConfetti(60)
 		Sound.Play("Coin")
 		Sound.Play("Land")
 		Effects.FovKick(6)
 	elseif result.Reason == "Shark" then
-		Effects.BigText("CHOMP! The shark got you!", Kit.Colors.Coral, 1.4, 0.28)
+		local tier = if state.SwimInfo and state.SwimInfo.Tier then state.SwimInfo.Tier else Formulas.ChaserByKey(nil)
+		Effects.BigText(tier.Caught, tier.Color, 1.4, 0.28)
 		local pos = state.ExpectedPosition
 		if pos then
 			Effects.Splash(pos, true)
@@ -1175,7 +1527,7 @@ function JumpController.Init(parentScreen: ScreenGui)
 	swimBarYou = Kit.new("Frame", { BackgroundColor3 = Kit.Colors.Green, Size = UDim2.fromScale(0, 1), Parent = bar })
 	Kit.Corner(swimBarYou, 20)
 	Kit.Text(bar, { Text = "YOU  >>>  RAFT", Size = UDim2.new(1, -20, 1, -10), Position = UDim2.fromOffset(10, 5), ZIndex = 3 })
-	swimBarShark = Kit.Text(bar, { Text = "SHARK", Size = UDim2.fromOffset(90, 36), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), TextColor3 = Kit.Colors.Coral, StrokeThickness = 3, ZIndex = 4 }) :: any
+	swimBarShark = Kit.Text(bar, { Text = "SHARK", Size = UDim2.fromOffset(150, 36), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), TextColor3 = Kit.Colors.Coral, StrokeThickness = 3, ZIndex = 4 }) :: any
 	swimHint = Kit.Text(swimHud, { Text = "Hold W / joystick forward to swim!", Size = UDim2.fromOffset(640, 46), Position = UDim2.new(0.5, 0, 1, -60), AnchorPoint = Vector2.new(0.5, 1) })
 	Net.Event("SwimStart").OnClientEvent:Connect(startSwim)
 	Net.Event("SwimResult").OnClientEvent:Connect(endSwim)

@@ -34,7 +34,7 @@ local showToken = 0
 
 local TITLES: { [Reason]: string } = {
 	Record = "Want to jump even farther?",
-	Shark = "That shark was fast!",
+	Shark = "That was close! Swim faster!",
 }
 
 -- Kandidáti podle situace (v pořadí, první vhodný vyhrává)

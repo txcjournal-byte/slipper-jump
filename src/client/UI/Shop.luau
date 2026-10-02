@@ -193,7 +193,7 @@ local function buildSwim(page: ScrollingFrame)
 		Kit.Text(top, { Text = "SWIM", Size = UDim2.fromScale(0.8, 0.5), Position = UDim2.fromScale(0.1, 0.25), StrokeThickness = 3 })
 		Kit.Text(frame, { Text = upgrade.Name, Size = UDim2.new(1, -12, 0, 26), Position = UDim2.fromOffset(6, 128), TextColor3 = Kit.Colors.Text, NoStroke = true })
 		Kit.Text(frame, { Text = "Swim speed " .. upgrade.Speed, Size = UDim2.new(1, -12, 0, 22), Position = UDim2.fromOffset(6, 156), TextColor3 = Kit.Colors.Blue, NoStroke = true })
-		Kit.Text(frame, { Text = "Outswim faster sharks!", Size = UDim2.new(1, -12, 0, 18), Position = UDim2.fromOffset(6, 180), TextColor3 = Kit.Colors.Gray, NoStroke = true })
+		Kit.Text(frame, { Text = "Outswim sharks & sea monsters!", Size = UDim2.new(1, -12, 0, 18), Position = UDim2.fromOffset(6, 180), TextColor3 = Kit.Colors.Gray, NoStroke = true })
 		local button = Kit.Button(frame, { Text = "", Size = UDim2.new(1, -16, 0, 50), Position = UDim2.new(0, 8, 1, -58), Color = Kit.Colors.Green })
 		button.Activated:Connect(function()
 			action("Swim", "Buy", upgrade.Id)
@@ -284,10 +284,11 @@ local function showTab(tab: Tab)
 		page.Visible = name == tab
 	end
 	for name, button in tabButtons do
-		button.BackgroundColor3 = if name == tab then Kit.Colors.Yellow else Kit.Colors.PanelDark
+		-- vybraná záložka žlutá, ostatní modré; text vždy bílý, aby byl dobře čitelný
+		button.BackgroundColor3 = if name == tab then Kit.Colors.Yellow else Kit.Colors.Blue
 		local label = button:FindFirstChild("Label") :: TextLabel?
 		if label then
-			label.TextColor3 = if name == tab then Kit.Colors.White else Kit.Colors.Text
+			label.TextColor3 = Kit.Colors.White
 		end
 	end
 	if tab == "Storage" then
@@ -301,7 +302,7 @@ function Shop.Init(screen: ScreenGui)
 	Kit.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 10), Parent = tabs })
 	local body = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, -66), Position = UDim2.fromOffset(0, 66), Parent = window.Content })
 	for i, name in { "Slippers", "Sneakers", "Hats", "Swim", "Storage", "Index" } do
-		local button = Kit.Button(tabs, { Text = name, Size = UDim2.fromOffset(148, 52), LayoutOrder = i, Color = Kit.Colors.PanelDark })
+		local button = Kit.Button(tabs, { Text = name, Size = UDim2.fromOffset(148, 52), LayoutOrder = i, Color = Kit.Colors.Blue })
 		button.Activated:Connect(function()
 			Sound.Play("Click")
 			showTab(name :: Tab)

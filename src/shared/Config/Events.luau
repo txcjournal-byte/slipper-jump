@@ -28,7 +28,7 @@ local Rotation: { ServerEvent } = {
 	{ Kind = "GoldenRings", Name = "GOLDEN RINGS", Description = "Rings give double distance!", Color = Color3.fromRGB(255, 200, 40) },
 	{ Kind = "CoinStorm", Name = "COIN STORM", Description = "Coins in the air are worth 3x!", Color = Color3.fromRGB(255, 160, 40) },
 	{ Kind = "TreasureTide", Name = "TREASURE TIDE", Description = "Rarer items from the water!", Color = Color3.fromRGB(170, 90, 255) },
-	{ Kind = "SharkHoliday", Name = "SHARK HOLIDAY", Description = "No sharks! Swim back safely!", Color = Color3.fromRGB(60, 170, 255) },
+	{ Kind = "SharkHoliday", Name = "SHARK HOLIDAY", Description = "No sharks or sea monsters! Swim back safely!", Color = Color3.fromRGB(60, 170, 255) },
 	{ Kind = "MegaJump", Name = "MEGA JUMP", Description = "Everyone jumps 25% farther!", Color = Color3.fromRGB(80, 220, 120) },
 	{ Kind = "JumpContest", Name = "JUMP CONTEST", Description = "Longest jump wins prizes!", Color = Color3.fromRGB(255, 110, 150), Duration = 120 },
 	{ Kind = "DoubleXP", Name = "DOUBLE XP", Description = "2x XP from every jump!", Color = Color3.fromRGB(80, 200, 255) },
