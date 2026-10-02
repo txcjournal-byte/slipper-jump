@@ -41,6 +41,10 @@ export type Flight = {
 	Finished: boolean,
 	SuperJump: boolean,
 	RingBonus: number,
+	PerfectStreak: number, -- série PERFECT skoků včetně tohoto (0 = bez série)
+	XPMultiplier: number, -- Double XP (podle události při odrazu)
+	DuringEvent: boolean, -- skok během události na serveru (úkol)
+	Contest: boolean, -- skok během Jump Contest
 }
 
 local JumpService = {}
@@ -141,6 +145,11 @@ function JumpService.Release(player: Player, clientValue: unknown)
 	end
 	local tier, bonus = Formulas.PowerTier(value)
 
+	-- série PERFECT skoků (jen pro tuto session, neukládá se)
+	local streak = if tier == "Perfect" then (session.PerfectStreak or 0) + 1 else 0
+	session.PerfectStreak = streak
+	local streakBonus = Formulas.PerfectStreakBonus(streak)
+
 	local data = session.Data
 	local superJump = data.SuperJumps > 0
 	if superJump then
@@ -151,6 +160,7 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		* (1 + rng:NextNumber(-Jump.RandomSpread, Jump.RandomSpread))
 		* (if superJump then 1 + Jump.SuperJumpBonus else 1)
 		* (if Registry.ServerEvents.IsActive("MegaJump") then 1 + Events.MegaJumpBonus else 1)
+		* (1 + streakBonus)
 	local cap = if Catalog.IsBestShoe(data.EquippedSlippers) then Jump.MaxDistance else Jump.MaxDistanceWithoutBest
 	distance = math.clamp(distance, 10, cap)
 
@@ -169,7 +179,8 @@ function JumpService.Release(player: Player, clientValue: unknown)
 	local ringList: { Collectible } = {}
 	local span = c.EndFraction - c.StartFraction
 	local rows = math.clamp(math.floor(distance / c.StudsPerCoinRow), 2, c.CoinRows)
-	local ringCount = math.clamp(math.floor(distance / c.StudsPerRing), 1, c.Rings)
+	local ringMultiplier = if Registry.ServerEvents.IsActive("RainbowRings") then Events.RainbowRingsMultiplier else 1
+	local ringCount = math.clamp(math.floor(distance * ringMultiplier / c.StudsPerRing), 1, c.Rings * ringMultiplier)
 	local spacing = math.max(distance * c.CoinRowSpacing, c.MinCoinSpacing) / distance
 	for row = 1, rows do
 		local p0 = c.StartFraction + span * (row - 0.5) / rows
@@ -212,6 +223,10 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		Finished = false,
 		SuperJump = superJump,
 		RingBonus = c.RingBonus * (if Registry.ServerEvents.IsActive("GoldenRings") then Events.GoldenRingsMultiplier else 1),
+		PerfectStreak = streak,
+		XPMultiplier = if Registry.ServerEvents.IsActive("DoubleXP") then Events.DoubleXPMultiplier else 1,
+		DuringEvent = Registry.ServerEvents.AnyActive(),
+		Contest = Registry.ServerEvents.IsActive("JumpContest"),
 	}
 	session.Flight = flight
 	session.LastJump = os.clock()
@@ -234,6 +249,8 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		CoinValue = flight.CoinValue,
 		SuperJump = superJump,
 		RingBonus = flight.RingBonus,
+		PerfectStreak = streak,
+		StreakBonus = streakBonus,
 	})
 	effectEvent:FireAllClients("Takeoff", { UserId = player.UserId, Tier = tier, Slippers = data.EquippedSlippers })
 
@@ -282,7 +299,7 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	distance = math.floor(distance)
 
 	-- XP, peníze za mince
-	local xp = Formulas.XPForJump(distance)
+	local xp = Formulas.XPForJump(distance) * flight.XPMultiplier
 	local coinMoney = math.floor(coinCount * flight.CoinValue)
 	Registry.Economy.AddMoney(session, coinMoney)
 
@@ -303,6 +320,7 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 		data.BestJump = distance
 	end
 	Registry.Leaderboard.OnJump(session, distance)
+	Registry.ServerEvents.OnJump(session, distance, flight.Contest)
 	Registry.Level.AddXP(session, xp)
 	Registry.Tutorial.OnJumped(session)
 	Registry.Quests.Progress(session, "Jumps", 1)
@@ -311,6 +329,10 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	Registry.Quests.Progress(session, "Distance", distance)
 	if flight.Tier == "Perfect" then
 		Registry.Quests.Progress(session, "Perfects", 1)
+	end
+	Registry.Quests.Reach(session, "PerfectStreak", flight.PerfectStreak)
+	if flight.DuringEvent then
+		Registry.Quests.Progress(session, "EventJumps", 1)
 	end
 
 	local cfg = item and Catalog.Item(item.Id)
@@ -325,6 +347,7 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 		Placement = placement,
 		IsNew = isNew,
 		XP = xp,
+		DoubleXP = flight.XPMultiplier > 1,
 		PersonalRecord = personalRecord,
 		ReachedGift = reachedGift,
 	})
@@ -370,7 +393,7 @@ function JumpService.Landed(player: Player, flightId: unknown, coinIds: unknown,
 		return result
 	end
 	local coins = sanitize(coinIds, Jump.Collectibles.CoinRows * Jump.Collectibles.CoinsPerRow)
-	local rings = sanitize(ringIds, Jump.Collectibles.Rings)
+	local rings = sanitize(ringIds, Jump.Collectibles.Rings * Events.RainbowRingsMultiplier)
 	-- klient nesmí přistát dřív, než by let doopravdy trval
 	local remaining = flight.Duration * 0.9 - (os.clock() - flight.StartClock)
 	if remaining > 0 then

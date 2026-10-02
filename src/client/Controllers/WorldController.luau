@@ -219,6 +219,20 @@ local function onEffect(kind: string, info: { [string]: any })
 		end
 	elseif kind == "Quest" then
 		Effects.ScreenConfetti(40)
+	elseif kind == "ContestWin" then
+		-- vítěz soutěže: konfety pro všechny, u vítěze ještě víc
+		local winner = Players:GetPlayerByUserId(info.UserId)
+		local character = winner and winner.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root then
+			Effects.WorldConfetti(root.Position + Vector3.new(0, 4, 0), 80)
+		end
+		if info.UserId == player.UserId then
+			Effects.BigText("YOU WON THE JUMP CONTEST!", Kit.Colors.Yellow, 2.2)
+			Effects.ScreenConfetti(150)
+		else
+			Effects.ScreenConfetti(40)
+		end
 	elseif kind == "Rebirth" then
 		Effects.BigText("REBIRTH " .. info.Rebirths .. "!", Kit.Colors.Purple, 2)
 		Effects.ScreenConfetti(150)

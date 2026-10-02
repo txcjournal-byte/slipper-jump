@@ -411,6 +411,14 @@ local function startFlight(info: { [string]: any })
 	if info.SuperJump then
 		HUD.Notify("SUPER JUMP! +20%", "Success")
 	end
+	-- série PERFECT skoků (bonus spočítal server)
+	local streak = info.PerfectStreak or 0
+	if streak >= 2 then
+		local bonus = math.floor((info.StreakBonus or 0) * 100 + 0.5)
+		task.delay(0.7, function()
+			Effects.BigText("PERFECT STREAK x" .. streak .. "  +" .. bonus .. "%", Kit.Colors.Pink, 1.2, 0.3)
+		end)
+	end
 	local slipper = Catalog.Slipper(ClientState.Get().EquippedSlippers or "")
 	if slipper and slipper.Effect == "Boing" then
 		Sound.Play("Boing")
@@ -728,6 +736,9 @@ local function showResult(result: { [string]: any })
 	end
 	if result.CoinMoney > 0 then
 		Effects.FloatText("+" .. FormatNumber.Money(result.CoinMoney) .. " from coins", Kit.Colors.Yellow)
+	end
+	if result.DoubleXP then
+		Effects.FloatText("DOUBLE XP! +" .. FormatNumber.Short(result.XP) .. " XP", Color3.fromRGB(120, 220, 255))
 	end
 	-- předmět vyplave z vody
 	local item = result.Item

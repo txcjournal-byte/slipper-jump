@@ -39,15 +39,18 @@ local function ensureDay(session: Session)
 	Registry.Player.MarkDirty(session)
 end
 
-function QuestService.Progress(session: Session, kind: string, amount: number)
-	if amount <= 0 then
-		return
-	end
+-- Společná část: nastaví postup úkolů daného druhu a při splnění dá odměnu.
+-- update(starý postup) → nový postup
+local function advance(session: Session, kind: string, update: (number) -> number)
 	ensureDay(session)
 	for _, quest in session.Data.Quests.List do
 		local template = Quests.Pool[quest.Index]
 		if template and template.Kind == kind and not quest.Done then
-			quest.Progress = math.min(template.Goal, quest.Progress + amount)
+			local progress = math.min(template.Goal, update(quest.Progress))
+			if progress <= quest.Progress then
+				continue
+			end
+			quest.Progress = progress
 			if quest.Progress >= template.Goal then
 				quest.Done = true
 				local money = template.Money * scale(session)
@@ -63,6 +66,26 @@ function QuestService.Progress(session: Session, kind: string, amount: number)
 			Registry.Player.MarkDirty(session)
 		end
 	end
+end
+
+-- Přičte postup (např. +1 skok)
+function QuestService.Progress(session: Session, kind: string, amount: number)
+	if amount <= 0 then
+		return
+	end
+	advance(session, kind, function(progress)
+		return progress + amount
+	end)
+end
+
+-- Postup = nejlepší dosažená hodnota (např. série PERFECT skoků)
+function QuestService.Reach(session: Session, kind: string, value: number)
+	if value <= 0 then
+		return
+	end
+	advance(session, kind, function(progress)
+		return math.max(progress, value)
+	end)
 end
 
 function QuestService.BuildState(session: Session): { { [string]: any } }

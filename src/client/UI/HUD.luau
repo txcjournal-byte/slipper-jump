@@ -1,6 +1,7 @@
 --!strict
 -- HUD: peníze, příjem, level, boost, tlačítka (předměty, kolo, Robux košík, nastavení, rebirth),
--- hlášky a oznámení pro celý server.
+-- hlášky a oznámení pro celý server, událost na serveru, živá tabulka Jump Contest
+-- a série PERFECT skoků.
 
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -39,6 +40,12 @@ local eventEndsAt = 0
 local eventTitle = ""
 local starterButton: TextButton
 local questBadge: Frame
+local contestPanel: Frame
+local contestRows: { TextLabel } = {}
+local contestVisible = false
+local streakPill: Frame
+local streakLabel: TextLabel
+local streakCount = 0
 
 local callbacks: { [string]: () -> () } = {}
 local displayedMoney = 0
@@ -285,6 +292,38 @@ function HUD.Init()
 	eventName = Kit.Text(eventPanel, { Text = "", Size = UDim2.new(1, -20, 0, 42), Position = UDim2.fromOffset(10, 6), StrokeThickness = 3 })
 	eventDesc = Kit.Text(eventPanel, { Text = "", Size = UDim2.new(1, -20, 0, 32), Position = UDim2.fromOffset(10, 50), StrokeThickness = 2 })
 
+	-- ===== Jump Contest: živá tabulka top 3 (pod událostí) =====
+	contestPanel = Kit.Panel(screen, {
+		Size = UDim2.fromOffset(330, 104),
+		Position = UDim2.new(1, -16, 0, 112),
+		AnchorPoint = Vector2.new(1, 0),
+		BackgroundColor3 = Color3.fromRGB(255, 240, 248),
+		Visible = false,
+	})
+	Kit.Text(contestPanel, { Text = "🏆 CONTEST TOP 3", Size = UDim2.new(1, -20, 0, 24), Position = UDim2.fromOffset(10, 4), TextColor3 = Kit.Colors.Pink, StrokeThickness = 2 })
+	local placeColors = { Kit.Colors.Yellow, Color3.fromRGB(215, 220, 235), Color3.fromRGB(230, 150, 90) }
+	for i = 1, 3 do
+		contestRows[i] = Kit.Text(contestPanel, {
+			Text = "",
+			Size = UDim2.new(1, -24, 0, 22),
+			Position = UDim2.fromOffset(12, 30 + (i - 1) * 24),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextColor3 = placeColors[i],
+			StrokeThickness = 2,
+		})
+	end
+
+	-- ===== Série PERFECT skoků =====
+	streakPill = Kit.Panel(screen, {
+		Size = UDim2.fromOffset(260, 42),
+		Position = UDim2.new(1, -16, 0, 14),
+		AnchorPoint = Vector2.new(1, 0),
+		BackgroundColor3 = Kit.Colors.Pink,
+		Visible = false,
+		Radius = 21,
+	})
+	streakLabel = Kit.Text(streakPill, { Text = "", Size = UDim2.new(1, -16, 1, -10), Position = UDim2.fromOffset(8, 5) })
+
 	-- ===== Co nese hráč =====
 	carryPanel = Kit.Panel(screen, {
 		Size = UDim2.fromOffset(620, 76),
@@ -344,6 +383,14 @@ function HUD.Init()
 				if eventLeft > 0 then
 					eventName.Text = "⚡ " .. eventTitle .. "  " .. FormatNumber.Time(eventLeft)
 				end
+				-- panely vpravo nahoře pod sebou: událost → soutěž → série
+				local y = if eventPanel.Visible then 112 else 14
+				contestPanel.Visible = contestVisible
+				contestPanel.Position = UDim2.new(1, -16, 0, y)
+				if contestVisible then
+					y += 112
+				end
+				streakPill.Position = UDim2.new(1, -16, 0, y)
 				local boostLeft = (data.BoostUntil :: number) - ClientState.ServerNow()
 				boostPill.Visible = boostLeft > 0
 				if boostLeft > 0 then
@@ -382,6 +429,16 @@ function HUD.Refresh(data: { [string]: any })
 		end
 	end
 	questBadge.Visible = unfinished
+	local streak = data.PerfectStreak or 0
+	streakPill.Visible = streak >= 2
+	if streak >= 2 then
+		local bonus = math.floor(Formulas.PerfectStreakBonus(streak) * 100 + 0.5)
+		streakLabel.Text = "PERFECT STREAK x" .. streak .. "  +" .. bonus .. "%"
+		if streak ~= streakCount then
+			Kit.Pop(streakPill, 1.2)
+		end
+	end
+	streakCount = streak
 	local carried = data.Carried
 	carryPanel.Visible = carried ~= nil
 	if carried then
@@ -405,6 +462,20 @@ function HUD.SetServerEvent(info: { [string]: any }?)
 	else
 		eventEndsAt = 0
 		eventPanel.Visible = false
+	end
+end
+
+-- Živá tabulka soutěže (nil = soutěž skončila)
+function HUD.SetContestBoard(info: { [string]: any }?)
+	contestVisible = info ~= nil
+	contestPanel.Visible = contestVisible
+	if not info then
+		return
+	end
+	local top = info.Top or {}
+	for i, row in contestRows do
+		local entry = top[i]
+		row.Text = if entry then `{i}. {entry.Name} – {FormatNumber.Studs(entry.Distance)}` else `{i}. —`
 	end
 end
 

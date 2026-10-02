@@ -10,8 +10,19 @@ local Scheduled: { Event } = {
 }
 
 -- Události na serveru každých pár minut (aby se pořád něco dělo)
-export type ServerEventKind = "GoldenRings" | "CoinStorm" | "TreasureTide" | "SharkHoliday" | "MegaJump"
-export type ServerEvent = { Kind: ServerEventKind, Name: string, Description: string, Color: Color3 }
+export type ServerEventKind =
+	"GoldenRings"
+	| "CoinStorm"
+	| "TreasureTide"
+	| "SharkHoliday"
+	| "MegaJump"
+	| "JumpContest"
+	| "DoubleXP"
+	| "RainbowRings"
+-- Duration = vlastní délka události (jinak ServerEventDuration)
+export type ServerEvent = { Kind: ServerEventKind, Name: string, Description: string, Color: Color3, Duration: number? }
+-- Odměna v soutěži o nejdelší skok ($ se násobí levelem ÷ Quests.MoneyLevelDivisor, min. 1×)
+export type ContestPrize = { Money: number, Spins: number? }
 
 local Rotation: { ServerEvent } = {
 	{ Kind = "GoldenRings", Name = "GOLDEN RINGS", Description = "Rings give double distance!", Color = Color3.fromRGB(255, 200, 40) },
@@ -19,6 +30,16 @@ local Rotation: { ServerEvent } = {
 	{ Kind = "TreasureTide", Name = "TREASURE TIDE", Description = "Rarer items from the water!", Color = Color3.fromRGB(170, 90, 255) },
 	{ Kind = "SharkHoliday", Name = "SHARK HOLIDAY", Description = "No sharks! Swim back safely!", Color = Color3.fromRGB(60, 170, 255) },
 	{ Kind = "MegaJump", Name = "MEGA JUMP", Description = "Everyone jumps 25% farther!", Color = Color3.fromRGB(80, 220, 120) },
+	{ Kind = "JumpContest", Name = "JUMP CONTEST", Description = "Longest jump wins prizes!", Color = Color3.fromRGB(255, 110, 150), Duration = 120 },
+	{ Kind = "DoubleXP", Name = "DOUBLE XP", Description = "2x XP from every jump!", Color = Color3.fromRGB(80, 200, 255) },
+	{ Kind = "RainbowRings", Name = "RAINBOW RINGS", Description = "Lots more golden rings in the air!", Color = Color3.fromRGB(255, 120, 220) },
+}
+
+-- Soutěž: 1., 2. a 3. místo
+local ContestPrizes: { ContestPrize } = {
+	{ Money = 5_000, Spins = 2 },
+	{ Money = 2_500 },
+	{ Money = 1_000 },
 }
 
 return {
@@ -29,6 +50,11 @@ return {
 	GoldenRingsMultiplier = 2,
 	CoinStormMultiplier = 3,
 	MegaJumpBonus = 0.25,
+	DoubleXPMultiplier = 2,
+	RainbowRingsMultiplier = 2, -- kolikrát víc kruhů při skoku
+	ContestPrizes = ContestPrizes,
+	ContestTop = 3, -- kolik míst ukazuje živá tabulka v HUD
+	ContestGrace = 15, -- max. sekund po konci soutěže, než dopadnou poslední skoky
 	WeekendDoubleMoney = false,
 	WeekendMultiplier = 2,
 	Scheduled = Scheduled,

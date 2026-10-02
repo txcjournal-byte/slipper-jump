@@ -31,6 +31,12 @@ function Formulas.PowerTier(value: number): (PowerTier, number)
 	return "None", 0
 end
 
+-- Bonus za sérii PERFECT skoků: první PERFECT nic, každý další +Step až do MaxBonus
+function Formulas.PerfectStreakBonus(streak: number): number
+	local cfg = Jump.PerfectStreak
+	return math.clamp((streak - 1) * cfg.Step, 0, cfg.MaxBonus)
+end
+
 function Formulas.HatBonuses(hatId: string?): (number, number)
 	local hat = if hatId then Catalog.Hat(hatId) else nil
 	if not hat then

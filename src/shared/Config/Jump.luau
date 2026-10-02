@@ -57,6 +57,11 @@ return {
 
 	JumpZoneLength = 22, -- posledních X studů mola, kde jde skákat
 	SuperJumpBonus = 0.20,
+	-- série PERFECT skoků za sebou: každý další PERFECT +5 % vzdálenosti (2. skok +5 %, … max. +30 %)
+	PerfectStreak = {
+		Step = 0.05,
+		MaxBonus = 0.30,
+	},
 	ReturnDelay = 2.6, -- sekund po dopadu, než se hráč vrátí na pláž
 	GiftReturnDelay = 7,
 	Cooldown = 1.5,

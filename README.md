@@ -135,7 +135,10 @@ Viz [`assets/README.md`](assets/README.md). Model pojmenuj přesně jako `Id` v 
   (v hlubší vodě rychlejší). Doplave → bonus peněz. Chytí ho → jen přijde o bonus.
   Rychlost plavání: záložka **Swim** v obchodě (za herní $), game pass **Turbo Fins**, produkt **Shark Repellent**.
   O výsledku rozhoduje server podle skutečné pozice hráče.
-- **Události každých 5 minut** (`Config/Events.luau`): Golden Rings, Coin Storm, Treasure Tide, Shark Holiday, Mega Jump.
+- **Události každých 5 minut** (`Config/Events.luau`): Golden Rings, Coin Storm, Treasure Tide, Shark Holiday, Mega Jump,
+  Double XP, Rainbow Rings (víc kruhů) a **Jump Contest** (120 s, živá tabulka top 3 v HUD, odměny pro 1.–3. místo, konfety pro vítěze).
+- **Série PERFECT skoků** (`Config/Jump.luau` → `PerfectStreak`): každý další PERFECT za sebou +5 % vzdálenosti (max. +30 %),
+  jiný skok sérii vynuluje. Počítá server, neukládá se.
 - **Denní úkoly a série přihlášení** (`Config/Quests.luau`): 3 úkoly denně, odměna za každý den v řadě.
 - **Starter Pack**: levný jednorázový balíček (tlačítko 🎁 zmizí po koupi).
 

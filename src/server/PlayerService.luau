@@ -26,6 +26,7 @@ export type Session = {
 	Swim: any?, -- SwimService.SwimState
 	Charge: { Start: number, Period: number }?,
 	LastJump: number,
+	PerfectStreak: number, -- série PERFECT skoků za sebou (neukládá se)
 	Returning: boolean,
 	Dirty: boolean,
 	Loaded: boolean,
@@ -131,6 +132,7 @@ function PlayerService.BuildState(session: Session): { [string]: any }
 		StarterPackBought = data.StarterPackBought,
 		Quests = Registry.Quests.BuildState(session),
 		LoginStreak = data.LoginStreak,
+		PerfectStreak = session.PerfectStreak,
 	}
 end
 
@@ -192,6 +194,7 @@ local function onPlayerAdded(player: Player)
 		Swim = nil,
 		Charge = nil,
 		LastJump = 0,
+		PerfectStreak = 0,
 		Returning = false,
 		Dirty = true,
 		Loaded = false,
@@ -243,6 +246,7 @@ local function onPlayerRemoving(player: Player)
 		Registry.House.Release(session)
 		Registry.Leaderboard.OnLeave(session)
 	end
+	Registry.ServerEvents.OnLeave(player)
 	DataService.Release(player)
 end
 
