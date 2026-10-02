@@ -32,7 +32,30 @@ Alternativa bez živé synchronizace: `rojo build -o SlipperJump.rbxl` a soubor 
 | Ikona 512×512 a 3–5 náhledů 16:9 | Creator Dashboard → Places → Thumbnails |
 | Zvuky (volitelné) | ID zvuků z Creator Store vlož do `src/shared/Config/Sounds.luau` |
 
-Dokud mají produkty `Id = 0`, tlačítka v obchodě jen ukážou hlášku „not set up yet“.
+Dokud mají produkty `Id = 0`, v obchodě se neukazují (a tlačítka jen ukážou hlášku „not set up yet“).
+
+**Všechny produkty k založení** (názvy a doporučené ceny, `Key` v `Products.luau`):
+
+| Typ | Název (Key) | Cena | Co dělá |
+| --- | --- | --- | --- |
+| Game pass | Rainbow Trail (`RainbowTrail`) | 49 R$ | duhová stopa za skokem |
+| Game pass | Auto Collect (`AutoCollect`) | 99 R$ | kasička se vybírá sama |
+| Game pass | +5 Slots (`PlusSlots`) | 149 R$ | +5 míst v domečku |
+| Game pass | 2x Money (`DoubleMoney`) | 199 R$ | 2× peníze natrvalo |
+| Game pass | Turbo Fins (`TurboFins`) | 149 R$ | plavání +30 % |
+| Game pass | **Super Jumper** (`SuperJumper`) | 199 R$ | +25 % ke vzdálenosti skoku natrvalo (limity 95 000 / 100 000 platí dál) |
+| Game pass | **Lucky Charm** (`LuckyCharm`) | 179 R$ | 1,5× štěstí na vzácné předměty z vody natrvalo |
+| Game pass | VIP (`VIP`) | 249 R$ | zlaté jméno, +1 denní točení |
+| Developer product | Starter Pack (`StarterPack`) | 49 R$ | jednorázový balíček |
+| Developer product | Shark Repellent (`SharkRepellent`) | 29 R$ | 3 plavání bez žraloka |
+| Developer product | Super Jump (`SuperJump`) | 15 R$ | příští skok +20 % |
+| Developer product | **Mega Jump Pack** (`MegaJumpPack`) | 39 R$ | příští 3 skoky +50 % |
+| Developer product | 1 Spin (`Spin1`) | 25 R$ | 1 točení (šance jsou vidět) |
+| Developer product | 2x Money (30 min) (`Boost30`) | 49 R$ | 2× peníze na 30 min |
+| Developer product | **Lucky Potion** (`LuckyPotion`) | 39 R$ | 2× štěstí na 15 min (čas se sčítá) |
+| Developer product | Money Bag (`MoneyBag`) | 49 R$ | příjem domečku za 15 min |
+| Developer product | 5 Spins (`Spins5`) | 99 R$ | 5 točení (šance jsou vidět) |
+| Developer product | Money Chest (`MoneyChest`) | 149 R$ | příjem domečku za 1 h |
 
 ## 3. Co otestovat ve Studiu
 
@@ -92,7 +115,7 @@ src/
   client/                 → StarterPlayerScripts.Client
     Main.client.luau
     ClientState, Sound
-    UI/  Kit, HUD, Shop, SpinnerUI, RobuxShop, Settings, Dialogs, TutorialUI
+    UI/  Kit, HUD, Shop, SpinnerUI, RobuxShop, Offers, Settings, Dialogs, TutorialUI
     Controllers/ JumpController (skok, let, kamera), WorldController (oceán, dárek na obzoru…)
     Effects/ Effects (konfety, šplouchnutí, PERFECT!, zatmění)
 assets/                   → ReplicatedStorage.Assets (hezké modely, viz assets/README.md)
@@ -102,7 +125,7 @@ assets/                   → ReplicatedStorage.Assets (hezké modely, viz asset
 
 - **Server rozhoduje o všem.** Klient posílá jen „začal jsem držet JUMP“ a „pustil jsem na hodnotě X“.
   Server si sám měří čas, ověří, že hodnota ukazatele sedí (tolerance na ping), spočítá vzdálenost
-  (pantofle × čepice × načasování × ±5 % × Super Jump), rozmístí mince a kruhy a během letu si
+  (pantofle × čepice × načasování × ±5 % × Super Jumper pass × Mega/Super Jump), rozmístí mince a kruhy a během letu si
   zaznamenává pozice hráče. Po dopadu ověří každou minci a kruh podle skutečné dráhy.
 - **Limit dárku:** bez Royal Diamond Slippers je skok omezen na 95 000 studů, jinak na 100 000.
 - **Svět 100 000 studů:** střed světa (0,0,0) je uprostřed vody; molo končí na X = −50 000, dárek je na X = +50 000.
@@ -143,6 +166,25 @@ Viz [`assets/README.md`](assets/README.md). Model pojmenuj přesně jako `Id` v 
 - **Starter Pack**: levný jednorázový balíček (tlačítko 🎁 zmizí po koupi).
 
 Nové produkty k založení v Creator Dashboard: game pass **Turbo Fins**, developer products **Starter Pack** a **Shark Repellent**.
+Další nové produkty (Super Jumper, Lucky Charm, Lucky Potion, Mega Jump Pack) jsou v sekci 9.
+
+## 9. Novinky: víc Robuxů férově
+
+Nové produkty k založení v Creator Dashboard (ID pak vlož do `Config/Products.luau`):
+- game pass **Super Jumper** – 199 R$ (+25 % vzdálenosti natrvalo, limity vzdálenosti platí dál),
+- game pass **Lucky Charm** – 179 R$ (1,5× štěstí na vzácné předměty natrvalo),
+- developer product **Lucky Potion** – 39 R$ (2× štěstí na 15 minut, čas se sčítá, ukládá se do profilu jako `LuckUntil`),
+- developer product **Mega Jump Pack** – 39 R$ (příští 3 skoky +50 %, ukládá se jako `MegaJumps`; použije se dřív než Super Jump, nikdy ne oba naráz).
+
+Jak to funguje:
+- **Štěstí** (`Formulas.LuckyChances`): nejběžnější rarita v zóně zůstává stejná, nejvzácnější je až „štěstí“-krát
+  častější, ostatní plynule mezi tím. Neodemyká rarity, které v zóně nejsou. Charm a Potion se násobí (max. 3×).
+- **Roblox Premium**: hráči s Premium mají +10 % peněz (počítá server, i offline příjem). V Robux obchodě vidí odznak „Premium +10% money“.
+- **Kontextové nabídky** (`client/UI/Offers.luau`): po novém osobním rekordu (Super Jumper, jinak Mega Jump Pack)
+  nebo když hráče chytí žralok (Turbo Fins, jinak Shark Repellent) se po návratu na pláž může ukázat malá karta
+  s jednou nabídkou. Nejvýš jednou za 10 minut (`Products.OfferCooldown`), nikdy v tutoriálu, jen založené produkty,
+  nic, co hráč už vlastní. Neutrální text, tlačítko „No thanks“, sama zmizí po 15 s.
+- HUD ukazuje odpočet „2x LUCK“ vedle „2x MONEY“ a počet Mega / Super Jumpů pod skokem.
 
 ### Pravidla monetizace (aby hru Roblox nesmazal a rodiče ji hodnotili dobře)
 - Žádné skutečné značky (Nike, Jordan…) – porušení ochranné známky.

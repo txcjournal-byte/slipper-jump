@@ -408,7 +408,9 @@ local function startFlight(info: { [string]: any })
 		Effects.BigText("GOOD!", Kit.Colors.Yellow, 0.9)
 		Sound.Play("Good")
 	end
-	if info.SuperJump then
+	if info.MegaJump then
+		HUD.Notify("MEGA JUMP! +50%", "Success")
+	elseif info.SuperJump then
 		HUD.Notify("SUPER JUMP! +20%", "Success")
 	end
 	-- série PERFECT skoků (bonus spočítal server)

@@ -52,6 +52,16 @@ function RobuxShop.Init(screen: ScreenGui)
 		Parent = window.Content,
 	})
 	Kit.new("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = scroll })
+	-- odznak pro hráče s Roblox Premium (bonus počítá server, tady se jen ukazuje)
+	local premiumBadge = Kit.Panel(scroll, {
+		Size = UDim2.fromOffset(330, 44),
+		LayoutOrder = 0,
+		BackgroundColor3 = Kit.Colors.Yellow,
+		StrokeThickness = 3,
+		Radius = 22,
+		Visible = false,
+	})
+	Kit.Text(premiumBadge, { Text = "⭐ Premium +" .. math.floor(Products.PremiumIncomeBonus * 100 + 0.5) .. "% money", Size = UDim2.new(1, -16, 1, -10), Position = UDim2.fromOffset(8, 5) })
 	Kit.Text(scroll, { Text = "GAME PASSES (forever)", Size = UDim2.new(1, 0, 0, 40), LayoutOrder = 1, TextColor3 = Kit.Colors.Yellow, TextXAlignment = Enum.TextXAlignment.Left })
 	local passGrid = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2, Parent = scroll })
 	Kit.new("UIGridLayout", { CellSize = UDim2.fromOffset(220, 200), CellPadding = UDim2.fromOffset(12, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = passGrid })
@@ -92,6 +102,7 @@ function RobuxShop.Init(screen: ScreenGui)
 		if starterCard then
 			starterCard.Visible = data.StarterPackBought ~= true
 		end
+		premiumBadge.Visible = data.Premium == true
 		for key, button in passButtons do
 			if data.Passes and data.Passes[key] then
 				Kit.SetButtonText(button, "OWNED")
@@ -113,6 +124,21 @@ function RobuxShop.Prompt(key: string)
 			return
 		end
 	end
+end
+
+-- Nákup podle klíče – game pass i developer product (např. z kontextové nabídky)
+function RobuxShop.PromptKey(key: string)
+	for _, pass in Products.GamePasses do
+		if pass.Key == key then
+			if pass.Id == 0 then
+				HUD.Notify("This pass is not set up yet (Config/Products.luau).", "Warning")
+			else
+				MarketplaceService:PromptGamePassPurchase(Players.LocalPlayer, pass.Id)
+			end
+			return
+		end
+	end
+	RobuxShop.Prompt(key)
 end
 
 function RobuxShop.Toggle()

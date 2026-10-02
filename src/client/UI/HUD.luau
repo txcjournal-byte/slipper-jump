@@ -26,6 +26,8 @@ local xpText: TextLabel
 local jumpLabel: TextLabel
 local boostPill: Frame
 local boostLabel: TextLabel
+local luckPill: Frame
+local luckLabel: TextLabel
 local carryPanel: Frame
 local carryLabel: TextLabel
 local toastHolder: Frame
@@ -224,6 +226,15 @@ function HUD.Init()
 		Radius = 22,
 	})
 	boostLabel = Kit.Text(boostPill, { Text = "2x MONEY", Size = UDim2.new(1, -16, 1, -10), Position = UDim2.fromOffset(8, 5) })
+	-- Lucky Potion (vedle 2x Money; když boost neběží, posune se na jeho místo)
+	luckPill = Kit.Panel(screen, {
+		Size = UDim2.fromOffset(200, 44),
+		Position = UDim2.fromOffset(244, 240),
+		BackgroundColor3 = Kit.Colors.Green,
+		Visible = false,
+		Radius = 22,
+	})
+	luckLabel = Kit.Text(luckPill, { Text = "2x LUCK", Size = UDim2.new(1, -16, 1, -10), Position = UDim2.fromOffset(8, 5) })
 
 	-- ===== Tlačítka vlevo =====
 	local left = Kit.new("Frame", {
@@ -396,6 +407,12 @@ function HUD.Init()
 				if boostLeft > 0 then
 					boostLabel.Text = "2x MONEY " .. FormatNumber.Time(boostLeft)
 				end
+				local luckLeft = ((data.LuckUntil or 0) :: number) - ClientState.ServerNow()
+				luckPill.Visible = luckLeft > 0
+				if luckLeft > 0 then
+					luckLabel.Text = "🍀 2x LUCK " .. FormatNumber.Time(luckLeft)
+					luckPill.Position = UDim2.fromOffset(if boostLeft > 0 then 244 else 16, 240)
+				end
 			end
 			task.wait(0.05)
 		end
@@ -412,10 +429,21 @@ function HUD.Refresh(data: { [string]: any })
 	local ratio = if data.XPToNext > 0 then math.clamp(data.XP / data.XPToNext, 0, 1) else 1
 	TweenService:Create(xpFill, TweenInfo.new(0.3), { Size = UDim2.fromScale(ratio, 1) }):Play()
 	xpText.Text = if data.Level >= 50 then "MAX LEVEL" else FormatNumber.Short(data.XP) .. " / " .. FormatNumber.Short(data.XPToNext) .. " XP"
+	local passes = data.Passes or {}
 	local base = Formulas.BaseJump(data.EquippedSlippers, if data.EquippedHat ~= "" then data.EquippedHat else nil)
+		* Formulas.PassJumpMultiplier(passes.SuperJumper == true)
 	jumpLabel.Text = "Jump: ~" .. FormatNumber.Studs(math.floor(base)) .. "   Best: " .. FormatNumber.Studs(data.BestJump)
-	superJumpLabel.Visible = data.SuperJumps > 0
-	superJumpLabel.Text = "⚡ Super Jump ready x" .. data.SuperJumps
+	-- jednorázové skoky: Mega Jump se použije dřív než Super Jump
+	local megaJumps: number = data.MegaJumps or 0
+	local charges = {}
+	if megaJumps > 0 then
+		table.insert(charges, "🚀 Mega Jump x" .. megaJumps)
+	end
+	if data.SuperJumps > 0 then
+		table.insert(charges, "⚡ Super Jump x" .. data.SuperJumps)
+	end
+	superJumpLabel.Visible = #charges > 0
+	superJumpLabel.Text = table.concat(charges, "   ")
 	local spins = data.DailySpins + data.ExtraSpins
 	spinBadge.Text = tostring(spins)
 	local badgeFrame = spinBadge.Parent :: Frame

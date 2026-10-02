@@ -90,6 +90,12 @@ local function grantProduct(session: Session, product: Products.DevProduct)
 	elseif key == "SuperJump" then
 		session.Data.SuperJumps += 1
 		Registry.Player.Notify(player, "Super Jump ready! Your next jump goes 20% farther.", "Success")
+	elseif key == "MegaJumpPack" then
+		session.Data.MegaJumps += Products.MegaJumpCharges
+		Registry.Player.Notify(player, "Mega Jumps ready! Your next " .. Products.MegaJumpCharges .. " jumps go 50% farther.", "Success")
+	elseif key == "LuckyPotion" then
+		Registry.Economy.AddLuck(session, Products.LuckyPotionMinutes)
+		Registry.Player.Notify(player, "Lucky Potion! 2x luck for " .. Products.LuckyPotionMinutes .. " minutes.", "Success")
 	elseif key == "Spin1" then
 		Registry.Spinner.AddSpins(session, 1)
 		Registry.Player.Notify(player, "+1 Spin!", "Success")
@@ -164,6 +170,14 @@ end
 
 function MonetizationService.Start()
 	MarketplaceService.ProcessReceipt = processReceipt
+	-- Roblox Premium (+10 % peněz): po koupi nebo zrušení Premium během hry přepočítat příjem
+	Players.PlayerMembershipChanged:Connect(function(player)
+		local session = Registry.Player.Get(player)
+		if session then
+			Registry.House.Render(session)
+			Registry.Player.MarkDirty(session)
+		end
+	end)
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
 		if not purchased then
 			return
