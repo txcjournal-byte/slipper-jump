@@ -46,7 +46,7 @@ return {
 		{ UpTo = 60_000, Color = Color3.fromRGB(22, 105, 190) },
 		{ UpTo = 102_048, Color = Color3.fromRGB(16, 60, 150) },
 	},
-	HorizonGiftDistance = 1_600, -- zmenšená kopie dárku na obzoru (od kamery)
-	RealGiftShowDistance = 2_500, -- skutečný dárek se ukáže, když je hráč blíž
+	HorizonGiftDistance = 260, -- zmenšená kopie dárku na obzoru (od kamery; na nízké kvalitě grafiky Roblox dál než ~300 studů nekreslí)
+	RealGiftShowDistance = 280, -- skutečný dárek se ukáže, když je hráč blíž (do té doby kopie na obzoru)
 	OutOfBoundsX = PierEndX + 3, -- kdo se dostane dál bez skoku, vrátí se na pláž
 }

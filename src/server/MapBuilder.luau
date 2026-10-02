@@ -1733,14 +1733,8 @@ local function buildGift(root: Instance): (Model, Vector3)
 			sideLight.Color = Color3.fromRGB(255, 225, 150)
 			sideLight.Parent = box
 		end
-		-- měkká záře: dvě průsvitné svítící "skořápky" kousek větší než krabice (barvu mění klient, tag "GiftGlow")
-		local glowHeight = boxHeight + lidHeight
-		-- (přední stěna vnější skořápky je ~4 study za přistávacím místem, aby hráč po dopadu nestál v záři)
-		for k, grow in { 8, 18 } do
-			local shell = tiny(part(m, Vector3.new(boxSize + 16 + grow, glowHeight + grow * 2, boxSize + 16 + grow), CFrame.new(giftCenter + Vector3.new(0, boxBottom + glowHeight / 2, 0)), Color3.fromRGB(255, 236, 160), Enum.Material.Neon, BLOCK, "GiftGlow"))
-			shell.Transparency = if k == 1 then 0.86 else 0.93
-			CollectionService:AddTag(shell, "GiftGlow")
-		end
+		-- (žádné průsvitné svítící "skořápky" kolem krabice: neonová záře přebila zlatou krabici
+		-- i mašle a z ostrova pak dárek vůbec nebyl vidět – září paprsky, třpytky a hvězdy)
 	end
 	-- keříky u paty dárku (mimo krabici i mimo přistávací molo)
 	for k, pos in { Vector3.new(12, 0, 60), Vector3.new(12, 0, -70), Vector3.new(14, 0, 100), Vector3.new(10, 0, -96), Vector3.new(100, 0, 126), Vector3.new(200, 0, -126) } do

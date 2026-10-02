@@ -59,7 +59,6 @@ end
 
 local horizonGift: Model
 local horizonBodies: { BasePart } = {}
-local horizonGlows: { BasePart } = {}
 local horizonRayHub: BasePart
 type HorizonStar = { Parts: { BasePart }, Phase: number, Height: number }
 local horizonStars: { HorizonStar } = {}
@@ -71,6 +70,10 @@ local HORIZON_BOX_HEIGHT = 300 * HORIZON_SCALE
 local HORIZON_BOX_Y = HORIZON_BASE_Y + HORIZON_BOX_HEIGHT / 2 -- střed krabice (PrimaryPart)
 local HORIZON_RAY_Y = HORIZON_BASE_Y + HORIZON_BOX_HEIGHT + 40 * HORIZON_SCALE + 45 -- střed paprsků nad mašlí
 local HORIZON_STAR_RADIUS = 165
+-- Zmenšenina se postaví ve velikosti pro 1 600 studů a pak se celá zmenší (Model:ScaleTo), aby mohla
+-- stát blíž ke kameře: na nižší kvalitě grafiky Roblox vzdálené díly nevykreslí a dárek na obzoru zmizel.
+-- Na menší vzdálenosti a ve zmenšeném měřítku vypadá stejně velký.
+local HORIZON_SHRINK = World.HorizonGiftDistance / 1_600
 local GLOW_WHITE = Color3.new(1, 1, 1)
 
 -- Šikmé paprsky světla (Beam mezi dvěma Attachmenty v hub dílu), stejné jako u skutečného dárku v MapBuilderu
@@ -184,13 +187,8 @@ local function createHorizonGift()
 		add(Vector3.new(28 * S, 80 * S, 80 * S), CFrame.new(s * 40 * S, bowY + 34 * S, 0) * CFrame.Angles(0, math.rad(90), 0), ribbon, Enum.Material.Neon, Enum.PartType.Cylinder)
 	end
 	add(Vector3.one * 40 * S, CFrame.new(0, bowY + 16 * S, 0), ribbon, Enum.Material.Neon, Enum.PartType.Ball)
-	-- měkká záře kolem dárku: dvě průsvitné svítící skořápky (barvu mění RenderStepped podle znovuzrození)
+	-- (bez průsvitných svítících skořápek kolem krabice – přebíjely barvu dárku i mašle)
 	local glowHeight = HORIZON_BOX_HEIGHT + 40 * S
-	for k, grow in { 14, 34 } do
-		local shell = add(Vector3.new(236 * S + grow, glowHeight + grow, 236 * S + grow), CFrame.new(0, top + glowHeight / 2, 0), Color3.fromRGB(255, 236, 160), Enum.Material.Neon)
-		shell.Transparency = if k == 1 then 0.82 else 0.9
-		table.insert(horizonGlows, shell)
-	end
 	-- kulatá záře za dárkem (kotouče natočené ke kameře, jako slunce za dárkem)
 	for k, diameter in { 470, 320 } do
 		local disc = add(Vector3.new(1, diameter, diameter), CFrame.new(0, 205, 122 + k) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(255, 228, 140), Enum.Material.Neon, Enum.PartType.Cylinder)
@@ -232,6 +230,7 @@ local function createHorizonGift()
 		add(Vector3.new(12, 2.5, 12), CFrame.new(base + Vector3.new(0, 16.5, 0)), leaf, Enum.Material.Grass)
 	end
 	m.PrimaryPart = box
+	m:ScaleTo(HORIZON_SHRINK)
 	m.Parent = Workspace
 	horizonGift = m
 end
@@ -561,36 +560,27 @@ function WorldController.Init()
 		local flat = Vector3.new(toGift.X, 0, toGift.Z)
 		if flat.Magnitude > World.RealGiftShowDistance then
 			local dir = flat.Unit
-			local horizonPos = Vector3.new(camPos.X, World.WaterY - 4, camPos.Z) + dir * World.HorizonGiftDistance
-			horizonGift:PivotTo(CFrame.lookAt(horizonPos, horizonPos - dir) * CFrame.new(0, HORIZON_BOX_Y, 0))
+			local horizonPos = Vector3.new(camPos.X, World.WaterY - 4 * HORIZON_SHRINK, camPos.Z) + dir * World.HorizonGiftDistance
+			horizonGift:PivotTo(CFrame.lookAt(horizonPos, horizonPos - dir) * CFrame.new(0, HORIZON_BOX_Y * HORIZON_SHRINK, 0))
 		else
 			horizonGift:PivotTo(CFrame.new(0, -2000, 0))
 		end
 		-- otáčející se paprsky a obíhající hvězdy (počítané od počátku zmenšeniny)
-		local horizonOrigin = horizonGift:GetPivot() * CFrame.new(0, -HORIZON_BOX_Y, 0)
-		horizonRayHub.CFrame = horizonOrigin * CFrame.new(0, HORIZON_RAY_Y, 0) * CFrame.Angles(0, t * 0.12, 0)
+		local horizonOrigin = horizonGift:GetPivot() * CFrame.new(0, -HORIZON_BOX_Y * HORIZON_SHRINK, 0)
+		horizonRayHub.CFrame = horizonOrigin * CFrame.new(0, HORIZON_RAY_Y * HORIZON_SHRINK, 0) * CFrame.Angles(0, t * 0.12, 0)
 		for _, star in horizonStars do
-			local starCF = horizonOrigin * CFrame.Angles(0, t * 0.25 + star.Phase, 0) * CFrame.new(HORIZON_STAR_RADIUS, star.Height + math.sin(t * 1.3 + star.Phase) * 8, 0)
+			local starCF = horizonOrigin * CFrame.Angles(0, t * 0.25 + star.Phase, 0) * CFrame.new(HORIZON_STAR_RADIUS * HORIZON_SHRINK, (star.Height + math.sin(t * 1.3 + star.Phase) * 8) * HORIZON_SHRINK, 0)
 			for _, part in star.Parts do
 				part.CFrame = starCF
 			end
 		end
 		local color = giftColor(rebirths)
-		local glowColor = color:Lerp(GLOW_WHITE, 0.55)
 		for _, part in horizonBodies do
 			part.Color = color
-		end
-		for _, part in horizonGlows do
-			part.Color = glowColor
 		end
 		for _, part in CollectionService:GetTagged("GiftBody") do
 			if part:IsA("BasePart") then
 				part.Color = color
-			end
-		end
-		for _, part in CollectionService:GetTagged("GiftGlow") do
-			if part:IsA("BasePart") then
-				part.Color = glowColor
 			end
 		end
 		-- pomalé otáčení ozdob
