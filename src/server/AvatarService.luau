@@ -17,7 +17,7 @@ type Session = any
 local AvatarService = {}
 
 local PLAYER_GROUP = "Players"
-local SHOE_SCALE = 1.6
+local SHOE_SCALE = 1.15
 local IDLE_SPARKLE_TIER = 9 -- od této boty v řadě boty pořád jiskří
 local GLOW_SOLE_TIER = 13 -- od této boty zářící podrážka
 
@@ -94,7 +94,11 @@ function AvatarService.ApplySlippers(session: Session)
 		Models.Scale(m, SHOE_SCALE)
 		local handle = m.PrimaryPart :: BasePart
 		local isR6 = foot.Size.Y > 1.5
-		local offset = if isR6 then CFrame.new(0, -foot.Size.Y / 2 + 0.15, -0.2) else CFrame.new(0, -foot.Size.Y / 2 + 0.05, -0.15)
+		-- spodek boty kousek pod chodidlem (podrážka), ať bota nestojí ve vzduchu ani není zabořená
+		local boxCFrame, boxSize = m:GetBoundingBox()
+		local bottom = boxCFrame.Position.Y - boxSize.Y / 2 - handle.Position.Y
+		local y = -foot.Size.Y / 2 - bottom - 0.15
+		local offset = CFrame.new(0, y, if isR6 then -0.2 else -0.15)
 		m:PivotTo(foot.CFrame * offset)
 		local weld = Instance.new("Weld")
 		weld.Part0 = foot
@@ -162,7 +166,9 @@ function AvatarService.ApplySlippers(session: Session)
 			local sole = Instance.new("Part")
 			sole.Name = "GlowSole"
 			sole.Shape = Enum.PartType.Cylinder
-			sole.Size = Vector3.new(0.12, 2.4, 2.4)
+			local _, size = m:GetBoundingBox()
+			local soleWidth = math.max(size.X, size.Z) * 0.85
+			sole.Size = Vector3.new(0.12, soleWidth, soleWidth)
 			sole.Color = cfg.TrailColor
 			sole.Material = Enum.Material.Neon
 			sole.Transparency = 0.35
@@ -171,7 +177,6 @@ function AvatarService.ApplySlippers(session: Session)
 			sole.CanTouch = false
 			sole.Massless = true
 			sole.CastShadow = false
-			local _, size = m:GetBoundingBox()
 			sole.CFrame = handle.CFrame * CFrame.new(0, -size.Y / 2 - 0.05, 0) * CFrame.Angles(0, 0, math.rad(90))
 			local soleWeld = Instance.new("WeldConstraint")
 			soleWeld.Part0 = handle
