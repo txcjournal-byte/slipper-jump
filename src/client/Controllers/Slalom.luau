@@ -72,50 +72,63 @@ local ALONG_Z = CFrame.Angles(0, math.rad(90), 0) -- válec ležící podél osy
 -- ===== Modely (staví se kolem počátku, pak se jen posouvají) =====
 
 -- Branka: v mezeře dva pruhované sloupky s obloukem a praporky, do stran řada bójek na laně
-local function gateModel(parent: Instance, gap: number, color: Color3): Model
+-- Branka: dobře viditelná červeno-bílá bariéra (plováky jako na závodní dráze v bazénu) přes celou šířku,
+-- v ní jedna mezera se dvěma vysokými červeno-bílými sloupy, svítícím obloukem a nápisem GATE n/N.
+-- Mezera svítí zeleně (sem plav), po proplavání zezlátne.
+local RED = Color3.fromRGB(235, 40, 45)
+local GO_GREEN = Color3.fromRGB(70, 230, 110)
+
+local function gateModel(parent: Instance, gap: number, color: Color3, index: number, total: number): Model
 	local m = newModel("SlalomGate", parent)
 	local half = gap / 2
 	for _, side in { -1, 1 } do
-		-- sloupek (střídavě barva slalomu a bílá)
-		for k = 0, 3 do
-			part(m, Vector3.new(1.6, 0.8, 0.8), CFrame.new(0, 0.8 + k * 1.6, side * half) * UP, if k % 2 == 0 then color else WHITE, nil, Enum.PartType.Cylinder)
+		-- vysoký sloup (střídavě červená a bílá) se svítící koulí nahoře
+		for k = 0, 5 do
+			part(m, Vector3.new(1.6, 1.1, 1.1), CFrame.new(0, 0.6 + k * 1.6, side * half) * UP, if k % 2 == 0 then RED else WHITE, nil, Enum.PartType.Cylinder)
 		end
-		part(m, Vector3.one * 1.3, CFrame.new(0, 7.1, side * half), color, Enum.Material.Neon, Enum.PartType.Ball)
-		-- velká bójka u paty sloupku
-		part(m, Vector3.one * 2.2, CFrame.new(0, 0.2, side * half), WHITE, nil, Enum.PartType.Ball)
-		-- řada bójek na laně až daleko do stran (tudy se neproplave)
-		local rope = part(m, Vector3.new(0.18, 0.18, 46), CFrame.new(0, 0.35, side * (half + 23)), Color3.fromRGB(240, 240, 240))
-		rope.Material = Enum.Material.Fabric
-		local z = half + 2.6
+		part(m, Vector3.one * 2, CFrame.new(0, 10.2, side * half), RED, Enum.Material.Neon, Enum.PartType.Ball)
+		part(m, Vector3.one * 3, CFrame.new(0, 0.1, side * half), RED, nil, Enum.PartType.Ball)
+		-- bariéra: plováky ležící podél lana, střídavě červený a bílý, až daleko do stran
+		local z = half + 1.5
 		local n = 0
-		while z < half + 46 do
-			part(m, Vector3.one * 1.3, CFrame.new(0, 0.3, side * z), if n % 2 == 0 then color else WHITE, nil, Enum.PartType.Ball)
+		while z < half + 50 do
+			part(m, Vector3.new(2.8, 1.7, 1.7), CFrame.new(0, 0.45, side * (z + 1.4)) * ALONG_Z, if n % 2 == 0 then RED else WHITE, nil, Enum.PartType.Cylinder)
 			z += 3
 			n += 1
 		end
+		-- výstražné tyčky s červenými praporky na bariéře (vidět i z dálky)
+		for _, dz in { 8, 20, 34 } do
+			part(m, Vector3.new(0.25, 4, 0.25), CFrame.new(0, 2.3, side * (half + dz)), WHITE)
+			local flag = Instance.new("WedgePart")
+			flag.Anchored = true
+			flag.CanCollide = false
+			flag.CanQuery = false
+			flag.CanTouch = false
+			flag.CastShadow = false
+			flag.Size = Vector3.new(0.12, 1.4, 1.6)
+			flag.CFrame = CFrame.new(0, 3.6, side * (half + dz + 0.9)) * CFrame.Angles(0, 0, 0)
+			flag.Color = RED
+			flag.Parent = m
+		end
 	end
-	-- oblouk nad mezerou (svítící tyč) a praporky
-	part(m, Vector3.new(0.35, 0.35, gap + 0.6), CFrame.new(0, 7.1, 0), color, Enum.Material.Neon)
-	local flags = { Color3.fromRGB(255, 90, 90), Color3.fromRGB(255, 210, 60), Color3.fromRGB(90, 200, 255), Color3.fromRGB(120, 230, 120) }
-	local count = math.max(3, math.floor(gap / 2.5))
-	for k = 1, count do
-		local z = -half + gap * k / (count + 1)
-		local flag = Instance.new("WedgePart")
-		flag.Anchored = true
-		flag.CanCollide = false
-		flag.CanQuery = false
-		flag.CanTouch = false
-		flag.CastShadow = false
-		flag.Size = Vector3.new(0.1, 1.1, 0.9)
-		flag.CFrame = CFrame.new(0, 6.3, z) * CFrame.Angles(math.pi, 0, 0)
-		flag.Color = flags[k % #flags + 1]
-		flag.Material = Enum.Material.Fabric
-		flag.Parent = m
-	end
-	-- jemná záře v mezeře, ať je jasné, kudy plavat
-	local glow = part(m, Vector3.new(0.2, 5.6, gap - 1.4), CFrame.new(0, 3.4, 0), color, Enum.Material.Neon)
-	glow.Transparency = 0.82
+	-- svítící oblouk nad mezerou v barvě slalomu a cedulka s číslem branky
+	local arch = part(m, Vector3.new(0.6, 0.6, gap + 1), CFrame.new(0, 10.2, 0), color, Enum.Material.Neon)
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(150, 46)
+	gui.StudsOffset = Vector3.new(0, 2.2, 0)
+	gui.MaxDistance = 260
+	gui.Parent = arch
+	local label = Kit.Text(gui, { Text = `GATE {index}/{total}`, Size = UDim2.fromScale(1, 1), TextColor3 = WHITE, StrokeThickness = 3 })
+	label.BackgroundTransparency = 0
+	label.BackgroundColor3 = RED
+	Kit.Corner(label, 12)
+	-- zelená záře v mezeře: sem plav
+	local glow = part(m, Vector3.new(0.3, 8.4, gap - 1.6), CFrame.new(0, 4.6, 0), GO_GREEN, Enum.Material.Neon)
+	glow.Transparency = 0.7
 	glow.Name = "Glow"
+	local floor = part(m, Vector3.new(4, 0.2, gap - 1.6), CFrame.new(0, 0.15, 0), GO_GREEN, Enum.Material.Neon)
+	floor.Transparency = 0.45
+	floor.Name = "GlowFloor"
 	return m
 end
 
@@ -230,7 +243,7 @@ function Slalom.Start(layout: Layout, startX: number, startZ: number, y: number,
 		Folder = folder,
 	}
 	for _, g in layout.Gates do
-		local model = gateModel(folder, g.Gap, layout.Color)
+		local model = gateModel(folder, g.Gap, layout.Color, #run.Gates + 1, #layout.Gates)
 		table.insert(run.Gates, { Data = g, Model = model, Passed = false, LastBump = 0 })
 	end
 	for _, o in layout.Obstacles do
@@ -296,10 +309,12 @@ function Slalom.Resolve(run: Run, t: number, prev: number, new: number, z: numbe
 				run.Passed += 1
 				Sound.Play("Ring", 1.2 + run.Passed * 0.08)
 				Effects.FloatText(`GATE {run.Passed}/{#run.Gates}`, run.Layout.Color)
-				local glow = gate.Model:FindFirstChild("Glow") :: BasePart?
-				if glow then
-					glow.Color = Kit.Colors.Green
-					glow.Transparency = 0.6
+				for _, name in { "Glow", "GlowFloor" } do
+					local glow = gate.Model:FindFirstChild(name) :: BasePart?
+					if glow then
+						glow.Color = Kit.Colors.Yellow
+						glow.Transparency = 0.8
+					end
 				end
 			else
 				result = math.min(result, g.X - 1.2)

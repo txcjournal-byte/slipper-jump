@@ -32,7 +32,9 @@ function HouseService.Assign(session: Session)
 			owners[house.Index] = session
 			session.House = house
 			house.Model:SetAttribute("OwnerUserId", session.Player.UserId)
-			house.OwnerLabel.Text = session.Player.DisplayName
+			for _, label in house.OwnerLabels do
+				label.Text = session.Player.DisplayName
+			end
 			HouseService.Render(session)
 			return
 		end
@@ -49,7 +51,9 @@ function HouseService.Release(session: Session)
 	owners[house.Index] = nil
 	session.House = nil
 	house.Model:SetAttribute("OwnerUserId", 0)
-	house.OwnerLabel.Text = "Free House"
+	for _, label in house.OwnerLabels do
+		label.Text = "Free House"
+	end
 	house.PiggyLabel.Text = "$0"
 	for _, pedestal in house.Pedestals do
 		local old = pedestal.Part:FindFirstChild("ItemModel")

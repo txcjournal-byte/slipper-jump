@@ -126,71 +126,38 @@ export type SlalomTier = {
 	Obstacles: { [string]: number },
 }
 
-local SlalomTiers: { SlalomTier } = {
-	{
-		MinLevel = 2,
-		Name = "MINI SLALOM",
-		Color = Color3.fromRGB(90, 200, 255),
-		Gates = 2,
-		Gap = 22,
-		Offset = 7,
-		Moving = 0,
-		MoveAmp = 0,
-		MoveSpeed = 0,
-		Obstacles = {},
-	},
-	{
-		MinLevel = 5,
-		Name = "BUOY SLALOM",
-		Color = Color3.fromRGB(80, 220, 120),
-		Gates = 3,
-		Gap = 18,
-		Offset = 9,
-		Moving = 0,
-		MoveAmp = 0,
-		MoveSpeed = 0,
-		Obstacles = { Rock = 1 },
-	},
-	{
-		MinLevel = 12,
-		Name = "ROCKY SLALOM",
-		Color = Color3.fromRGB(255, 200, 60),
-		Gates = 4,
-		Gap = 15,
-		Offset = 12,
-		Moving = 1,
-		MoveAmp = 3,
-		MoveSpeed = 1,
-		Obstacles = { Rock = 3 },
-	},
-	{
-		MinLevel = 20,
-		Name = "JELLYFISH SLALOM",
-		Color = Color3.fromRGB(255, 120, 200),
-		Gates = 4,
-		Gap = 13,
-		Offset = 13,
-		Moving = 2,
-		MoveAmp = 4,
-		MoveSpeed = 1.2,
-		Obstacles = { Jellyfish = 3, Rock = 1 },
-	},
-	{
-		MinLevel = 32,
-		Name = "STORM SLALOM",
-		Color = Color3.fromRGB(170, 110, 255),
-		Gates = 5,
-		Gap = 11,
-		Offset = 14,
-		Moving = 3,
-		MoveAmp = 5,
-		MoveSpeed = 1.5,
-		Obstacles = { Log = 2, Puffer = 2, Jellyfish = 1 },
-	},
+-- Názvy a barvy slalomu podle (efektivního) levelu – parametry se ale mění plynule s každým levelem
+-- (Formulas.SlalomTier): víc branek, užší mezery, delší trať, pohyblivé branky a víc překážek.
+local SlalomNames = {
+	{ MinLevel = 2, Name = "MINI SLALOM", Color = Color3.fromRGB(90, 200, 255) },
+	{ MinLevel = 7, Name = "BUOY SLALOM", Color = Color3.fromRGB(80, 220, 120) },
+	{ MinLevel = 12, Name = "ROCKY SLALOM", Color = Color3.fromRGB(255, 200, 60) },
+	{ MinLevel = 20, Name = "JELLYFISH SLALOM", Color = Color3.fromRGB(255, 120, 200) },
+	{ MinLevel = 30, Name = "STORM SLALOM", Color = Color3.fromRGB(170, 110, 255) },
+	{ MinLevel = 42, Name = "MEGA STORM SLALOM", Color = Color3.fromRGB(255, 80, 80) },
 }
 
 local Slalom = {
-	Tiers = SlalomTiers,
+	Names = SlalomNames,
+	StartLevel = 2, -- od kterého levelu se slalom objeví
+	-- plynulý růst s levelem L (viz Formulas.SlalomTier)
+	GatesBase = 2, -- branek na levelu 2, pak +1 každých GatesEvery levelů
+	GatesEvery = 5,
+	MaxGates = 8,
+	GapStart = 22, -- šířka mezery na levelu 2, každým levelem o GapPerLevel užší
+	GapPerLevel = 0.3,
+	MinGap = 10,
+	OffsetStart = 6, -- jak daleko od středu může mezera být
+	OffsetPerLevel = 0.25,
+	MaxOffset = 16,
+	MovingFromLevel = 10, -- od tohoto levelu se některé branky hýbou do stran
+	ObstaclesFromLevel = 4, -- od tohoto levelu přibývají překážky (1 za každé 3 levely, nejvýš 10)
+	MaxObstacles = 10,
+	-- od kterého levelu se která překážka může objevit
+	ObstacleUnlock = { Rock = 4, Jellyfish = 15, Log = 25, Puffer = 30 } :: { [string]: number },
+	ExtraDistancePerLevel = 2, -- trať je s každým levelem o kousek delší (nejvýš MaxExtraLevelDistance)
+	MaxExtraLevelDistance = 80,
+	DelayPerGate = 0.3, -- pronásledovatel vyrazí o tolik sekund později za každou branku (kličkování zdržuje)
 	LaneHalfWidth = 40, -- jak daleko do stran může hráč plavat (stejné jako dřív)
 	SteerFactor = 1, -- rychlost do stran = rychlost plavání × tohle (bez slalomu 0,5)
 	BumpStun = 0.4, -- náraz do bariéry: chvíli nejde plavat dopředu
@@ -209,10 +176,12 @@ return {
 	-- s lepší plaveckou výbavou je vor o kousek dál (o DistancePerSwimLevel za každé vylepšení, nejvýš MaxExtraDistance)
 	DistancePerSwimLevel = 6,
 	MaxExtraDistance = 36,
-	-- Víc vorů za sebou: na voru si hráč vybere, jestli se vrátí na pláž, nebo skočí zpátky do vody
-	-- a plave k dalšímu voru (těžší slalom, rychlejší pronásledovatel, větší bonus a poklad navíc).
+	-- Víc vorů za sebou (od levelu 5): na voru si hráč vybere, jestli se vrátí na pláž, nebo skočí zpátky
+	-- do vody a plave dál směrem k pláži k dalšímu voru (těžší slalom, rychlejší pronásledovatel, větší bonus a poklad navíc).
 	-- Když ho na dalším úseku chytí, přijde jen o odměnu toho úseku, co už získal, mu zůstane.
 	Stages = {
+		MinLevel = 5, -- od tohoto levelu může hráč z voru plavat dál k dalším vorům
+		MinRoom = 70, -- další vor jen když je mezi vorem a molem aspoň tolik vody
 		Max = 3,
 		BonusMultiplier = { 1, 2, 3 }, -- bonus za doplavání k voru 1, 2, 3
 		ChaserSpeedUp = 0.08, -- pronásledovatel je na každém dalším úseku o 8 % rychlejší

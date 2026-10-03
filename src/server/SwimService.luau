@@ -181,7 +181,13 @@ local function finish(session: Session, state: SwimState, success: boolean, reas
 			Registry.Quests.Progress(session, "Escapes", 1)
 		end
 	end
-	local canContinue = success and state.Stage < stages.Max
+	-- další vor: od levelu 5 a jen když je mezi vorem a molem dost vody
+	local root = Registry.Player.GetRoot(session.Player)
+	local room = if root then root.Position.X - World.PierEndX - 8 else 0
+	local canContinue = success
+		and state.Stage < stages.Max
+		and (session.Data.Level or 1) >= stages.MinLevel
+		and room >= stages.MinRoom
 	resultEvent:FireClient(session.Player, {
 		Success = success,
 		Reason = reason,
@@ -226,15 +232,16 @@ startStage = function(session: Session, previous: SwimState?, flight: any, landD
 	-- kdo hráče honí (čím dál skočil, tím strašidelnější tvor); na dalších vorech je rychlejší
 	local chaser = Formulas.ChaserTier(landDistance)
 	local speed = Formulas.SwimSpeed(data.SwimLevel, session.Passes.TurboFins == true)
-	-- vor 1 je směrem ke břehu, vory 2 a 3 dál na moři (za nimi už je jen otevřená voda)
-	local dir = if stage == 1 then 1 else -1
-	local distance = Formulas.SwimDistance(data.SwimLevel)
-	if dir == 1 then
-		-- vor nesmí skončit pod molem ani na pláži (krátký skok)
-		distance = math.max(60, math.min(distance, root.Position.X - World.PierEndX - 8))
-	end
+	-- všechny vory jsou směrem k pláži; slalom na dalších vorech jako by měl hráč o pár levelů víc
+	local dir = 1
+	local slalomLevel = (data.Level or 1) + (stage - 1) * stages.SlalomLevelBonus
+	local distance = Formulas.SwimDistance(data.SwimLevel, slalomLevel)
+	-- vor nesmí skončit pod molem ani na pláži (krátký skok)
+	distance = math.max(60, math.min(distance, root.Position.X - World.PierEndX - 8))
+	local slalom = generateSlalom(slalomLevel, distance)
 	-- delší plavba nesmí být nefér: pronásledovatel vyrazí o tolik později, kolik hráč plave navíc
 	local sharkDelay = Swim.SharkDelay + math.max(0, distance - Swim.Distance) / speed
+		+ (if slalom then #slalom.Gates * Swim.Slalom.DelayPerGate else 0)
 	local treasure: string? = nil
 	if stage >= 2 then
 		local luck = Registry.Items.Luck(session)
@@ -276,7 +283,7 @@ startStage = function(session: Session, previous: SwimState?, flight: any, landD
 		UsedRepellent = usedRepellent and stage == 1,
 		MaxTime = Swim.MaxTime,
 		-- od levelu 2 branky a překážky na cestě k voru (na dalších vorech těžší)
-		Slalom = generateSlalom((data.Level or 1) + (stage - 1) * stages.SlalomLevelBonus, distance),
+		Slalom = slalom,
 		CanUpgrade = data.SwimLevel < #Swim.Upgrades,
 		Stage = stage,
 		MaxStage = stages.Max,

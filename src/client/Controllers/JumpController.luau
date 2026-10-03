@@ -1123,6 +1123,17 @@ local function startSwim(info: { [string]: any })
 	end
 	state.OnRaft = false
 	hideRaftChoice()
+	-- starý vor (odkud hráč skáče) už nemá svítit "SAFE!" – cílem je nový vor
+	for _, old in state.Folder:GetChildren() do
+		if old.Name == "Raft" then
+			old.Name = "OldRaft"
+			for _, d in old:GetDescendants() do
+				if d:IsA("BillboardGui") then
+					d:Destroy()
+				end
+			end
+		end
+	end
 	local stage = if typeof(info.Stage) == "number" then info.Stage else 1
 	state.SwimInfo = info
 	state.SwimStart = os.clock()
@@ -1205,7 +1216,8 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 		end
 		local steer = (if run then Swim.Slalom.SteerFactor else 0.5) * (if stunned then 0.5 else 1)
 		local lane = Swim.Slalom.LaneHalfWidth
-		state.Z = math.clamp(state.Z - move.X * info.Speed * steer * dt, info.StartZ - lane, info.StartZ + lane)
+		-- doprava na obrazovce = doprava ve světě i při plavání opačným směrem (kamera je vždy za hráčem)
+		state.Z = math.clamp(state.Z - move.X * dir * info.Speed * steer * dt, info.StartZ - lane, info.StartZ + lane)
 		local progress = math.min(info.Distance, state.SwimProgress + info.Speed * forward * dt)
 		if run then
 			progress = Slalom.Resolve(run, elapsed, state.SwimProgress, progress, state.Z - info.StartZ)
@@ -1223,9 +1235,9 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 	end
 	local position = Vector3.new(info.StartX - dir * state.SwimProgress, info.Y + 0.4 + math.sin(os.clock() * 6) * 0.15, state.Z)
 	if state.OnRaft then
-		-- stojí na voru čelem na moře, kam vede cesta k dalšímu voru (kousek vedle vlajky, ať ji nemá před sebou)
-		position = Vector3.new(info.StartX - dir * info.Distance + 3, info.Y + 4.1, info.StartZ - 2.5)
-		root.CFrame = CFrame.lookAt(position, position + Vector3.xAxis)
+		-- stojí na voru čelem k dalšímu voru (k pláži), kousek vedle vlajky, ať ji nemá před sebou
+		position = Vector3.new(info.StartX - dir * info.Distance, info.Y + 4.1, info.StartZ - 2.5) + ahead * 3
+		root.CFrame = CFrame.lookAt(position, position + ahead)
 	else
 		-- plavecká poloha: břichem dolů, hlavou k voru
 		root.CFrame = CFrame.lookAt(position, position + ahead) * CFrame.Angles(math.rad(-80), 0, math.sin(os.clock() * 8) * 0.2)
@@ -1266,8 +1278,8 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 	-- kamera za hráčem (vidí žraloka i vor)
 	local camera = Workspace.CurrentCamera
 	if camera then
-		-- na voru se kamera dívá na moře (tam vede další úsek), jinak za hráčem směrem k voru
-		local look = if state.OnRaft then Vector3.xAxis else ahead
+		-- kamera za hráčem směrem k (dalšímu) voru
+		local look = ahead
 		local camPos = position - look * 24 + Vector3.new(0, 11, 0)
 		flightFovTarget = Jump.Flight.CameraFov + 8
 		applyCamera(camera, (cameraBase or camera.CFrame):Lerp(CFrame.lookAt(camPos, position + look * 18 - Vector3.new(0, 2, 0)), 0.15), dt)
@@ -1321,7 +1333,7 @@ showRaftChoice = function(state: FlightState, result: { [string]: any })
 	raftChoice = panel
 	Kit.Text(panel, { Text = `SAFE ON RAFT {stage}/{maxStage}!`, Size = UDim2.new(1, -24, 0, 44), Position = UDim2.fromOffset(12, 10), TextColor3 = Kit.Colors.Green, StrokeThickness = 3 })
 	Kit.Text(panel, {
-		Text = `Swim OUT to treasure raft {stage + 1}: x{result.NextMultiplier or stage + 1} bonus + a treasure chest! The chaser comes back faster…`,
+		Text = `Swim on to treasure raft {stage + 1}: x{result.NextMultiplier or stage + 1} bonus + a treasure chest! The chaser comes back faster…`,
 		Size = UDim2.new(1, -30, 0, 46),
 		Position = UDim2.fromOffset(15, 56),
 		TextColor3 = Kit.Colors.Text,

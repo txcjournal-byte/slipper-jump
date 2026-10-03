@@ -26,11 +26,12 @@ return {
 	TerrainWaterLength = 2_400, -- prvních X studů je skutečná Roblox voda (vlny, odlesky), dál ploché díly
 	TerrainWaterDepth = 10,
 	-- Značky vzdálenosti: { do, krok }
+	-- (cedule jsou vidět pořád, až k dárku – viz MapBuilder, model je Persistent)
 	MarkerRanges = {
 		{ UpTo = 1_000, Step = 100 },
 		{ UpTo = 10_000, Step = 500 },
-		{ UpTo = 20_000, Step = 1_000 },
-		{ UpTo = 100_000, Step = 10_000 },
+		{ UpTo = 30_000, Step = 1_000 },
+		{ UpTo = 99_000, Step = 2_500 },
 	},
 	-- Rozestup bójek podél koridoru
 	BuoyRanges = {

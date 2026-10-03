@@ -230,20 +230,56 @@ function Formulas.ChaserByKey(key: any): Swim.ChaserTier
 	return Swim.Chasers[1]
 end
 
--- Jak daleko je vor (s lepší plaveckou výbavou o kousek dál)
-function Formulas.SwimDistance(swimLevel: number): number
-	return Swim.Distance + math.min(swimLevel * Swim.DistancePerSwimLevel, Swim.MaxExtraDistance)
+-- Jak daleko je vor: s lepší plaveckou výbavou a vyšším levelem (delší slalom) o kousek dál
+function Formulas.SwimDistance(swimLevel: number, level: number?): number
+	local gear = math.min(swimLevel * Swim.DistancePerSwimLevel, Swim.MaxExtraDistance)
+	local cfg = Swim.Slalom
+	local lv = level or 1
+	local slalom = if lv >= cfg.StartLevel then math.min((lv - 1) * cfg.ExtraDistancePerLevel, cfg.MaxExtraLevelDistance) else 0
+	return Swim.Distance + gear + slalom
 end
 
--- Slalom podle levelu hráče (nil = pod levelem 2, bez slalomu)
+-- Slalom pro (efektivní) level hráče – plynule těžší s každým levelem (nil = pod levelem 2, bez slalomu)
 function Formulas.SlalomTier(level: number): Swim.SlalomTier?
-	local found: Swim.SlalomTier? = nil
-	for _, tier in Swim.Slalom.Tiers do
-		if level >= tier.MinLevel then
-			found = tier
+	local cfg = Swim.Slalom
+	if level < cfg.StartLevel then
+		return nil
+	end
+	local l = level - cfg.StartLevel
+	local gates = math.min(cfg.GatesBase + math.floor(l / cfg.GatesEvery), cfg.MaxGates)
+	local name, color = cfg.Names[1].Name, cfg.Names[1].Color
+	for _, entry in cfg.Names do
+		if level >= entry.MinLevel then
+			name, color = entry.Name, entry.Color
 		end
 	end
-	return found
+	local moving = if level >= cfg.MovingFromLevel then math.min(1 + math.floor((level - cfg.MovingFromLevel) / 6), math.ceil(gates / 2)) else 0
+	-- překážky: počet roste s levelem, druhy se odemykají postupně
+	local obstacles: { [string]: number } = {}
+	local count = if level >= cfg.ObstaclesFromLevel then math.min(1 + math.floor((level - cfg.ObstaclesFromLevel) / 3), cfg.MaxObstacles) else 0
+	local kinds: { string } = {}
+	for _, kind in { "Rock", "Jellyfish", "Log", "Puffer" } do
+		if level >= (cfg.ObstacleUnlock[kind] or math.huge) then
+			table.insert(kinds, kind)
+		end
+	end
+	for i = 1, count do
+		-- novější (těžší) druhy se střídají se staršími
+		local kind = kinds[#kinds - ((i - 1) % #kinds)]
+		obstacles[kind] = (obstacles[kind] or 0) + 1
+	end
+	return {
+		MinLevel = level,
+		Name = name,
+		Color = color,
+		Gates = gates,
+		Gap = math.max(cfg.GapStart - l * cfg.GapPerLevel, cfg.MinGap),
+		Offset = math.min(cfg.OffsetStart + l * cfg.OffsetPerLevel, cfg.MaxOffset),
+		Moving = moving,
+		MoveAmp = math.min(2 + level * 0.08, 6),
+		MoveSpeed = math.min(0.8 + level * 0.015, 1.6),
+		Obstacles = obstacles,
+	}
 end
 
 function Formulas.SharkSpeed(distance: number): number

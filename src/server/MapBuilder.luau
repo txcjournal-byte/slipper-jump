@@ -33,6 +33,7 @@ export type HouseInfo = {
 	BackCollectPad: BasePart,
 	TeleportPad: BasePart,
 	OwnerLabel: TextLabel,
+	OwnerLabels: { TextLabel }, -- jméno majitele na všech cedulích (vpředu i vzadu, z obou stran)
 	HouseNameLabel: TextLabel,
 	Center: CFrame,
 	Size: Vector3,
@@ -812,15 +813,21 @@ local function buildWater(root: Instance, rng: Random)
 	markers.Parent = root
 	for _, distance in markerDistances() do
 		local m = model("Marker_" .. distance, markers)
+		-- cedule musí být vidět i při dlouhých skocích (při rychlém letu by se jinak nestihly načíst)
+		m.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 		local x = World.PierEndX + distance
 		deco(part(m, Vector3.new(half * 2, 0.5, 0.5), CFrame.new(x, World.WaterY + 0.6, 0) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(200, 170, 120), Enum.Material.Fabric, CYL))
 		for i = -3, 3 do
 			deco(part(m, Vector3.one * 1.8, CFrame.new(x, World.WaterY + 0.6, i * half / 4), if i % 2 == 0 then WHITE else BUOY_RED, nil, BALL))
 		end
 		-- dřevěná cedule s číslem (plovoucí uprostřed)
-		local width = if distance >= 10_000 then 16 else 13
-		local float = deco(part(m, Vector3.new(4, 1.4, width + 2), CFrame.new(x, World.WaterY + 0.4, 0), WOOD_DARK, Enum.Material.Wood))
-		local sign = part(m, Vector3.new(0.8, 5, width), CFrame.new(x, World.WaterY + 3.6, 0), WOOD, Enum.Material.Wood, BLOCK, "Sign")
+		-- dál od mola létá hráč výš a rychleji → větší cedule, ať jsou z výšky čitelné
+		local k = if distance >= 30_000 then 3 elseif distance >= 10_000 then 2.2 elseif distance >= 2_000 then 1.5 else 1
+		local width = (if distance >= 10_000 then 16 else 13) * k
+		-- cedule je kousek stranou od středu dráhy, ať při plavání nezakrývá výhled na vor
+		local signZ = width / 2 + 5
+		local float = deco(part(m, Vector3.new(4 * k, 1.4 * k, width + 2), CFrame.new(x, World.WaterY + 0.4 * k, signZ), WOOD_DARK, Enum.Material.Wood))
+		local sign = part(m, Vector3.new(0.8 * k, 5 * k, width), CFrame.new(x, World.WaterY + 3.6 * k, signZ), WOOD, Enum.Material.Wood, BLOCK, "Sign")
 		deco(sign)
 		local text = if distance >= 10_000 then FormatNumber.Short(distance) else FormatNumber.Commas(distance)
 		surfaceLabel(sign, Enum.NormalId.Left, text, WHITE, Color3.fromRGB(70, 40, 20), 30)
@@ -926,37 +933,53 @@ local function buildHouse(root: Instance, index: number, frontX: number, zCenter
 	end
 	deco(part(m, Vector3.new(L + 3.4, 1.4, 1.4), CFrame.new(centerX, floorY + 1 + H + gableHeight + 0.4, zCenter), trim, nil, CYL))
 
-	-- cedule nad vchodem: název domečku + jméno hráče
-	local sign = part(m, Vector3.new(0.6, 6, 18), CFrame.new(frontX - 0.2, floorY + 1 + H + 3.2, zCenter), WHITE, Enum.Material.SmoothPlastic, BLOCK, "Sign")
-	deco(sign)
-	local signGui = Instance.new("SurfaceGui")
-	signGui.Face = Enum.NormalId.Left
-	signGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	signGui.PixelsPerStud = 40
-	signGui.LightInfluence = 0.2
-	signGui.Parent = sign
-	local houseNameLabel = Instance.new("TextLabel")
-	houseNameLabel.BackgroundTransparency = 1
-	houseNameLabel.Size = UDim2.fromScale(1, 0.4)
-	houseNameLabel.Font = Enum.Font.FredokaOne
-	houseNameLabel.TextScaled = true
-	houseNameLabel.Text = name
-	houseNameLabel.TextColor3 = color:Lerp(Color3.new(0, 0, 0), 0.35)
-	houseNameLabel.Parent = signGui
-	local ownerLabel = Instance.new("TextLabel")
-	ownerLabel.BackgroundTransparency = 1
-	ownerLabel.Position = UDim2.fromScale(0, 0.4)
-	ownerLabel.Size = UDim2.fromScale(1, 0.6)
-	ownerLabel.Font = Enum.Font.FredokaOne
-	ownerLabel.TextScaled = true
-	ownerLabel.Text = "Free House"
-	ownerLabel.TextColor3 = Color3.fromRGB(40, 40, 50)
-	ownerLabel.Parent = signGui
-	local ownerPadding = Instance.new("UIPadding")
-	ownerPadding.PaddingLeft = UDim.new(0.05, 0)
-	ownerPadding.PaddingRight = UDim.new(0.05, 0)
-	ownerPadding.PaddingBottom = UDim.new(0.08, 0)
-	ownerPadding.Parent = ownerLabel
+	-- cedule nad předním i zadním vchodem: název domečku + jméno hráče, čitelné z obou stran
+	-- (hráč tak svůj domeček najde z pláže i od mola)
+	local ownerLabels: { TextLabel } = {}
+	local houseNameLabels: { TextLabel } = {}
+	local function houseSign(x: number)
+		local sign = part(m, Vector3.new(0.6, 6, 18), CFrame.new(x, floorY + 1 + H + 3.2, zCenter), WHITE, Enum.Material.SmoothPlastic, BLOCK, "Sign")
+		deco(sign)
+		-- barevný rámeček kolem cedule
+		deco(part(m, Vector3.new(0.4, 6.8, 18.8), CFrame.new(x, floorY + 1 + H + 3.2, zCenter), color, Enum.Material.SmoothPlastic))
+		for _, face in { Enum.NormalId.Left, Enum.NormalId.Right } do
+			local signGui = Instance.new("SurfaceGui")
+			signGui.Face = face
+			signGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+			signGui.PixelsPerStud = 40
+			signGui.LightInfluence = 0.2
+			signGui.Parent = sign
+			local nameLabel = Instance.new("TextLabel")
+			nameLabel.BackgroundTransparency = 1
+			nameLabel.Size = UDim2.fromScale(1, 0.4)
+			nameLabel.Font = Enum.Font.FredokaOne
+			nameLabel.TextScaled = true
+			nameLabel.Text = name
+			nameLabel.TextColor3 = color:Lerp(Color3.new(0, 0, 0), 0.35)
+			nameLabel.Parent = signGui
+			table.insert(houseNameLabels, nameLabel)
+			local ownerLabel = Instance.new("TextLabel")
+			ownerLabel.Name = "OwnerLabel"
+			ownerLabel.BackgroundTransparency = 1
+			ownerLabel.Position = UDim2.fromScale(0, 0.4)
+			ownerLabel.Size = UDim2.fromScale(1, 0.6)
+			ownerLabel.Font = Enum.Font.FredokaOne
+			ownerLabel.TextScaled = true
+			ownerLabel.Text = "Free House"
+			ownerLabel.TextColor3 = Color3.fromRGB(40, 40, 50)
+			ownerLabel.Parent = signGui
+			local ownerPadding = Instance.new("UIPadding")
+			ownerPadding.PaddingLeft = UDim.new(0.05, 0)
+			ownerPadding.PaddingRight = UDim.new(0.05, 0)
+			ownerPadding.PaddingBottom = UDim.new(0.08, 0)
+			ownerPadding.Parent = ownerLabel
+			table.insert(ownerLabels, ownerLabel)
+		end
+	end
+	houseSign(frontX - 0.4)
+	houseSign(backX + 0.4)
+	local ownerLabel = ownerLabels[1]
+	local houseNameLabel = houseNameLabels[1]
 
 	-- podstavce: liché vlevo, sudé vpravo, od vchodu dozadu
 	local pedestals: { Pedestal } = {}
@@ -1094,6 +1117,7 @@ local function buildHouse(root: Instance, index: number, frontX: number, zCenter
 		BackCollectPad = backCollectPad,
 		TeleportPad = teleportPad,
 		OwnerLabel = ownerLabel,
+		OwnerLabels = ownerLabels,
 		HouseNameLabel = houseNameLabel,
 		Center = CFrame.new(centerX, floorY + 1 + H / 2, zCenter),
 		Size = Vector3.new(L, H + 2, W),
