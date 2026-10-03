@@ -46,6 +46,7 @@ export type Flight = {
 	XPMultiplier: number, -- Double XP (podle události při odrazu)
 	DuringEvent: boolean, -- skok během události na serveru (úkol)
 	Contest: boolean, -- skok během Jump Contest
+	PendingItem: string?, -- předmět z vody: hráč ho dostane, až doplave k voru (chycení = přijde o něj)
 }
 
 local JumpService = {}
@@ -316,11 +317,15 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	if data.TotalJumps == 0 then
 		forced = Tutorial.FirstItemRarity
 	end
-	local item, placement, isNew
+	-- předmět z vody se jen vylosuje; do domečku ho hráč dostane, až doplave k voru (SwimService)
+	local itemId: string? = nil
+	local isNew = false
 	if not reachedGift then
 		local zoneShift = if Registry.ServerEvents.IsActive("TreasureTide") then 1 else 0
 		local luck = Registry.Items.Luck(session)
-		item, placement, isNew = Registry.Items.Give(session, Registry.Items.Roll(distance, forced, zoneShift, luck))
+		itemId = Registry.Items.Roll(distance, forced, zoneShift, luck)
+		isNew = not data.Discovered[itemId :: string]
+		flight.PendingItem = itemId
 	end
 
 	data.TotalJumps += 1
@@ -344,7 +349,7 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 		Registry.Quests.Progress(session, "EventJumps", 1)
 	end
 
-	local cfg = item and Catalog.Item(item.Id)
+	local cfg = if itemId then Catalog.Item(itemId) else nil
 	jumpResultEvent:FireClient(player, {
 		FlightId = flight.Id,
 		Distance = distance,
@@ -352,8 +357,8 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 		Coins = coinCount,
 		CoinMoney = coinMoney,
 		Rings = ringCount,
-		Item = if item then { Id = item.Id, Uid = item.Uid, Income = if cfg then cfg.Income else 0 } else nil,
-		Placement = placement,
+		Item = if itemId then { Id = itemId, Income = if cfg then cfg.Income else 0 } else nil,
+		Placement = if itemId then "Pending" else nil,
 		IsNew = isNew,
 		XP = xp,
 		DoubleXP = flight.XPMultiplier > 1,

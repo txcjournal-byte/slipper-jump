@@ -81,3 +81,13 @@ end)
 
 -- data žebříčku ukazuje tabule ve světě; posluchač jen kvůli frontě zpráv
 Net.Event("Leaderboard").OnClientEvent:Connect(function() end)
+
+-- načítací obrazovka (ReplicatedFirst) zmizí, až je UI postavené a přišla data hráče
+local function markReady()
+	game:GetService("Players").LocalPlayer:SetAttribute("SlipperJumpReady", true)
+end
+if ClientState.Data then
+	markReady()
+else
+	ClientState.Loaded:Connect(markReady)
+end

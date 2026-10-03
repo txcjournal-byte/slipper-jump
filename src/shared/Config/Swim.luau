@@ -104,6 +104,91 @@ local Chasers: { ChaserTier } = {
 	},
 }
 
+-- ===== Slalomy na cestě zpět k voru (od levelu 10) =====
+-- Přes dráhu vedou bariéry z bójek s jednou mezerou (branka). Kdo do bariéry narazí, zastaví se,
+-- musí najet do mezery a ztrácí čas – pronásledovatel se blíží. Mezi brankami jsou překážky
+-- (náraz = krátké omráčení a odhození zpět). Čím vyšší level, tím užší a pohyblivější branky
+-- a víc překážek. Rozložení losuje server, klient ho postaví a hlídá nárazy.
+-- Gap = šířka mezery, Offset = jak daleko od středu dráhy mezera může být,
+-- Moving = kolik branek se hýbe do stran (Amp studů, Speed rad/s),
+-- Obstacles = { druh = počet }: Rock (kámen), Jellyfish (medúza, pluje do stran),
+-- Log (kláda, jezdí do stran), Puffer (ježík, nafukuje se).
+export type SlalomTier = {
+	MinLevel: number,
+	Name: string,
+	Color: Color3,
+	Gates: number,
+	Gap: number,
+	Offset: number,
+	Moving: number,
+	MoveAmp: number,
+	MoveSpeed: number,
+	Obstacles: { [string]: number },
+}
+
+local SlalomTiers: { SlalomTier } = {
+	{
+		MinLevel = 10,
+		Name = "BUOY SLALOM",
+		Color = Color3.fromRGB(80, 220, 120),
+		Gates = 3,
+		Gap = 18,
+		Offset = 9,
+		Moving = 0,
+		MoveAmp = 0,
+		MoveSpeed = 0,
+		Obstacles = {},
+	},
+	{
+		MinLevel = 20,
+		Name = "ROCKY SLALOM",
+		Color = Color3.fromRGB(255, 200, 60),
+		Gates = 4,
+		Gap = 15,
+		Offset = 12,
+		Moving = 0,
+		MoveAmp = 0,
+		MoveSpeed = 0,
+		Obstacles = { Rock = 3 },
+	},
+	{
+		MinLevel = 30,
+		Name = "JELLYFISH SLALOM",
+		Color = Color3.fromRGB(255, 120, 200),
+		Gates = 4,
+		Gap = 13,
+		Offset = 13,
+		Moving = 2,
+		MoveAmp = 4,
+		MoveSpeed = 1.2,
+		Obstacles = { Jellyfish = 3, Rock = 1 },
+	},
+	{
+		MinLevel = 40,
+		Name = "STORM SLALOM",
+		Color = Color3.fromRGB(170, 110, 255),
+		Gates = 5,
+		Gap = 11,
+		Offset = 14,
+		Moving = 3,
+		MoveAmp = 5,
+		MoveSpeed = 1.5,
+		Obstacles = { Log = 2, Puffer = 2, Jellyfish = 1 },
+	},
+}
+
+local Slalom = {
+	Tiers = SlalomTiers,
+	LaneHalfWidth = 40, -- jak daleko do stran může hráč plavat (stejné jako dřív)
+	SteerFactor = 1, -- rychlost do stran = rychlost plavání × tohle (bez slalomu 0,5)
+	BumpStun = 0.4, -- náraz do bariéry: chvíli nejde plavat dopředu
+	HitStun = 0.7, -- náraz do překážky
+	KnockBack = 3, -- o kolik studů překážka odhodí zpět
+	-- velikost překážek (poloměr zásahu) a pohyb
+	ObstacleRadius = { Rock = 3, Jellyfish = 2.6, Log = 1.6, Puffer = 2.4 } :: { [string]: number },
+	LogLength = 12,
+}
+
 return {
 	BaseSpeed = 16, -- studů za sekundu bez vylepšení
 	Distance = 100, -- jak daleko je vor od místa dopadu
@@ -124,4 +209,5 @@ return {
 	-- i když u sebe doplaval včas)
 	LagGrace = 0.2,
 	Upgrades = Upgrades,
+	Slalom = Slalom,
 }

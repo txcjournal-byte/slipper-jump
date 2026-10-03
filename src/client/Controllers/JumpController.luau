@@ -24,6 +24,7 @@ local HUD = require(script.Parent.Parent.UI.HUD)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Sound = require(script.Parent.Parent.Sound)
 local Effects = require(script.Parent.Parent.Effects.Effects)
+local Slalom = require(script.Parent.Slalom)
 
 local JumpController = {}
 
@@ -55,6 +56,7 @@ type FlightState = {
 	SwimProgress: number,
 	SwimEnded: boolean,
 	Chasers: { Model }, -- pronásledovatelé (žralok, velryba, chobotnice…)
+	Slalom: Slalom.Run?, -- branky a překážky na cestě k voru (od levelu 10)
 	ExpectedPosition: Vector3?,
 }
 
@@ -467,6 +469,7 @@ local function startFlight(info: { [string]: any })
 		SwimProgress = 0,
 		SwimEnded = false,
 		Chasers = {},
+		Slalom = nil,
 		ExpectedPosition = nil,
 	}
 	flight = state
@@ -1099,6 +1102,9 @@ local function startSwim(info: { [string]: any })
 	state.SwimEnded = false
 	state.Z = info.StartZ
 	raftModel(Vector3.new(info.StartX - info.Distance, info.Y, info.StartZ), state.Folder)
+	-- slalom (od levelu 10): branky a překážky mezi hráčem a vorem
+	local slalom = info.Slalom
+	state.Slalom = if typeof(slalom) == "table" then Slalom.Start(slalom, info.StartX, info.StartZ, info.Y, state.Folder) else nil
 	-- kdo honí: tier podle klíče ze serveru (chybí / neznámý → žralok)
 	local tier = Formulas.ChaserByKey(info.Chaser)
 	info.Tier = tier
@@ -1125,8 +1131,19 @@ local function startSwim(info: { [string]: any })
 			end
 		end)
 	end
+	if state.Slalom then
+		local layout = state.Slalom.Layout
+		task.delay(1.3, function()
+			if flight == state and not state.SwimEnded then
+				Effects.BigText(layout.Name .. "!", layout.Color, 1.3, 0.36)
+			end
+		end)
+		swimHint.Text = "Steer with A / D (joystick) through the gaps!"
+	else
+		swimHint.Text = "Hold W / joystick forward to swim!"
+	end
 	swimHint.Visible = true
-	task.delay(3, function()
+	task.delay(if state.Slalom then 4 else 3, function()
 		swimHint.Visible = false
 	end)
 end
@@ -1143,14 +1160,28 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 		end
 		local move = if controls then controls:GetMoveVector() else Vector3.zero
 		local forward = math.clamp(-move.Z, 0, 1)
-		state.SwimProgress = math.min(info.Distance, state.SwimProgress + info.Speed * forward * dt)
-		state.Z = math.clamp(state.Z - move.X * info.Speed * 0.5 * dt, -40, 40)
+		local run = state.Slalom
+		local stunned = run ~= nil and Slalom.Stunned(run)
+		if stunned then
+			forward = 0 -- po nárazu chvíli nejde plavat dopředu (do stran napůl)
+		end
+		local steer = (if run then Swim.Slalom.SteerFactor else 0.5) * (if stunned then 0.5 else 1)
+		local lane = Swim.Slalom.LaneHalfWidth
+		state.Z = math.clamp(state.Z - move.X * info.Speed * steer * dt, info.StartZ - lane, info.StartZ + lane)
+		local progress = math.min(info.Distance, state.SwimProgress + info.Speed * forward * dt)
+		if run then
+			progress = Slalom.Resolve(run, elapsed, state.SwimProgress, progress, state.Z - info.StartZ)
+		end
+		state.SwimProgress = progress
 		-- tempa: zvuk a čeření
 		if forward > 0.2 and os.clock() - lastStroke > 0.55 then
 			lastStroke = os.clock()
 			Sound.Play("Swim", 0.9 + math.random() * 0.2)
 			Effects.Ripple(Vector3.new(info.StartX - state.SwimProgress, info.Y, state.Z), 0.7)
 		end
+	end
+	if state.Slalom then
+		Slalom.Animate(state.Slalom, elapsed)
 	end
 	local position = Vector3.new(info.StartX - state.SwimProgress, info.Y + 0.4 + math.sin(os.clock() * 6) * 0.15, state.Z)
 	state.ExpectedPosition = position
@@ -1208,6 +1239,11 @@ local function endSwim(result: { [string]: any })
 			state.SwimInfo.EscapedAt = os.clock() - state.SwimStart
 		end
 		Effects.BigText("SAFE! +" .. FormatNumber.Money(result.Bonus), Kit.Colors.Green, 1.4, 0.28)
+		local kept = if typeof(result.Item) == "string" then Catalog.Item(result.Item) else nil
+		if kept then
+			local where = if result.Placement == "Carried" then "carry it home!" elseif result.Placement == "Storage" then "sent to storage." else "placed in your house!"
+			Effects.FloatText(kept.Name .. " " .. where, Kit.Colors.Green)
+		end
 		Effects.ScreenConfetti(60)
 		Sound.Play("Coin")
 		Sound.Play("Land")
@@ -1226,6 +1262,32 @@ local function endSwim(result: { [string]: any })
 		end
 	else
 		Effects.BigText("Too slow!", Kit.Colors.Orange, 1.2, 0.28)
+	end
+	-- nedoplaval → předmět z vody je pryč (klesne ke dnu)
+	local lost = if not result.Success and typeof(result.LostItem) == "string" then Catalog.Item(result.LostItem) else nil
+	if lost then
+		local lostId = result.LostItem :: string
+		task.delay(0.5, function()
+			Effects.BigText("You lost your " .. lost.Name .. "!", Kit.Colors.Coral, 1.6, 0.42)
+		end)
+		local pos = state.ExpectedPosition
+		if pos then
+			local model = Models.Item(lostId)
+			Models.Anchor(model)
+			local start = CFrame.new(pos + Vector3.new(-3, 1.5, 0))
+			model:PivotTo(start)
+			model.Parent = state.Folder
+			local value = Instance.new("NumberValue")
+			value.Changed:Connect(function(alpha)
+				if model.Parent then
+					model:PivotTo(start * CFrame.new(0, -alpha * 9, 0) * CFrame.Angles(alpha * 1.2, alpha * 4, 0))
+				end
+			end)
+			TweenService:Create(value, TweenInfo.new(Swim.ReturnDelay, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Value = 1 }):Play()
+			task.delay(Swim.ReturnDelay + 0.2, function()
+				value:Destroy()
+			end)
+		end
 	end
 	task.delay(Swim.ReturnDelay - 0.45, function()
 		Effects.Fade(true, 0.35)
@@ -1460,8 +1522,9 @@ function JumpController.ShowItemCard(itemId: string, isNew: boolean?, placement:
 	Kit.Viewport(holder, model)
 	Kit.Text(inner, { Text = cfg.Name, Size = UDim2.new(1, -20, 0, 40), Position = UDim2.fromOffset(10, 262), TextColor3 = Kit.Colors.Text, NoStroke = true })
 	Kit.Text(inner, { Text = "+" .. FormatNumber.Money(cfg.Income) .. "/s", Size = UDim2.new(1, -20, 0, 34), Position = UDim2.fromOffset(10, 302), TextColor3 = Color3.fromRGB(40, 170, 70), NoStroke = true })
-	local where = if placement == "Carried" then "House full! Carry it over your head." elseif placement == "Storage" then "Sent to storage." else "Placed in your house!"
-	Kit.Text(inner, { Text = where, Size = UDim2.new(1, -20, 0, 24), Position = UDim2.fromOffset(10, 338), TextColor3 = Kit.Colors.Gray, NoStroke = true })
+	local pending = placement == "Pending"
+	local where = if pending then "Swim to the raft to keep it!" elseif placement == "Carried" then "House full! Carry it over your head." elseif placement == "Storage" then "Sent to storage." else "Placed in your house!"
+	Kit.Text(inner, { Text = where, Size = UDim2.new(1, -20, 0, 24), Position = UDim2.fromOffset(10, 338), TextColor3 = if pending then Kit.Colors.Orange else Kit.Colors.Gray, NoStroke = true })
 	Kit.Pop(cardFrame, 0.4)
 	if rarity.Fanfare then
 		Sound.Play("Fanfare")

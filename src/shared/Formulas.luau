@@ -230,6 +230,17 @@ function Formulas.ChaserByKey(key: any): Swim.ChaserTier
 	return Swim.Chasers[1]
 end
 
+-- Slalom podle levelu hráče (nil = pod levelem 10, bez slalomu)
+function Formulas.SlalomTier(level: number): Swim.SlalomTier?
+	local found: Swim.SlalomTier? = nil
+	for _, tier in Swim.Slalom.Tiers do
+		if level >= tier.MinLevel then
+			found = tier
+		end
+	end
+	return found
+end
+
 function Formulas.SharkSpeed(distance: number): number
 	return Formulas.ChaserTier(distance).Speed
 end
