@@ -9,6 +9,7 @@ local Debris = game:GetService("Debris")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local FormatNumber = require(Shared.Util.FormatNumber)
 local Formulas = require(Shared.Formulas)
+local World = require(Shared.Config.World)
 local Catalog = require(Shared.Catalog)
 local Products = require(Shared.Config.Products)
 local Net = require(Shared.Net)
@@ -25,6 +26,8 @@ local levelLabel: TextLabel
 local xpFill: Frame
 local xpText: TextLabel
 local jumpLabel: TextLabel
+local goalFill: Frame
+local goalText: TextLabel
 local boostPill: Frame
 local boostLabel: TextLabel
 local luckPill: Frame
@@ -211,6 +214,20 @@ function HUD.Init()
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = Color3.fromRGB(200, 240, 255),
 	})
+	-- další cíl nahoře uprostřed: nejbližší dárek a jak daleko k němu (podle nejlepšího skoku)
+	local goalBar = Kit.Panel(screen, {
+		Size = UDim2.fromOffset(380, 34),
+		Position = UDim2.new(0.5, 0, 0, 8),
+		AnchorPoint = Vector2.new(0.5, 0),
+		BackgroundColor3 = Color3.fromRGB(40, 60, 110),
+		Radius = 17,
+		StrokeThickness = 3,
+	})
+	goalFill = Kit.new("Frame", { BackgroundColor3 = Kit.Colors.Yellow, Size = UDim2.fromScale(0, 1), BorderSizePixel = 0, Parent = goalBar })
+	Kit.Corner(goalFill, 17)
+	Kit.Gradient(goalFill, Color3.fromRGB(255, 230, 110), Color3.fromRGB(255, 160, 40))
+	goalText = Kit.Text(goalBar, { Text = "", Size = UDim2.new(1, -16, 1, -8), Position = UDim2.fromOffset(8, 4), ZIndex = 3, StrokeThickness = 2.5 })
+
 	superJumpLabel = Kit.Text(screen, {
 		Text = "",
 		Size = UDim2.fromOffset(330, 28),
@@ -450,6 +467,19 @@ function HUD.Refresh(data: { [string]: any })
 	local base = Formulas.BaseJump(data.EquippedSlippers, if data.EquippedHat ~= "" then data.EquippedHat else nil)
 		* Formulas.PassJumpMultiplier(passes.SuperJumper == true)
 	jumpLabel.Text = "Jump: ~" .. FormatNumber.Studs(math.floor(base)) .. "   Best: " .. FormatNumber.Studs(data.BestJump)
+	-- další cíl: nejbližší dárek, který hráč v tomto životě ještě nemá
+	local island = Formulas.NextGiftIsland(data.ClaimedGifts)
+	local goalDistance = if island then island.Distance else World.GiftDistance
+	local goalName = if island then island.Name else "GIANT GIFT"
+	if data.CanRebirth then
+		goalText.Text = "🎁 GIANT GIFT OPENED! REBIRTH READY!"
+		goalFill.Size = UDim2.fromScale(1, 1)
+	else
+		-- jak daleko teď hráč doskočí se svými pantoflemi (po znovuzrození se starý rekord nepočítá)
+		local reach = base
+		goalText.Text = `🎁 NEXT: {goalName} at {FormatNumber.Studs(goalDistance)}  ({math.floor(math.clamp(reach / goalDistance, 0, 1) * 100)}%)`
+		TweenService:Create(goalFill, TweenInfo.new(0.4), { Size = UDim2.fromScale(math.clamp(reach / goalDistance, 0.04, 1), 1) }):Play()
+	end
 	-- jednorázové skoky: Mega Jump se použije dřív než Super Jump
 	local megaJumps: number = data.MegaJumps or 0
 	local charges = {}

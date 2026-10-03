@@ -10,6 +10,7 @@ local Spinner = require(Config.Spinner)
 local House = require(Config.House)
 local Products = require(Config.Products)
 local Swim = require(Config.Swim)
+local GiantGift = require(Config.GiantGift)
 local Catalog = require(script.Parent.Catalog)
 
 local Formulas = {}
@@ -228,6 +229,16 @@ function Formulas.ChaserByKey(key: any): Swim.ChaserTier
 		end
 	end
 	return Swim.Chasers[1]
+end
+
+-- Nejbližší dárkový ostrov, který hráč v tomto životě ještě nezískal (nil = zbývá jen Obří dárek)
+function Formulas.NextGiftIsland(claimed: { [string]: boolean }?): any
+	for _, island in GiantGift.Islands do
+		if not (claimed and claimed[island.Key]) then
+			return island
+		end
+	end
+	return nil
 end
 
 -- Jak daleko je vor: s lepší plaveckou výbavou a vyšším levelem (delší slalom) o kousek dál

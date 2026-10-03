@@ -103,6 +103,7 @@ Hráč si v ITEMS → Sneakers vybere skin, hra si zapamatuje který a otevře n
 game.Players:GetPlayers()[1]:SetAttribute("DevMoney", 1e9)
 ```
 Pak kup Royal Diamond Slippers a skoč k dárku → Golden Splash, 1M $, titulek, Rebirth.
+Cestou jsou dva dárkové ostrovy: **Bronze Gift** na 10 000 studech (250 000 $, Epic předmět, Propeller Cap) a **Silver Gift** na 40 000 studech (3M $, Legendary předmět, titulek). Skok se u nezískaného ostrova zastaví a hráč na něm přistane; po Rebirthu se dají získat znovu (`Config/GiantGift.luau` → `Islands`).
 
 ## 4. Struktura projektu
 

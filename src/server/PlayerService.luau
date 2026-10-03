@@ -127,6 +127,7 @@ function PlayerService.BuildState(session: Session): { [string]: any }
 		Passes = session.Passes,
 		Discovered = data.Discovered,
 		CanRebirth = data.GiftOpenedThisLife,
+		ClaimedGifts = data.ClaimedGifts, -- dárkové ostrovy získané v tomto životě
 		Title = data.Title,
 		HouseIndex = if session.House then session.House.Index else 0,
 		SuperJumps = data.SuperJumps,

@@ -46,6 +46,8 @@ export type Flight = {
 	XPMultiplier: number, -- Double XP (podle události při odrazu)
 	DuringEvent: boolean, -- skok během události na serveru (úkol)
 	Contest: boolean, -- skok během Jump Contest
+	GiftAt: number, -- vzdálenost nejbližšího dárku (ostrov nebo Obří dárek)
+	GiftIsland: string?, -- klíč dárkového ostrova (nil = Obří dárek)
 	PendingItem: string?, -- předmět z vody: hráč ho dostane, až doplave k voru (chycení = přijde o něj)
 }
 
@@ -170,12 +172,19 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		* (if Registry.ServerEvents.IsActive("MegaJump") then 1 + Events.MegaJumpBonus else 1)
 		* (1 + streakBonus)
 	local cap = if Catalog.IsBestShoe(data.EquippedSlippers) then Jump.MaxDistance else Jump.MaxDistanceWithoutBest
+	-- nejbližší dárkový ostrov, který hráč ještě nezískal: skok se u něj zastaví a hráč na něm přistane
+	local island = Formulas.NextGiftIsland(data.ClaimedGifts)
+	local giftAt = if island then island.Distance else World.GiftDistance
+	local giftLanding: Vector3 = if island then Registry.Map.IslandLandings[island.Key] else Registry.Map.GiftLanding
+	if island then
+		cap = math.min(cap, island.Distance)
+	end
 	distance = math.clamp(distance, 10, cap)
 
 	local startPosition = root.Position
 	local endX = World.PierEndX + distance
-	local reachesGift = distance >= World.GiftDistance
-	local endY = if reachesGift then Registry.Map.GiftLanding.Y + 3 else World.WaterY + 1.5
+	local reachesGift = distance >= giftAt
+	local endY = if reachesGift then giftLanding.Y + 3 else World.WaterY + 1.5
 	local duration = Formulas.FlightDuration(distance)
 	local height = Formulas.FlightHeight(distance)
 
@@ -235,6 +244,8 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		XPMultiplier = if Registry.ServerEvents.IsActive("DoubleXP") then Events.DoubleXPMultiplier else 1,
 		DuringEvent = Registry.ServerEvents.AnyActive(),
 		Contest = Registry.ServerEvents.IsActive("JumpContest"),
+		GiftAt = giftAt,
+		GiftIsland = if island then island.Key else nil,
 	}
 	session.Flight = flight
 	session.LastJump = os.clock()
@@ -250,6 +261,9 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		Duration = duration,
 		BaseDistance = distance,
 		Cap = cap,
+		GiftAt = giftAt, -- kde je nejbližší dárek (klient podle toho přistane na ostrově)
+		GiftName = if island then island.Name else "GIANT GIFT",
+		GiftLandY = giftLanding.Y + 3,
 		PierEndX = World.PierEndX,
 		Tier = tier,
 		Coins = coinList,
@@ -301,10 +315,11 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	end
 
 	local distance = math.min(flight.BaseDistance * (1 + flight.RingBonus * ringCount), flight.Cap)
-	local reachedGift = distance >= World.GiftDistance
+	local reachedGift = distance >= flight.GiftAt
 	if reachedGift then
-		distance = World.GiftDistance
+		distance = flight.GiftAt
 	end
+	local islandKey = if reachedGift then flight.GiftIsland else nil
 	distance = math.floor(distance)
 
 	-- XP, peníze za mince
@@ -364,11 +379,16 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 		DoubleXP = flight.XPMultiplier > 1,
 		PersonalRecord = personalRecord,
 		ReachedGift = reachedGift,
+		GiftIsland = islandKey,
 	})
 	effectEvent:FireAllClients("Splash", { UserId = player.UserId, Position = Vector3.new(World.PierEndX + distance, World.WaterY, 0), Gift = reachedGift })
 
 	if reachedGift then
-		Registry.Rebirth.OnGiftReached(session)
+		if islandKey then
+			Registry.Rebirth.OnIslandReached(session, islandKey)
+		else
+			Registry.Rebirth.OnGiftReached(session)
+		end
 	end
 
 	session.Returning = true

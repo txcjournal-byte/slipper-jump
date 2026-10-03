@@ -28,6 +28,7 @@ export type Data = {
 	Rebirths: number,
 	GiftEverOpened: boolean,
 	GiftOpenedThisLife: boolean,
+	ClaimedGifts: { [string]: boolean }, -- dárkové ostrovy získané v tomto životě (Bronze, Silver)
 	Titles: { string },
 	Title: string,
 	BestJump: number,
@@ -75,6 +76,7 @@ local TEMPLATE: Data = {
 	Rebirths = 0,
 	GiftEverOpened = false,
 	GiftOpenedThisLife = false,
+	ClaimedGifts = {},
 	Titles = {},
 	Title = "",
 	BestJump = 0,

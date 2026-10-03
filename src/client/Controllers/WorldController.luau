@@ -17,6 +17,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local World = require(Shared.Config.World)
+local Formulas = require(Shared.Formulas)
 local GiantGift = require(Shared.Config.GiantGift)
 local FormatNumber = require(Shared.Util.FormatNumber)
 local Net = require(Shared.Net)
@@ -555,7 +556,11 @@ function WorldController.Init()
 		-- dárek na obzoru
 		local data = ClientState.Get()
 		local rebirths = data.Rebirths or 0
-		local giftPosition = Vector3.new(World.PierEndX + World.GiftDistance + 130, World.WaterY, 0)
+		-- na obzoru je vždy nejbližší dárek, který hráč ještě nemá (bronzový, stříbrný, pak Obří)
+		local nextIsland = Formulas.NextGiftIsland(data.ClaimedGifts)
+		local giftPosition = if nextIsland
+			then Vector3.new(World.PierEndX + nextIsland.Distance + 90, World.WaterY, 0)
+			else Vector3.new(World.PierEndX + World.GiftDistance + 130, World.WaterY, 0)
 		local toGift = giftPosition - camPos
 		local flat = Vector3.new(toGift.X, 0, toGift.Z)
 		if flat.Magnitude > World.RealGiftShowDistance then
@@ -575,8 +580,9 @@ function WorldController.Init()
 			end
 		end
 		local color = giftColor(rebirths)
+		local horizonColor = if nextIsland then nextIsland.Color else color
 		for _, part in horizonBodies do
-			part.Color = color
+			part.Color = horizonColor
 		end
 		for _, part in CollectionService:GetTagged("GiftBody") do
 			if part:IsA("BasePart") then

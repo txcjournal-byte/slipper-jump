@@ -323,9 +323,16 @@ end
 
 -- ===== Cesta k Obřímu dárku =====
 
+-- Nejbližší dárek pro aktuální skok (dárkový ostrov nebo Obří dárek) – posílá server ve FlightStart
+local giftTarget = World.GiftDistance
+local giftTargetName = "Giant Gift"
+-- nejlepší skok před tímto skokem (kvůli oslavě nových "rekordních zón")
+local bestBefore = 0
+local RECORD_ZONES = { 500, 1_000, 2_500, 5_000, 10_000, 20_000, 30_000, 40_000, 60_000, 80_000 }
+
 -- Podíl délky pruhu: napůl logaritmicky (i krátké skoky jsou vidět), napůl lineárně (konec je napínavý)
 local function giftBarFraction(distance: number): number
-	local p = math.clamp(distance / World.GiftDistance, 0, 1)
+	local p = math.clamp(distance / giftTarget, 0, 1)
 	local logPart = math.log10(1 + 999 * p) / 3
 	return math.clamp(0.5 * logPart + 0.5 * p, 0, 1)
 end
@@ -339,16 +346,16 @@ local function resetGiftProgress()
 end
 
 local function updateGiftProgress(distance: number)
-	local p = distance / World.GiftDistance
+	local p = distance / giftTarget
 	giftFill.Size = UDim2.fromScale(giftBarFraction(distance), 1)
 	local stage = if p >= 1 then 3 elseif p >= 0.95 then 2 elseif p >= 0.8 then 1 else 0
-	local left = FormatNumber.Commas(math.max(1, math.ceil(World.GiftDistance - distance)))
+	local left = FormatNumber.Commas(math.max(1, math.ceil(giftTarget - distance)))
 	if stage == 1 then
-		giftMessage.Text = "Almost there! " .. left .. " studs to the Giant Gift!"
+		giftMessage.Text = "Almost there! " .. left .. " studs to the " .. giftTargetName .. "!"
 	elseif stage == 2 then
 		giftMessage.Text = "SO CLOSE! Just " .. left .. " more studs!"
 	elseif stage == 3 then
-		giftMessage.Text = "GIANT GIFT!!!"
+		giftMessage.Text = string.upper(giftTargetName) .. "!!!"
 	end
 	if stage ~= giftStage then
 		-- nový stupeň: barva, zvětšení a krátký „pop“
@@ -427,7 +434,7 @@ local function finishFlight(state: FlightState)
 	-- velké šplouchnutí s vlnami a otřes podle délky skoku (100 studů → 0, 100 000 → 1)
 	local power = math.clamp((math.log10(math.max(state.FinalDistance, 100)) - 2) / 3, 0, 1)
 	local land = state.LandPosition
-	if land and state.FinalDistance < World.GiftDistance then
+	if land and state.FinalDistance < (state.Info.GiftAt or World.GiftDistance) then
 		Effects.LandingSplash(Vector3.new(land.X, World.WaterY, land.Z), power)
 	end
 	Effects.Shake(0.3 + power * 0.3)
@@ -435,6 +442,17 @@ local function finishFlight(state: FlightState)
 end
 
 local function startFlight(info: { [string]: any })
+	giftTarget = if typeof(info.GiftAt) == "number" then info.GiftAt else World.GiftDistance
+	bestBefore = ClientState.Get().BestJump or 0
+	giftTargetName = "Giant Gift"
+	if typeof(info.GiftName) == "string" then
+		-- "BRONZE GIFT" → "Bronze Gift"
+		local words = {}
+		for word in string.gmatch(info.GiftName, "%S+") do
+			table.insert(words, string.upper(string.sub(word, 1, 1)) .. string.lower(string.sub(word, 2)))
+		end
+		giftTargetName = table.concat(words, " ")
+	end
 	awaitingFlight = false
 	charging = false
 	destroyMeter()
@@ -1510,7 +1528,7 @@ local function updateFlight(dt: number)
 		local extra = final - info.BaseDistance
 		local g = math.clamp((os.clock() - state.GlideStart) / state.GlideDuration, 0, 1)
 		x = info.EndX + extra * g
-		local endY = if final >= World.GiftDistance then World.WaterY + 7 else World.WaterY + 1.5
+		local endY = if final >= (info.GiftAt or World.GiftDistance) then (info.GiftLandY or World.WaterY + 7) else World.WaterY + 1.5
 		y = info.EndY + (endY - info.EndY) * g + Formulas.ExtraGlideHeight(extra) * 4 * g * (1 - g)
 		if g >= 1 then
 			finishFlight(state)
@@ -1568,15 +1586,35 @@ local function showResult(result: { [string]: any })
 		-- velké šplouchnutí už udělal finishFlight; tohle je jen pojistka
 		Effects.Splash(Vector3.new(landing.X, World.WaterY, landing.Z), result.Distance > 10_000)
 	end
-	Effects.BigText(FormatNumber.Studs(result.Distance) .. "!", Kit.Colors.White, 2.2, 0.2)
-	if result.PersonalRecord then
-		HUD.Notify("NEW PERSONAL BEST!", "Record")
+	-- překonaná "rekordní zóna" (500, 1 000, 2 500 … studů) → hlavní nápis se změní na oslavu
+	-- (jen jeden velký text, ať se nepřekrývá s nápisy plavání a slalomu)
+	local zone = 0
+	if result.PersonalRecord and not result.ReachedGift then
+		for _, z in RECORD_ZONES do
+			if bestBefore < z and result.Distance >= z then
+				zone = z
+			end
+		end
+	end
+	if zone > 0 then
+		Effects.BigText(`NEW RECORD! {FormatNumber.Studs(result.Distance)}!`, Kit.Colors.Pink, 2.4, 0.2)
+		Effects.ScreenConfetti(90)
+		Sound.Play("Fanfare")
+	else
+		Effects.BigText(FormatNumber.Studs(result.Distance) .. "!", Kit.Colors.White, 2.2, 0.2)
+		if result.PersonalRecord and not result.ReachedGift then
+			HUD.Notify("NEW PERSONAL BEST!", "Record")
+		end
+	end
+	if result.ReachedGift then
+		-- poslední snímek letu mohl skončit těsně před cílem („SO CLOSE…“) → schovat
+		giftMessage.Visible = false
 	end
 	-- skok skončil kousek před dárkem → povzbudit
-	if not result.ReachedGift and result.Distance >= World.GiftDistance * 0.8 and result.Distance < World.GiftDistance then
-		local left = FormatNumber.Commas(math.max(1, math.ceil(World.GiftDistance - result.Distance)))
+	if not result.ReachedGift and result.Distance >= giftTarget * 0.8 and result.Distance < giftTarget then
+		local left = FormatNumber.Commas(math.max(1, math.ceil(giftTarget - result.Distance)))
 		task.delay(0.6, function()
-			Effects.BigText("Only " .. left .. " studs from the Giant Gift!", Kit.Colors.Yellow, 2.4, 0.42)
+			Effects.BigText("Only " .. left .. " studs from the " .. giftTargetName .. "!", Kit.Colors.Yellow, 2.4, 0.42)
 		end)
 	end
 	if result.CoinMoney > 0 then

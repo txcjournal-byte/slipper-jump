@@ -8,6 +8,7 @@ local CollectionService = game:GetService("CollectionService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local World = require(Shared.Config.World)
+local GiantGift = require(Shared.Config.GiantGift)
 local House = require(Shared.Config.House)
 local Jump = require(Shared.Config.Jump)
 local SpinnerConfig = require(Shared.Config.Spinner)
@@ -59,6 +60,7 @@ export type MapInfo = {
 	Leaderboard: LeaderboardInfo,
 	GiftLanding: Vector3,
 	GiftModel: Model,
+	IslandLandings: { [string]: Vector3 }, -- dárkové ostrovy (Bronze, Silver): kde hráč přistane
 }
 
 local MapBuilder = {}
@@ -812,6 +814,15 @@ local function buildWater(root: Instance, rng: Random)
 	markers.Name = "Markers"
 	markers.Parent = root
 	for _, distance in markerDistances() do
+		local nearIsland = false
+		for _, island in GiantGift.Islands do
+			if math.abs(distance - island.Distance) < 300 then
+				nearIsland = true
+			end
+		end
+		if nearIsland then
+			continue -- u dárkového ostrova je místo cedule ostrov s vlastní cedulí
+		end
 		local m = model("Marker_" .. distance, markers)
 		-- cedule musí být vidět i při dlouhých skocích (při rychlém letu by se jinak nestihly načíst)
 		m.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
@@ -1616,6 +1627,71 @@ local function goldStar(parent: Instance, position: Vector3, scale: number)
 	sparkles(core, 6, 4 * scale, 6 * scale, Color3.fromRGB(255, 235, 150))
 end
 
+-- Dárkový ostrov cestou k Obřímu dárku (menší než ten obří): písečný ostrov s molem pro dopad,
+-- velký dárek v barvě ostrova se svítící mašlí, paprsky a třpytkami, palmy a uvítací cedule.
+local function buildGiftIsland(root: Instance, island: any): Vector3
+	local landingX = World.PierEndX + island.Distance
+	local center = Vector3.new(landingX + 60, World.WaterY, 0)
+	local radius = 115
+	local m = model(island.Key .. "GiftIsland", root)
+	m.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
+	local rng = Random.new(island.Distance)
+	local top = World.WaterY + 4
+	part(m, Vector3.new(8, radius * 2, radius * 2), CFrame.new(center + Vector3.new(0, top - 4, 0)) * UP, SAND, Enum.Material.Sand, CYL, "Island")
+	tiny(part(m, Vector3.new(2, radius * 2 + 60, radius * 2 + 60), CFrame.new(center + Vector3.new(0, World.WaterY - 0.85, 0)) * UP, Color3.fromRGB(110, 230, 235), nil, CYL))
+	local grass = part(m, Vector3.new(1, 150, 150), CFrame.new(center + Vector3.new(30, top - 0.3, 0)) * UP, Color3.fromRGB(110, 200, 80), Enum.Material.Grass, CYL, "Grass")
+	grass.CanTouch = false
+	-- molo v místě dopadu
+	local deckTop = top + 0.15
+	local deck = part(m, Vector3.new(26, 0.6, 22), CFrame.new(landingX, deckTop - 0.3, 0), WOOD_LIGHT, Enum.Material.WoodPlanks, BLOCK, "LandingDeck")
+	deck.CanTouch = false
+	-- uvítací cedule
+	local signOrigin = facing(Vector3.new(landingX - 3, 0, -16), Vector3.new(-1, 0, 0.35))
+	for _, sx in { -5, 5 } do
+		deco(part(m, Vector3.new(0.8, 7, 0.8), signOrigin * CFrame.new(sx, top + 3.5, 0), WOOD_DARK, Enum.Material.Wood))
+	end
+	local welcome = deco(part(m, Vector3.new(12, 4.2, 0.6), signOrigin * CFrame.new(0, top + 5.5, 0), WOOD, Enum.Material.Wood, BLOCK, "WelcomeSign"))
+	surfaceLabel(welcome, Enum.NormalId.Front, island.Name .. " ISLAND", WHITE, Color3.fromRGB(70, 40, 20), 30)
+	-- palmy po obvodu
+	for i = 1, 7 do
+		local a = i / 8 * math.pi * 2 + 0.4
+		local pos = center + Vector3.new(math.cos(a) * 95, top, math.sin(a) * 95)
+		if pos.X > landingX + 20 or math.abs(pos.Z) > 30 then
+			palm(m, pos, rng:NextNumber(18, 26), 10, a)
+		end
+	end
+	-- dárek
+	local giftCenter = center + Vector3.new(30, 0, 0)
+	local boxSize, boxHeight, lidHeight = 90, 110, 20
+	local box = part(m, Vector3.new(boxSize, boxHeight, boxSize), CFrame.new(giftCenter + Vector3.new(0, top + boxHeight / 2, 0)), island.Color, Enum.Material.SmoothPlastic, BLOCK, "Box")
+	local lidY = top + boxHeight + lidHeight / 2
+	part(m, Vector3.new(boxSize + 8, lidHeight, boxSize + 8), CFrame.new(giftCenter + Vector3.new(0, lidY, 0)), island.Color, Enum.Material.SmoothPlastic, BLOCK, "Lid")
+	local ribbonHeight = boxHeight + lidHeight + 1
+	for _, size in { Vector3.new(boxSize + 9, ribbonHeight, 16), Vector3.new(16, ribbonHeight, boxSize + 9) } do
+		tiny(part(m, size, CFrame.new(giftCenter + Vector3.new(0, top + ribbonHeight / 2, 0)), island.Ribbon, Enum.Material.Neon))
+	end
+	local bowY = top + boxHeight + lidHeight
+	for _, sgn in { -1, 1 } do
+		tiny(part(m, Vector3.new(12, 34, 34), CFrame.new(giftCenter + Vector3.new(0, bowY + 15, sgn * 17)), island.Ribbon, Enum.Material.Neon, CYL))
+	end
+	tiny(part(m, Vector3.one * 18, CFrame.new(giftCenter + Vector3.new(0, bowY + 7, 0)), island.Ribbon, Enum.Material.Neon, BALL))
+	local light = Instance.new("PointLight")
+	light.Range = 40
+	light.Brightness = 3
+	light.Color = island.Color:Lerp(WHITE, 0.5)
+	light.Parent = box
+	-- paprsky a třpytky nad dárkem
+	local rayHub = tiny(part(m, Vector3.one * 2, CFrame.new(giftCenter + Vector3.new(0, bowY + 25, 0)), WHITE, nil, BLOCK, "GiftRays"))
+	rayHub.Transparency = 1
+	giftRays(rayHub, 8, 20, 260, 180, 9, 55)
+	rayHub:SetAttribute("SpinSpeed", 0.15)
+	CollectionService:AddTag(rayHub, "DecorSpin")
+	local riseSource = tiny(part(m, Vector3.new(80, 2, 80), CFrame.new(giftCenter + Vector3.new(0, bowY + 2, 0)), WHITE, nil, BLOCK, "GiftSparkles"))
+	riseSource.Transparency = 1
+	risingSparkles(riseSource, 16, 6, 20, false)
+	return Vector3.new(landingX, top, 0)
+end
+
 local function buildGift(root: Instance): (Model, Vector3)
 	local landingX = World.PierEndX + World.GiftDistance
 	local islandCenter = Vector3.new(landingX + 90, World.WaterY, 0)
@@ -1867,6 +1943,10 @@ function MapBuilder.Build(): MapInfo
 	spawnLocation.Parent = root
 
 	local giftModel, giftLanding = buildGift(root)
+	local islandLandings: { [string]: Vector3 } = {}
+	for _, island in GiantGift.Islands do
+		islandLandings[island.Key] = buildGiftIsland(root, island)
+	end
 
 	return {
 		Folder = root,
@@ -1882,6 +1962,7 @@ function MapBuilder.Build(): MapInfo
 		Leaderboard = leaderboard,
 		GiftLanding = giftLanding,
 		GiftModel = giftModel,
+		IslandLandings = islandLandings,
 	}
 end
 

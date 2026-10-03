@@ -150,14 +150,17 @@ function Dialogs.Init()
 	end)
 end
 
-function Dialogs.GiftOpened(info: { Rewards: { string }, First: boolean })
+function Dialogs.GiftOpened(info: { Rewards: { string }, First: boolean, Title: string?, Next: string? })
 	Effects.ScreenConfetti(140)
 	Sound.Play("Fanfare")
 	local text = "You got: " .. table.concat(info.Rewards, ", ") .. "!"
 	if info.First then
 		text ..= "\nYou can now REBIRTH for +50% money forever!"
 	end
-	Dialogs.Info("YOU REACHED THE GIANT GIFT!", text, Kit.Colors.Yellow)
+	if info.Next then
+		text ..= "\n" .. info.Next
+	end
+	Dialogs.Info(info.Title or "YOU REACHED THE GIANT GIFT!", text, Kit.Colors.Yellow)
 end
 
 function Dialogs.ConfirmRebirth()

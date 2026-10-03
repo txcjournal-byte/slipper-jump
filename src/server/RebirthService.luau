@@ -3,6 +3,7 @@
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local GiantGift = require(Shared.Config.GiantGift)
+local Formulas = require(Shared.Formulas)
 local Catalog = require(Shared.Catalog)
 local FormatNumber = require(Shared.Util.FormatNumber)
 local Net = require(Shared.Net)
@@ -44,6 +45,46 @@ function RebirthService.OnGiftReached(session: Session)
 	Net.Event("OpenUI"):FireClient(player, "GiftOpened", { Rewards = rewards, First = first })
 end
 
+-- Dárkový ostrov (Bronze, Silver): odměna jednou za život
+function RebirthService.OnIslandReached(session: Session, key: string)
+	local data = session.Data
+	local player: Player = session.Player
+	local island
+	for _, entry in GiantGift.Islands do
+		if entry.Key == key then
+			island = entry
+		end
+	end
+	if not island or data.ClaimedGifts[key] then
+		return
+	end
+	data.ClaimedGifts[key] = true
+	local rewards = {}
+	Registry.Economy.AddMoney(session, island.Money)
+	table.insert(rewards, FormatNumber.Money(island.Money))
+	local item = Registry.Items.GiveRandom(session, island.Rarity)
+	local cfg = Catalog.Item(item.Id)
+	table.insert(rewards, if cfg then cfg.Name else item.Id)
+	if island.Hat then
+		Registry.Shop.GrantHat(session, island.Hat)
+		local hat = Catalog.Hat(island.Hat)
+		table.insert(rewards, if hat then hat.Name else island.Hat)
+	end
+	if island.Title then
+		Registry.Level.AddTitle(session, island.Title)
+		table.insert(rewards, `Title "{island.Title}"`)
+	end
+	Registry.Player.MarkDirty(session)
+	Registry.Player.Announce(`{player.DisplayName} reached the {island.Name}!`, "Gift")
+	local nextIsland = Formulas.NextGiftIsland(data.ClaimedGifts)
+	Net.Event("OpenUI"):FireClient(player, "GiftOpened", {
+		Rewards = rewards,
+		First = false,
+		Title = `YOU REACHED THE {island.Name}!`,
+		Next = if nextIsland then `Next: {nextIsland.Name} at {FormatNumber.Commas(nextIsland.Distance)} studs!` else "Next: the GIANT GIFT at 100,000 studs!",
+	})
+end
+
 local function rebirth(player: Player)
 	local session = Registry.Player.Get(player)
 	if not session or session.Flight then
@@ -55,6 +96,7 @@ local function rebirth(player: Player)
 		return
 	end
 	data.GiftOpenedThisLife = false
+	data.ClaimedGifts = {} -- dárkové ostrovy se dají získat znovu
 	data.Rebirths += 1
 	data.Money = 0
 	data.OwnedSlippers = { "BasicBlackSlippers" }
