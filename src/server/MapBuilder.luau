@@ -1081,23 +1081,7 @@ local function buildHouse(root: Instance, index: number, frontX: number, zCenter
 			end
 		end
 	end
-	-- komín s kouřem (na střeše vzadu)
-	-- (spodek komína sedí přesně na střeše, aby nečouhal dovnitř domečku)
-	local chimneyCF = CFrame.new(backX - 22, floorY + 1 + H + 10.2, zCenter + 7)
-	deco(part(m, Vector3.new(4, 9, 3), chimneyCF, Color3.fromRGB(190, 90, 70), Enum.Material.Brick))
-	local chimneyCap = deco(part(m, Vector3.new(5, 1, 4), chimneyCF * CFrame.new(0, 5, 0), Color3.fromRGB(80, 70, 70)))
-	local smoke = Instance.new("ParticleEmitter")
-	smoke.Name = "Smoke"
-	smoke.Texture = "rbxasset://textures/particles/smoke_main.dds"
-	smoke.Rate = 1.5
-	smoke.Lifetime = NumberRange.new(3, 4)
-	smoke.Speed = NumberRange.new(3, 5)
-	smoke.SpreadAngle = Vector2.new(10, 10)
-	smoke.EmissionDirection = Enum.NormalId.Top
-	smoke.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.5), NumberSequenceKeypoint.new(1, 5) })
-	smoke.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.4), NumberSequenceKeypoint.new(1, 1) })
-	smoke.Color = ColorSequence.new(Color3.fromRGB(240, 240, 245))
-	smoke.Parent = chimneyCap
+	-- (bez komínů – na plážových domečcích vypadaly divně)
 
 	return {
 		Index = index,

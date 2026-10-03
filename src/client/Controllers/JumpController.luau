@@ -29,6 +29,9 @@ local Slalom = require(script.Parent.Slalom)
 local JumpController = {}
 
 local updateSwim: (any, BasePart, number) -> ()
+local returnToBeach: (any, number) -> ()
+local hideRaftChoice: () -> ()
+local showRaftChoice: (any, { [string]: any }) -> ()
 
 local player = Players.LocalPlayer
 
@@ -56,7 +59,8 @@ type FlightState = {
 	SwimProgress: number,
 	SwimEnded: boolean,
 	Chasers: { Model }, -- pronásledovatelé (žralok, velryba, chobotnice…)
-	Slalom: Slalom.Run?, -- branky a překážky na cestě k voru (od levelu 10)
+	Slalom: Slalom.Run?, -- branky a překážky na cestě k voru (od levelu 2)
+	OnRaft: boolean, -- doplaval a stojí na voru (vybírá: dál / zpět)
 	ExpectedPosition: Vector3?,
 }
 
@@ -470,6 +474,7 @@ local function startFlight(info: { [string]: any })
 		SwimEnded = false,
 		Chasers = {},
 		Slalom = nil,
+		OnRaft = false,
 		ExpectedPosition = nil,
 	}
 	flight = state
@@ -536,7 +541,7 @@ local swimBarYou: Frame
 local swimBarShark: TextLabel
 local swimHint: TextLabel
 
-local function raftModel(position: Vector3, parent: Instance): Model
+local function raftModel(position: Vector3, parent: Instance, treasure: boolean?): Model
 	local m = Instance.new("Model")
 	m.Name = "Raft"
 	local function add(size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?, shape: Enum.PartType?): Part
@@ -570,6 +575,18 @@ local function raftModel(position: Vector3, parent: Instance): Model
 	light.Color = Color3.fromRGB(120, 255, 150)
 	light.Range = 20
 	light.Parent = flag
+	if treasure then
+		-- truhla s pokladem na voru 2 a 3 (svítí a třpytí se)
+		local chestCF = CFrame.new(position + Vector3.new(-3.5, 2.3, -2.5))
+		add(Vector3.new(3, 1.8, 2.2), chestCF, Color3.fromRGB(150, 95, 45), Enum.Material.Wood)
+		add(Vector3.new(3.1, 0.35, 2.3), chestCF * CFrame.new(0, 0.4, 0), Color3.fromRGB(255, 200, 40), Enum.Material.Metal)
+		local lid = add(Vector3.new(3, 0.9, 2.2), chestCF * CFrame.new(0, 1.35, 0), Color3.fromRGB(170, 110, 55), Enum.Material.Wood)
+		local gold = add(Vector3.new(2.6, 0.5, 1.8), chestCF * CFrame.new(0, 0.95, 0), Color3.fromRGB(255, 220, 70), Enum.Material.Neon)
+		local sparkle = Instance.new("Sparkles")
+		sparkle.SparkleColor = Color3.fromRGB(255, 230, 120)
+		sparkle.Parent = gold
+		local _ = lid
+	end
 	m.Parent = parent
 	return m
 end
@@ -1096,15 +1113,29 @@ local function startSwim(info: { [string]: any })
 		return
 	end
 	state.Phase = "Swim"
+	-- další vor: uklidit pronásledovatele a slalom z minulého úseku
+	for _, old in state.Chasers do
+		old:Destroy()
+	end
+	if state.Slalom then
+		Slalom.Destroy(state.Slalom)
+		state.Slalom = nil
+	end
+	state.OnRaft = false
+	hideRaftChoice()
+	local stage = if typeof(info.Stage) == "number" then info.Stage else 1
 	state.SwimInfo = info
 	state.SwimStart = os.clock()
 	state.SwimProgress = 0
 	state.SwimEnded = false
 	state.Z = info.StartZ
-	raftModel(Vector3.new(info.StartX - info.Distance, info.Y, info.StartZ), state.Folder)
+	-- směr plavání: 1 = ke břehu (−X), −1 = na moře (+X, vory 2 a 3)
+	local dir = if info.Dir == -1 then -1 else 1
+	info.Dir = dir
+	raftModel(Vector3.new(info.StartX - dir * info.Distance, info.Y, info.StartZ), state.Folder, info.Treasure ~= nil)
 	-- slalom (od levelu 10): branky a překážky mezi hráčem a vorem
 	local slalom = info.Slalom
-	state.Slalom = if typeof(slalom) == "table" then Slalom.Start(slalom, info.StartX, info.StartZ, info.Y, state.Folder) else nil
+	state.Slalom = if typeof(slalom) == "table" then Slalom.Start(slalom, info.StartX, info.StartZ, info.Y, state.Folder, dir) else nil
 	-- kdo honí: tier podle klíče ze serveru (chybí / neznámý → žralok)
 	local tier = Formulas.ChaserByKey(info.Chaser)
 	info.Tier = tier
@@ -1120,10 +1151,15 @@ local function startSwim(info: { [string]: any })
 	swimBarShark.Text = tier.Name
 	swimBarShark.TextColor3 = tier.Color
 	flightHud.Visible = false
+	local swimText = if stage > 1 then `SWIM TO RAFT {stage}/{info.MaxStage or 3}!` else "SWIM TO THE RAFT!"
+	if stage > 1 then
+		Sound.Play("Splash")
+		Effects.Splash(Vector3.new(info.StartX, info.Y, info.StartZ), true)
+	end
 	if info.NoShark then
-		Effects.BigText(if info.UsedRepellent then "SHARK REPELLENT! SWIM!" else "SWIM TO THE RAFT!", Kit.Colors.Turquoise, 1.4, 0.25)
+		Effects.BigText(if info.UsedRepellent then "SHARK REPELLENT! SWIM!" else swimText, Kit.Colors.Turquoise, 1.4, 0.25)
 	else
-		Effects.BigText("SWIM TO THE RAFT!", Kit.Colors.Turquoise, 1.2, 0.25)
+		Effects.BigText(swimText, Kit.Colors.Turquoise, 1.2, 0.25)
 		task.delay(info.SharkDelay, function()
 			if flight == state and not state.SwimEnded then
 				Effects.BigText(tier.Warning, tier.Color, 1.2, 0.3)
@@ -1154,6 +1190,8 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 		return
 	end
 	local elapsed = os.clock() - state.SwimStart
+	local dir: number = info.Dir or 1
+	local ahead = -dir * Vector3.xAxis -- směr k voru
 	if not state.SwimEnded then
 		if not controls then
 			controls = getControls()
@@ -1177,16 +1215,22 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 		if forward > 0.2 and os.clock() - lastStroke > 0.55 then
 			lastStroke = os.clock()
 			Sound.Play("Swim", 0.9 + math.random() * 0.2)
-			Effects.Ripple(Vector3.new(info.StartX - state.SwimProgress, info.Y, state.Z), 0.7)
+			Effects.Ripple(Vector3.new(info.StartX - dir * state.SwimProgress, info.Y, state.Z), 0.7)
 		end
 	end
 	if state.Slalom then
 		Slalom.Animate(state.Slalom, elapsed)
 	end
-	local position = Vector3.new(info.StartX - state.SwimProgress, info.Y + 0.4 + math.sin(os.clock() * 6) * 0.15, state.Z)
+	local position = Vector3.new(info.StartX - dir * state.SwimProgress, info.Y + 0.4 + math.sin(os.clock() * 6) * 0.15, state.Z)
+	if state.OnRaft then
+		-- stojí na voru čelem na moře, kam vede cesta k dalšímu voru (kousek vedle vlajky, ať ji nemá před sebou)
+		position = Vector3.new(info.StartX - dir * info.Distance + 3, info.Y + 4.1, info.StartZ - 2.5)
+		root.CFrame = CFrame.lookAt(position, position + Vector3.xAxis)
+	else
+		-- plavecká poloha: břichem dolů, hlavou k voru
+		root.CFrame = CFrame.lookAt(position, position + ahead) * CFrame.Angles(math.rad(-80), 0, math.sin(os.clock() * 8) * 0.2)
+	end
 	state.ExpectedPosition = position
-	-- plavecká poloha: břichem dolů, hlavou k voru (-X)
-	root.CFrame = CFrame.lookAt(position, position - Vector3.xAxis) * CFrame.Angles(math.rad(-80), 0, math.sin(os.clock() * 8) * 0.2)
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.AssemblyAngularVelocity = Vector3.zero
 	-- pronásledovatel(é): server počítá jednu pozici, druhý žralok je jen posunutý do strany a dozadu (rig.Shift)
@@ -1199,13 +1243,13 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 		local chaserCFrame: CFrame
 		if elapsed < info.SharkDelay then
 			-- ploutev se blíží zezadu
-			local behind = Vector3.new(info.StartX + 30 - (elapsed / info.SharkDelay) * 30, info.Y - 1.6, state.Z + 6)
-			chaserCFrame = CFrame.lookAt(behind, behind - Vector3.xAxis)
+			local behind = Vector3.new(info.StartX + dir * (30 - (elapsed / info.SharkDelay) * 30), info.Y - 1.6, state.Z + 6)
+			chaserCFrame = CFrame.lookAt(behind, behind + ahead)
 		else
-			local sx = info.StartX - math.min(sharkProgress, state.SwimProgress + 2)
+			local sx = info.StartX - dir * math.min(sharkProgress, state.SwimProgress + 2)
 			-- oba žraloci se vlní stejně (jinak by se o sebe otírali), liší se jen posunem v rig.Shift
 			local sharkPos = Vector3.new(sx, info.Y + 0.6 - dive, state.Z + math.sin(os.clock() * 3) * 1.5)
-			chaserCFrame = CFrame.lookAt(sharkPos, sharkPos - Vector3.xAxis)
+			chaserCFrame = CFrame.lookAt(sharkPos, sharkPos + ahead)
 		end
 		local rig = chaserRigs[model]
 		if rig then
@@ -1222,10 +1266,100 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 	-- kamera za hráčem (vidí žraloka i vor)
 	local camera = Workspace.CurrentCamera
 	if camera then
-		local camPos = position + Vector3.new(24, 11, 0)
+		-- na voru se kamera dívá na moře (tam vede další úsek), jinak za hráčem směrem k voru
+		local look = if state.OnRaft then Vector3.xAxis else ahead
+		local camPos = position - look * 24 + Vector3.new(0, 11, 0)
 		flightFovTarget = Jump.Flight.CameraFov + 8
-		applyCamera(camera, (cameraBase or camera.CFrame):Lerp(CFrame.lookAt(camPos, position - Vector3.new(18, 2, 0)), 0.15), dt)
+		applyCamera(camera, (cameraBase or camera.CFrame):Lerp(CFrame.lookAt(camPos, position + look * 18 - Vector3.new(0, 2, 0)), 0.15), dt)
 	end
+end
+
+-- Návrat na pláž po plavání (zatmívačka, úklid). delay = za jak dlouho (server mezitím hráče přesune).
+returnToBeach = function(state: FlightState, delay: number)
+	task.delay(math.max(0, delay - 0.45), function()
+		Effects.Fade(true, 0.35)
+	end)
+	task.delay(delay + 0.15, function()
+		if flight == state then
+			state.Folder:Destroy()
+			flight = nil
+		end
+		hideRaftChoice()
+		swimHud.Visible = false
+		setCharacterFlying(false)
+		endFlightVisuals()
+		Effects.Fade(false, 0.5)
+	end)
+end
+
+-- Panel na voru: zpět na pláž, nebo skočit do vody a plavat k dalšímu voru
+local raftChoice: Frame? = nil
+local raftChoiceToken = 0
+
+hideRaftChoice = function()
+	raftChoiceToken += 1
+	if raftChoice then
+		raftChoice:Destroy()
+		raftChoice = nil
+	end
+end
+
+showRaftChoice = function(state: FlightState, result: { [string]: any })
+	hideRaftChoice()
+	raftChoiceToken += 1
+	local token = raftChoiceToken
+	local stage = result.Stage or 1
+	local maxStage = result.MaxStage or 3
+	local panel = Kit.Panel(swimHud, {
+		Size = UDim2.fromOffset(560, 230),
+		Position = UDim2.new(0.5, 0, 1, -40),
+		AnchorPoint = Vector2.new(0.5, 1),
+		BackgroundColor3 = Kit.Colors.Panel,
+		Radius = 22,
+		StrokeThickness = 4,
+	})
+	raftChoice = panel
+	Kit.Text(panel, { Text = `SAFE ON RAFT {stage}/{maxStage}!`, Size = UDim2.new(1, -24, 0, 44), Position = UDim2.fromOffset(12, 10), TextColor3 = Kit.Colors.Green, StrokeThickness = 3 })
+	Kit.Text(panel, {
+		Text = `Swim OUT to treasure raft {stage + 1}: x{result.NextMultiplier or stage + 1} bonus + a treasure chest! The chaser comes back faster…`,
+		Size = UDim2.new(1, -30, 0, 46),
+		Position = UDim2.fromOffset(15, 56),
+		TextColor3 = Kit.Colors.Text,
+		NoStroke = true,
+	})
+	local function choose(goOn: boolean)
+		if token ~= raftChoiceToken or flight ~= state then
+			return
+		end
+		Sound.Play("Click")
+		hideRaftChoice()
+		Net.Event("SwimChoice"):FireServer(goOn)
+		if not goOn then
+			returnToBeach(state, 0.6)
+		end
+	end
+	local back = Kit.Button(panel, { Text = "BACK TO BEACH", Size = UDim2.new(0.5, -24, 0, 70), Position = UDim2.new(0, 16, 1, -86), Color = Kit.Colors.Turquoise })
+	back.Activated:Connect(function()
+		choose(false)
+	end)
+	local onward = Kit.Button(panel, { Text = "SWIM ON!", Size = UDim2.new(0.5, -24, 0, 70), Position = UDim2.new(0.5, 8, 1, -86), Color = Kit.Colors.Orange })
+	onward.Activated:Connect(function()
+		choose(true)
+	end)
+	local timer = Kit.Text(panel, { Text = "", Size = UDim2.new(1, -24, 0, 24), Position = UDim2.new(0, 12, 1, -112), TextColor3 = Kit.Colors.Gray, NoStroke = true })
+	Kit.Pop(panel, 0.3)
+	-- odpočet; když se nerozhodne, vrátí se na pláž (server ho přesune sám)
+	task.spawn(function()
+		local left = result.ChoiceTime or 10
+		while left > 0 and token == raftChoiceToken do
+			timer.Text = `Back to the beach in {math.ceil(left)}…`
+			task.wait(0.25)
+			left -= 0.25
+		end
+		if token == raftChoiceToken then
+			choose(false)
+		end
+	end)
 end
 
 local function endSwim(result: { [string]: any })
@@ -1243,6 +1377,10 @@ local function endSwim(result: { [string]: any })
 		if kept then
 			local where = if result.Placement == "Carried" then "carry it home!" elseif result.Placement == "Storage" then "sent to storage." else "placed in your house!"
 			Effects.FloatText(kept.Name .. " " .. where, Kit.Colors.Green)
+			if (result.Stage or 1) >= 2 then
+				-- poklad z truhly na voru
+				JumpController.ShowItemCard(result.Item, false, result.Placement)
+			end
 		end
 		Effects.ScreenConfetti(60)
 		Sound.Play("Coin")
@@ -1289,19 +1427,17 @@ local function endSwim(result: { [string]: any })
 			end)
 		end
 	end
-	task.delay(Swim.ReturnDelay - 0.45, function()
-		Effects.Fade(true, 0.35)
-	end)
-	task.delay(Swim.ReturnDelay + 0.15, function()
-		if flight == state then
-			state.Folder:Destroy()
-			flight = nil
-		end
-		swimHud.Visible = false
-		setCharacterFlying(false)
-		endFlightVisuals()
-		Effects.Fade(false, 0.5)
-	end)
+	if result.Success and result.CanContinue then
+		-- vylezl na vor: pronásledovatel odplave, hráč si vybere, jestli plave dál
+		task.delay(0.6, function()
+			if flight == state and state.SwimEnded then
+				state.OnRaft = true
+				showRaftChoice(state, result)
+			end
+		end)
+		return
+	end
+	returnToBeach(state, Swim.ReturnDelay)
 end
 
 local function updateFlight(dt: number)

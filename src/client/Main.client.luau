@@ -50,6 +50,25 @@ HUD.Bind("TeleportHouse", function()
 end)
 HUD.Bind("TeleportPier", function()
 	Net.Event("Teleport"):FireServer("Pier")
+	-- server postaví hráče na konec mola čelem k moři; kamera se otočí za něj, ať vidí vodu a může hned skočit
+	task.spawn(function()
+		local World = require(Shared.Config.World)
+		local player = game:GetService("Players").LocalPlayer
+		local deadline = os.clock() + 2
+		while os.clock() < deadline do
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if root and root.Position.X > World.PierEndX - 40 and math.abs(root.Position.Z) < 12 then
+				local camera = workspace.CurrentCamera
+				if camera then
+					local at = root.Position
+					camera.CFrame = CFrame.lookAt(at + Vector3.new(-16, 7, 0), at + Vector3.new(20, 2, 0))
+				end
+				return
+			end
+			task.wait()
+		end
+	end)
 end)
 HUD.Bind("StarterPack", function()
 	RobuxShop.Prompt("StarterPack")

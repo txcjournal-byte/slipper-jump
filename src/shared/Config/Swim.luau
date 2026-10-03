@@ -104,7 +104,7 @@ local Chasers: { ChaserTier } = {
 	},
 }
 
--- ===== Slalomy na cestě zpět k voru (od levelu 10) =====
+-- ===== Slalomy na cestě zpět k voru (od levelu 2) =====
 -- Přes dráhu vedou bariéry z bójek s jednou mezerou (branka). Kdo do bariéry narazí, zastaví se,
 -- musí najet do mezery a ztrácí čas – pronásledovatel se blíží. Mezi brankami jsou překážky
 -- (náraz = krátké omráčení a odhození zpět). Čím vyšší level, tím užší a pohyblivější branky
@@ -128,7 +128,19 @@ export type SlalomTier = {
 
 local SlalomTiers: { SlalomTier } = {
 	{
-		MinLevel = 10,
+		MinLevel = 2,
+		Name = "MINI SLALOM",
+		Color = Color3.fromRGB(90, 200, 255),
+		Gates = 2,
+		Gap = 22,
+		Offset = 7,
+		Moving = 0,
+		MoveAmp = 0,
+		MoveSpeed = 0,
+		Obstacles = {},
+	},
+	{
+		MinLevel = 5,
 		Name = "BUOY SLALOM",
 		Color = Color3.fromRGB(80, 220, 120),
 		Gates = 3,
@@ -137,22 +149,22 @@ local SlalomTiers: { SlalomTier } = {
 		Moving = 0,
 		MoveAmp = 0,
 		MoveSpeed = 0,
-		Obstacles = {},
+		Obstacles = { Rock = 1 },
 	},
 	{
-		MinLevel = 20,
+		MinLevel = 12,
 		Name = "ROCKY SLALOM",
 		Color = Color3.fromRGB(255, 200, 60),
 		Gates = 4,
 		Gap = 15,
 		Offset = 12,
-		Moving = 0,
-		MoveAmp = 0,
-		MoveSpeed = 0,
+		Moving = 1,
+		MoveAmp = 3,
+		MoveSpeed = 1,
 		Obstacles = { Rock = 3 },
 	},
 	{
-		MinLevel = 30,
+		MinLevel = 20,
 		Name = "JELLYFISH SLALOM",
 		Color = Color3.fromRGB(255, 120, 200),
 		Gates = 4,
@@ -164,7 +176,7 @@ local SlalomTiers: { SlalomTier } = {
 		Obstacles = { Jellyfish = 3, Rock = 1 },
 	},
 	{
-		MinLevel = 40,
+		MinLevel = 32,
 		Name = "STORM SLALOM",
 		Color = Color3.fromRGB(170, 110, 255),
 		Gates = 5,
@@ -193,7 +205,21 @@ return {
 	BaseSpeed = 16, -- studů za sekundu bez vylepšení
 	Distance = 100, -- jak daleko je vor od místa dopadu
 	StartDelay = 2.2, -- po dopadu (karta s předmětem), než se začne plavat
-	SharkDelay = 2, -- žralok vyrazí až po této době
+	SharkDelay = 2, -- žralok vyrazí až po této době (u delší plavby o čas, který hráč plave navíc)
+	-- s lepší plaveckou výbavou je vor o kousek dál (o DistancePerSwimLevel za každé vylepšení, nejvýš MaxExtraDistance)
+	DistancePerSwimLevel = 6,
+	MaxExtraDistance = 36,
+	-- Víc vorů za sebou: na voru si hráč vybere, jestli se vrátí na pláž, nebo skočí zpátky do vody
+	-- a plave k dalšímu voru (těžší slalom, rychlejší pronásledovatel, větší bonus a poklad navíc).
+	-- Když ho na dalším úseku chytí, přijde jen o odměnu toho úseku, co už získal, mu zůstane.
+	Stages = {
+		Max = 3,
+		BonusMultiplier = { 1, 2, 3 }, -- bonus za doplavání k voru 1, 2, 3
+		ChaserSpeedUp = 0.08, -- pronásledovatel je na každém dalším úseku o 8 % rychlejší
+		SlalomLevelBonus = 8, -- slalom na dalším úseku jako by měl hráč o 8 levelů víc
+		TreasureZoneShift = { 0, 0, 1 }, -- poklad na voru 2 a 3 (na třetím vzácnější)
+		ChoiceTime = 12, -- kolik sekund má hráč na rozhodnutí (pak se vrátí na pláž)
+	},
 	-- pronásledovatelé podle vzdálenosti dopadu (seřazení podle MinDistance)
 	Chasers = Chasers,
 	TurboFinsBonus = 0.3, -- game pass: +30 % rychlost

@@ -27,7 +27,8 @@ local TIPS = {
 	"Better slippers = longer jumps. Visit the SHOP!",
 	"Items in your house earn money every second.",
 	"Reach the Giant Gift 100,000 studs away!",
-	"From level 10, slaloms wait for you on the way back!",
+	"From level 2, slaloms wait for you on the way back!",
+	"Safe on the raft? Swim on to the next raft for a treasure!",
 	"Spin the wheel every day for free rewards!",
 }
 

@@ -230,7 +230,12 @@ function Formulas.ChaserByKey(key: any): Swim.ChaserTier
 	return Swim.Chasers[1]
 end
 
--- Slalom podle levelu hráče (nil = pod levelem 10, bez slalomu)
+-- Jak daleko je vor (s lepší plaveckou výbavou o kousek dál)
+function Formulas.SwimDistance(swimLevel: number): number
+	return Swim.Distance + math.min(swimLevel * Swim.DistancePerSwimLevel, Swim.MaxExtraDistance)
+end
+
+-- Slalom podle levelu hráče (nil = pod levelem 2, bez slalomu)
 function Formulas.SlalomTier(level: number): Swim.SlalomTier?
 	local found: Swim.SlalomTier? = nil
 	for _, tier in Swim.Slalom.Tiers do
@@ -246,8 +251,8 @@ function Formulas.SharkSpeed(distance: number): number
 end
 
 -- Kde je žralok (studů od místa dopadu směrem k voru) v čase od začátku plavání
-function Formulas.SharkProgress(elapsed: number, sharkSpeed: number): number
-	return math.max(0, elapsed - Swim.SharkDelay) * sharkSpeed
+function Formulas.SharkProgress(elapsed: number, sharkSpeed: number, delay: number?): number
+	return math.max(0, elapsed - (delay or Swim.SharkDelay)) * sharkSpeed
 end
 
 function Formulas.SellPrice(itemId: string): number

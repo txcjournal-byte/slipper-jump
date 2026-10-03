@@ -25,11 +25,13 @@ export type Run = {
 	Layout: Layout,
 	StartX: number,
 	StartZ: number,
+	Dir: number, -- 1 = plave se k −X (ke břehu), −1 = k +X (na moře)
 	Y: number,
 	Gates: { Gate },
 	Obstacles: { Obstacle },
 	StunUntil: number,
 	Passed: number,
+	Folder: Folder,
 }
 
 local PLAYER_HALF_WIDTH = 0.9
@@ -211,7 +213,7 @@ local function obstacleExtent(kind: string): (number, number)
 	return r, r
 end
 
-function Slalom.Start(layout: Layout, startX: number, startZ: number, y: number, parent: Instance): Run
+function Slalom.Start(layout: Layout, startX: number, startZ: number, y: number, parent: Instance, dir: number?): Run
 	local folder = Instance.new("Folder")
 	folder.Name = "Slalom"
 	folder.Parent = parent
@@ -219,11 +221,13 @@ function Slalom.Start(layout: Layout, startX: number, startZ: number, y: number,
 		Layout = layout,
 		StartX = startX,
 		StartZ = startZ,
+		Dir = dir or 1,
 		Y = y,
 		Gates = {},
 		Obstacles = {},
 		StunUntil = 0,
 		Passed = 0,
+		Folder = folder,
 	}
 	for _, g in layout.Gates do
 		local model = gateModel(folder, g.Gap, layout.Color)
@@ -239,6 +243,10 @@ function Slalom.Start(layout: Layout, startX: number, startZ: number, y: number,
 	return run
 end
 
+function Slalom.Destroy(run: Run)
+	run.Folder:Destroy()
+end
+
 function Slalom.Stunned(run: Run): boolean
 	return os.clock() < run.StunUntil
 end
@@ -247,12 +255,13 @@ end
 function Slalom.Animate(run: Run, t: number)
 	for _, gate in run.Gates do
 		local g = gate.Data
-		gate.Model:PivotTo(CFrame.new(run.StartX - g.X, run.Y, run.StartZ + gateZ(g, t)))
+		gate.Model:PivotTo(CFrame.new(run.StartX - run.Dir * g.X, run.Y, run.StartZ + gateZ(g, t)))
 	end
 	for _, obstacle in run.Obstacles do
 		local o = obstacle.Data
 		local bob = math.sin(t * 2 + obstacle.Bob)
-		local cf = CFrame.new(run.StartX - o.X, run.Y + bob * 0.25, run.StartZ + obstacleZ(o, t))
+		-- (otočené čelem k hráči: model počítá s tím, že hráč připlouvá z +X)
+		local cf = CFrame.new(run.StartX - run.Dir * o.X, run.Y + bob * 0.25, run.StartZ + obstacleZ(o, t)) * (if run.Dir < 0 then CFrame.Angles(0, math.pi, 0) else CFrame.identity)
 		if o.Kind == "Jellyfish" then
 			cf *= CFrame.new(0, bob * 0.4, 0) * CFrame.Angles(0, 0, bob * 0.08)
 		elseif o.Kind == "Log" then
@@ -265,7 +274,7 @@ function Slalom.Animate(run: Run, t: number)
 end
 
 local function bumpEffect(run: Run, progress: number, z: number, text: string, color: Color3)
-	local pos = Vector3.new(run.StartX - progress, run.Y, run.StartZ + z)
+	local pos = Vector3.new(run.StartX - run.Dir * progress, run.Y, run.StartZ + z)
 	Effects.Splash(pos, false)
 	Effects.Shake(0.25)
 	Sound.Play("Boing", 0.8)
