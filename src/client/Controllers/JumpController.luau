@@ -38,6 +38,7 @@ local player = Players.LocalPlayer
 
 type Collectible = { Id: string, Position: Vector3, Part: Model?, Taken: boolean }
 type Gem = { Id: string, Position: Vector3, Type: string, Part: Model, Taken: boolean }
+type Balloon = { Id: string, Position: Vector3, Part: Model, Taken: boolean }
 
 type FlightState = {
 	Id: number,
@@ -52,6 +53,8 @@ type FlightState = {
 	Gems: { Gem },
 	CollectedGems: { string },
 	GemDistanceBonus: number, -- Rainbow diamant: delší skok
+	Balloons: { Balloon },
+	PoppedBalloons: { string },
 	FinalDistance: number,
 	GlideStart: number,
 	GlideDuration: number,
@@ -337,6 +340,62 @@ local function diamondModel(position: Vector3, kind: string, parent: Instance): 
 	return m
 end
 
+-- Balónek s truhlou: velký lesklý balónek, provázek a malá zlatá truhla pod ním
+local BALLOON_COLORS = { Color3.fromRGB(255, 70, 110), Color3.fromRGB(255, 170, 40), Color3.fromRGB(80, 200, 255), Color3.fromRGB(150, 230, 90) }
+local function balloonModel(position: Vector3, parent: Instance): Model
+	local m = Instance.new("Model")
+	m.Name = "TreasureBalloon"
+	local function add(className: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?, shape: Enum.PartType?): BasePart
+		local p = Instance.new(className) :: BasePart
+		if shape and p:IsA("Part") then
+			p.Shape = shape
+		end
+		p.Size = size
+		p.CFrame = cf
+		p.Color = color
+		p.Material = material or Enum.Material.SmoothPlastic
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.Parent = m
+		return p
+	end
+	local color = BALLOON_COLORS[math.random(1, #BALLOON_COLORS)]
+	local ball = add("Part", Vector3.new(6, 7, 6), CFrame.new(position + Vector3.new(0, 4.5, 0)), color, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+	ball.Reflectance = 0.15
+	add("Part", Vector3.new(0.7, 0.7, 0.7), CFrame.new(position + Vector3.new(0, 0.9, 0)), color, nil, Enum.PartType.Ball)
+	add("Part", Vector3.new(0.12, 3, 0.12), CFrame.new(position + Vector3.new(0, -0.6, 0)), Color3.fromRGB(240, 240, 240))
+	-- truhla
+	add("Part", Vector3.new(2.6, 1.5, 1.8), CFrame.new(position + Vector3.new(0, -2.8, 0)), Color3.fromRGB(150, 90, 40), Enum.Material.Wood)
+	add("Part", Vector3.new(2.7, 0.7, 1.9), CFrame.new(position + Vector3.new(0, -1.8, 0)), Color3.fromRGB(130, 75, 35), Enum.Material.Wood)
+	add("Part", Vector3.new(2.75, 0.25, 1.95), CFrame.new(position + Vector3.new(0, -2.15, 0)), Color3.fromRGB(255, 205, 60), Enum.Material.Metal)
+	local lock = add("Part", Vector3.new(0.5, 0.6, 0.2), CFrame.new(position + Vector3.new(0, -2.4, -0.98)), Color3.fromRGB(255, 220, 90), Enum.Material.Neon)
+	local light = Instance.new("PointLight")
+	light.Range = 14
+	light.Color = Color3.fromRGB(255, 220, 120)
+	light.Parent = lock
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Rate = 12
+	sparkle.Lifetime = NumberRange.new(0.6, 1)
+	sparkle.Speed = NumberRange.new(1, 3)
+	sparkle.SpreadAngle = Vector2.new(180, 180)
+	sparkle.LightEmission = 1
+	sparkle.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.4), NumberSequenceKeypoint.new(1, 0) })
+	sparkle.Color = ColorSequence.new(Color3.fromRGB(255, 230, 120))
+	sparkle.Parent = lock
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(150, 40)
+	gui.StudsOffset = Vector3.new(0, 9.5, 0)
+	gui.AlwaysOnTop = true
+	gui.MaxDistance = 400
+	gui.Parent = ball
+	Kit.Text(gui, { Text = "🎁 TREASURE", Size = UDim2.fromScale(1, 1), TextColor3 = Kit.Colors.Yellow, StrokeThickness = 3 })
+	m.PrimaryPart = ball
+	m.Parent = parent
+	return m
+end
+
 -- Diamanty se točí a pomalu pohupují (duhový mění barvu)
 local function animateGems(state: FlightState)
 	local now = os.clock()
@@ -428,6 +487,21 @@ local function checkCollect(state: FlightState, fromX: number, toX: number, y: n
 				gemsLabel.Visible = true
 				Kit.Pop(gemsLabel, 1.4)
 				Effects.BigText(`{string.upper(t.Name)}! {t.Text}`, t.Color, 1, 0.42)
+			end
+		end
+	end
+	for _, balloon in state.Balloons do
+		if not balloon.Taken and balloon.Position.X >= fromX - 1.5 and balloon.Position.X <= toX + 1.5 then
+			if math.abs(balloon.Position.Z - state.Z) <= Diamonds.Balloon.Radius and math.abs(balloon.Position.Y - y) <= Diamonds.Balloon.Radius + 2 then
+				balloon.Taken = true
+				table.insert(state.PoppedBalloons, balloon.Id)
+				collectEffect(balloon.Part, Color3.new(1, 1, 1))
+				Sound.Play("Splash", 2.2) -- „prásk“
+				Sound.Play("Perfect", 1.1)
+				Effects.ScreenConfetti(70)
+				Effects.Shake(0.25)
+				Effects.FovKick(12)
+				Effects.BigText("POP! TREASURE BALLOON!", Kit.Colors.Yellow, 1.2, 0.42)
 			end
 		end
 	end
@@ -540,7 +614,7 @@ local function finishFlight(state: FlightState)
 	if root then
 		state.LandPosition = root.Position
 	end
-	Net.Event("FlightLanded"):FireServer(state.Id, state.CollectedCoins, state.CollectedRings, state.CollectedGems)
+	Net.Event("FlightLanded"):FireServer(state.Id, state.CollectedCoins, state.CollectedRings, state.CollectedGems, state.PoppedBalloons)
 	Sound.Play("Splash")
 	Sound.SetLoop("Wind", false)
 	Effects.SetSpeed(0)
@@ -592,6 +666,12 @@ local function startFlight(info: { [string]: any })
 			table.insert(gems, { Id = d.Id, Position = d.Position, Type = d.Type, Part = diamondModel(d.Position, d.Type, folder), Taken = false })
 		end
 	end
+	local balloons: { Balloon } = {}
+	if typeof(info.Balloons) == "table" then
+		for _, b in info.Balloons do
+			table.insert(balloons, { Id = b.Id, Position = b.Position, Part = balloonModel(b.Position, folder), Taken = false })
+		end
+	end
 	local state: FlightState = {
 		Id = info.Id,
 		Info = info,
@@ -605,6 +685,8 @@ local function startFlight(info: { [string]: any })
 		Gems = gems,
 		CollectedGems = {},
 		GemDistanceBonus = 0,
+		Balloons = balloons,
+		PoppedBalloons = {},
 		FinalDistance = info.BaseDistance,
 		GlideStart = 0,
 		GlideDuration = 0,
@@ -1362,7 +1444,7 @@ local function startSwim(info: { [string]: any })
 		if state.Slalom.Shield > 0 then
 			task.delay(2.4, function()
 				if flight == state and not state.SwimEnded then
-					Effects.FloatText(`💜 DIAMOND SHIELD x{shield} - one free bump!`, Color3.fromRGB(200, 140, 255))
+					Effects.FloatText(`💜 SHIELD x{shield} - {if shield == 1 then "one free bump" else `{shield} free bumps`}!`, Color3.fromRGB(200, 140, 255))
 				end
 			end)
 		end
@@ -1814,6 +1896,17 @@ local function showResult(result: { [string]: any })
 	if result.CoinMoney > 0 then
 		local x2 = if typeof(result.CoinMultiplier) == "number" and result.CoinMultiplier > 1 then ` (x{result.CoinMultiplier}!)` else ""
 		Effects.FloatText("+" .. FormatNumber.Money(result.CoinMoney) .. " from coins" .. x2, Kit.Colors.Yellow)
+	end
+	if typeof(result.Balloons) == "table" then
+		for i, prize in result.Balloons do
+			local cfg = if typeof(prize.Item) == "string" then Catalog.Item(prize.Item) else nil
+			if cfg then
+				local name = cfg.Name
+				task.delay(0.8 + i * 0.6, function()
+					Effects.FloatText(`🎈 Treasure: {name}! (+{FormatNumber.Money(prize.Money)})`, Kit.Colors.Yellow)
+				end)
+			end
+		end
 	end
 	if typeof(result.DiamondMoney) == "number" and result.DiamondMoney > 0 then
 		local n = if typeof(result.Diamonds) == "table" then #result.Diamonds else 0

@@ -19,6 +19,8 @@ export type ServerEventKind =
 	| "JumpContest"
 	| "DoubleXP"
 	| "RainbowRings"
+	| "DiamondRush"
+	| "BalloonParty"
 -- Duration = vlastní délka události (jinak ServerEventDuration)
 export type ServerEvent = { Kind: ServerEventKind, Name: string, Description: string, Color: Color3, Duration: number? }
 -- Odměna v soutěži o nejdelší skok ($ se násobí levelem ÷ Quests.MoneyLevelDivisor, min. 1×)
@@ -33,6 +35,8 @@ local Rotation: { ServerEvent } = {
 	{ Kind = "JumpContest", Name = "JUMP CONTEST", Description = "Longest jump wins prizes!", Color = Color3.fromRGB(255, 110, 150), Duration = 120 },
 	{ Kind = "DoubleXP", Name = "DOUBLE XP", Description = "2x XP from every jump!", Color = Color3.fromRGB(80, 200, 255) },
 	{ Kind = "RainbowRings", Name = "RAINBOW RINGS", Description = "Lots more golden rings in the air!", Color = Color3.fromRGB(255, 120, 220) },
+	{ Kind = "DiamondRush", Name = "DIAMOND RUSH", Description = "More diamonds in the air - and rarer ones!", Color = Color3.fromRGB(120, 220, 255) },
+	{ Kind = "BalloonParty", Name = "BALLOON PARTY", Description = "Treasure balloons on every jump! Hit them for free items!", Color = Color3.fromRGB(255, 90, 120) },
 }
 
 -- Soutěž: 1., 2. a 3. místo

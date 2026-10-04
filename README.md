@@ -109,6 +109,12 @@ Cestou jsou dva dárkové ostrovy: **Bronze Gift** na 10 000 studech (250 000 $,
 
 **Slalomy** (`Config/Swim.luau` → `Slalom.Variants`): kromě běžného slalomu (těžší s každým levelem) přicházejí zvláštní druhy – Rock Garden, Jellyfish Field, Storm (vlny posouvají do stran), Log Jam, Night (tma) a Puffer Party. Za slalom bez nárazu jsou ★★★ a bonus k odměně za vor.
 
+**Balónky s pokladem** (`Config/Diamonds.luau` → `Balloon`): od levelu 4 občas visí ve vzduchu balónek s truhlou – kdo ho trefí, dostane předmět navíc (hned do domečku) a peníze.
+
+**Nové události**: Diamond Rush (víc a vzácnějších diamantů) a Balloon Party (balónky v každém skoku).
+
+**Nové Robux produkty**: game pass **Treasure Hunter** (+1 diamant, vzácnější diamanty, častější balónky) a produkt **Bubble Shield** (5 slalomů s jedním nárazem zdarma). Id doplňte v `Config/Products.luau`.
+
 **Žraločí alarm**: když se pronásledovatel blíží, zčervenají okraje obrazovky a zrychluje tlukot srdce.
 
 **Vytuněné boty** (`Shared/Models.luau` → `tune`): od Golden Slippers neonové lemy, pak drahokamy, chromová pata, křídla, duhově se přelévající prstenec, ostny a obří drahokam; nejdražší mají hvězdičkovou auru.

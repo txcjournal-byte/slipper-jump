@@ -39,6 +39,7 @@ export type Flight = {
 	Coins: { [string]: Vector3 },
 	Rings: { [string]: Vector3 },
 	Diamonds: { [string]: { Position: Vector3, Type: string } },
+	Balloons: { [string]: Vector3 }, -- poklad na balónku (předmět navíc)
 	DiamondIncome: number, -- příjem za sekundu pro výpočet peněz za diamant
 	Shield: number?, -- štít z diamantu pro slalom (SwimService)
 	CoinValue: number,
@@ -81,14 +82,14 @@ local function meterPeriod(session: Session): number
 end
 
 -- Vylosuje druh diamantu podle levelu (vyšší level = častěji vzácné)
-local function rollDiamond(level: number): string
+local function rollDiamond(level: number, rareBoost: number): string
 	local total = 0
 	local pool = {}
 	for _, t in Diamonds.Types do
 		if level >= t.MinLevel then
 			local w = t.Weight
 			if t.Key ~= "Green" and t.Key ~= "Blue" then
-				w *= 1 + level * Diamonds.RareBoostPerLevel
+				w *= (1 + level * Diamonds.RareBoostPerLevel) * rareBoost
 			end
 			total += w
 			table.insert(pool, { Key = t.Key, W = w })
@@ -252,8 +253,12 @@ function JumpService.Release(player: Player, clientValue: unknown)
 	local diamonds: { [string]: { Position: Vector3, Type: string } } = {}
 	local diamondList = {}
 	local level = data.Level or 1
-	if level >= Diamonds.MinLevel or data.TotalJumps >= Diamonds.MinJumps then
-		local count = math.min(Diamonds.BaseCount + math.floor(level / Diamonds.LevelsPerExtra), Diamonds.MaxCount, ringCount + 1)
+	local rush = Registry.ServerEvents.IsActive("DiamondRush")
+	local hunter = session.Passes.TreasureHunter == true
+	if level >= Diamonds.MinLevel or data.TotalJumps >= Diamonds.MinJumps or rush then
+		local extra = (if rush then Diamonds.RushExtra else 0) + (if hunter then Diamonds.HunterExtra else 0)
+		local rareBoost = (if rush then Diamonds.RushRareBoost else 1) * (if hunter then Diamonds.HunterRareBoost else 1)
+		local count = math.min(Diamonds.BaseCount + math.floor(level / Diamonds.LevelsPerExtra), Diamonds.MaxCount, ringCount + 1) + extra
 		for index = 1, count do
 			-- mezi kruhy (posunuto o půl mezery) a kousek do strany, ať se pro ně musí kormidlovat
 			local p = c.StartFraction + span * (index - 0.5) / (count + 0.5) + span * 0.04
@@ -262,10 +267,31 @@ function JumpService.Release(player: Player, clientValue: unknown)
 			local side = if rng:NextNumber() < 0.5 then -1 else 1
 			local pos = Vector3.new(x, y + rng:NextNumber(-2, 3), side * rng:NextNumber(8, Diamonds.Lateral))
 			local id = "d" .. index
-			local kind = rollDiamond(level)
+			local kind = rollDiamond(level, rareBoost)
 			diamonds[id] = { Position = pos, Type = kind }
 			table.insert(diamondList, { Id = id, Position = pos, Type = kind })
 		end
+	end
+
+	-- poklad na balónku (občas; během Balloon Party vždy a víc)
+	local balloons: { [string]: Vector3 } = {}
+	local balloonList = {}
+	local b = Diamonds.Balloon
+	local party = Registry.ServerEvents.IsActive("BalloonParty")
+	local balloonCount = 0
+	if party then
+		balloonCount = b.PartyCount
+	elseif level >= b.MinLevel and rng:NextNumber() < (if hunter then b.HunterChance else b.Chance) then
+		balloonCount = 1
+	end
+	for index = 1, balloonCount do
+		local p = rng:NextNumber(0.3, 0.8)
+		local x, y = Formulas.Trajectory(p, startPosition.X, endX, startPosition.Y, endY, height)
+		local side = if rng:NextNumber() < 0.5 then -1 else 1
+		local pos = Vector3.new(x, y, side * rng:NextNumber(4, b.Lateral))
+		local id = "b" .. index
+		balloons[id] = pos
+		table.insert(balloonList, { Id = id, Position = pos })
 	end
 
 	flightCounter += 1
@@ -283,6 +309,7 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		Coins = coins,
 		Rings = rings,
 		Diamonds = diamonds,
+		Balloons = balloons,
 		DiamondIncome = math.max(Diamonds.MinIncome, Registry.Economy.IncomePerSecond(session)),
 		CoinValue = math.max(1, Registry.Economy.IncomePerSecond(session) * c.CoinValueSeconds)
 			* (if Registry.ServerEvents.IsActive("CoinStorm") then Events.CoinStormMultiplier else 1),
@@ -319,6 +346,7 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		Coins = coinList,
 		Rings = ringList,
 		Diamonds = diamondList,
+		Balloons = balloonList,
 		CoinValue = flight.CoinValue,
 		SuperJump = superJump,
 		MegaJump = megaJump,
@@ -332,12 +360,12 @@ function JumpService.Release(player: Player, clientValue: unknown)
 	local maxTime = duration + Jump.Flight.ExtraGlideMax + 6
 	task.delay(maxTime, function()
 		if session.Flight == flight and not flight.Finished then
-			JumpService.Finish(session, flight, {}, {}, {})
+			JumpService.Finish(session, flight, {}, {}, {}, {})
 		end
 	end)
 end
 
-function JumpService.Finish(session: Session, flight: Flight, coinIds: { string }, ringIds: { string }, diamondIds: { string })
+function JumpService.Finish(session: Session, flight: Flight, coinIds: { string }, ringIds: { string }, diamondIds: { string }, balloonIds: { string })
 	if flight.Finished then
 		return
 	end
@@ -390,6 +418,21 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	end
 	flight.Shield = if shield > 0 then shield else nil
 	Registry.Economy.AddMoney(session, diamondMoney)
+
+	-- balónky s truhlou: předmět navíc hned do domečku + peníze
+	local balloonPrizes = {}
+	for _, id in balloonIds do
+		local pos = flight.Balloons[id]
+		if pos and not seen[id] and verify(flight, pos, Diamonds.Balloon.Radius) then
+			seen[id] = true
+			local luck = Registry.Items.Luck(session)
+			local prize = Registry.Items.Roll(math.max(flight.BaseDistance, 100), nil, Diamonds.Balloon.ZoneShift, luck)
+			local _, placement = Registry.Items.Give(session, prize)
+			local money = math.floor(flight.DiamondIncome * Diamonds.Balloon.MoneySeconds)
+			Registry.Economy.AddMoney(session, money)
+			table.insert(balloonPrizes, { Item = prize, Placement = placement, Money = money })
+		end
+	end
 
 	local distance = math.min(flight.BaseDistance * (1 + flight.RingBonus * ringCount + distanceBonus), flight.Cap)
 	local reachedGift = distance >= flight.GiftAt
@@ -451,6 +494,7 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 		Rings = ringCount,
 		Diamonds = collected,
 		DiamondMoney = diamondMoney,
+		Balloons = balloonPrizes,
 		CoinMultiplier = coinMultiplier,
 		Item = if itemId then { Id = itemId, Income = if cfg then cfg.Income else 0 } else nil,
 		Placement = if itemId then "Pending" else nil,
@@ -489,7 +533,7 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	end
 end
 
-function JumpService.Landed(player: Player, flightId: unknown, coinIds: unknown, ringIds: unknown, diamondIds: unknown)
+function JumpService.Landed(player: Player, flightId: unknown, coinIds: unknown, ringIds: unknown, diamondIds: unknown, balloonIds: unknown)
 	local session = Registry.Player.Get(player)
 	local flight: Flight? = session and session.Flight
 	if not session or not flight or flight.Finished or flightId ~= flight.Id then
@@ -508,17 +552,18 @@ function JumpService.Landed(player: Player, flightId: unknown, coinIds: unknown,
 	end
 	local coins = sanitize(coinIds, Jump.Collectibles.CoinRows * Jump.Collectibles.CoinsPerRow)
 	local rings = sanitize(ringIds, Jump.Collectibles.Rings * Events.RainbowRingsMultiplier)
-	local gems = sanitize(diamondIds, Diamonds.MaxCount)
+	local gems = sanitize(diamondIds, Diamonds.MaxCount + Diamonds.RushExtra + Diamonds.HunterExtra)
+	local pops = sanitize(balloonIds, Diamonds.Balloon.PartyCount)
 	-- klient nesmí přistát dřív, než by let doopravdy trval
 	local remaining = flight.Duration * 0.9 - (os.clock() - flight.StartClock)
 	if remaining > 0 then
 		task.delay(remaining, function()
 			if session.Flight == flight then
-				JumpService.Finish(session, flight, coins, rings, gems)
+				JumpService.Finish(session, flight, coins, rings, gems, pops)
 			end
 		end)
 	else
-		JumpService.Finish(session, flight, coins, rings, gems)
+		JumpService.Finish(session, flight, coins, rings, gems, pops)
 	end
 end
 

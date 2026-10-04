@@ -52,6 +52,7 @@ export type Data = {
 	MegaJumps: number,
 	SwimLevel: number,
 	Repellents: number,
+	Shields: number, -- Bubble Shield: kolik slalomů ještě chrání
 	StarterPackBought: boolean,
 	Quests: { Day: number, List: { { Index: number, Progress: number, Done: boolean } } },
 	LoginDay: number,
@@ -100,6 +101,7 @@ local TEMPLATE: Data = {
 	MegaJumps = 0, -- zbývající skoky z Mega Jump Packu
 	SwimLevel = 0,
 	Repellents = 0,
+	Shields = 0,
 	StarterPackBought = false,
 	Quests = { Day = 0, List = {} },
 	LoginDay = 0,

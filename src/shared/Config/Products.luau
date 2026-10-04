@@ -17,12 +17,14 @@ local GamePasses: { GamePass } = {
 	{ Key = "SuperJumper", Id = 0, Name = "Super Jumper", Price = 199, Description = "+25% jump distance, forever", Color = Color3.fromRGB(80, 220, 255) },
 	{ Key = "LuckyCharm", Id = 0, Name = "Lucky Charm", Price = 179, Description = "Rarer items from the water, forever (1.5x luck)", Color = Color3.fromRGB(90, 220, 140) },
 	{ Key = "VIP", Id = 0, Name = "VIP", Price = 249, Description = "Golden name and +1 daily spin", Color = Color3.fromRGB(255, 170, 30) },
+	{ Key = "TreasureHunter", Id = 0, Name = "Treasure Hunter", Price = 149, Description = "+1 diamond every jump, rarer diamonds and more treasure balloons, forever!", Color = Color3.fromRGB(120, 220, 255) },
 	{ Key = "AllSneakers", Id = 0, Name = "All Sneaker Skins", Price = 299, Description = "Unlock all 20 sneaker skins, forever!", Color = Color3.fromRGB(255, 90, 160) },
 }
 
 local DevProducts: { DevProduct } = {
 	{ Key = "StarterPack", Id = 0, Name = "Starter Pack", Price = 49, Description = "$5,000 + 3 Spins + 3 Shark Repellents + Street Runners skin. Once per player!", Color = Color3.fromRGB(255, 120, 180), OneTime = true },
 	{ Key = "SharkRepellent", Id = 0, Name = "Shark Repellent", Price = 29, Description = "No sharks or sea monsters for your next 3 swims", Color = Color3.fromRGB(80, 200, 160) },
+	{ Key = "BubbleShield", Id = 0, Name = "Bubble Shield", Price = 25, Description = "Your next 5 slaloms: one free bump each (no stun)", Color = Color3.fromRGB(190, 120, 255) },
 	{ Key = "SuperJump", Id = 0, Name = "Super Jump", Price = 15, Description = "Your next jump goes 20% farther", Color = Color3.fromRGB(80, 220, 255) },
 	{ Key = "MegaJumpPack", Id = 0, Name = "Mega Jump Pack", Price = 39, Description = "Your next 3 jumps go 50% farther", Color = Color3.fromRGB(255, 140, 60) },
 	{ Key = "Spin1", Id = 0, Name = "1 Spin", Price = 25, Description = "One extra spin of the wheel", Color = Color3.fromRGB(255, 120, 60), ShowOdds = true },
@@ -106,6 +108,7 @@ return {
 	LuckyCharmLuck = 1.5, -- pass Lucky Charm: násobič štěstí natrvalo
 	LuckyPotionLuck = 2, -- produkt Lucky Potion: 2× štěstí
 	LuckyPotionMinutes = 15, -- čas se sčítá (jako 2x Money boost)
+	BubbleShieldCharges = 5, -- produkt Bubble Shield: na kolik slalomů
 	MegaJumpCharges = 3, -- produkt Mega Jump Pack: počet skoků
 	MegaJumpBonus = 0.50, -- +50 % ke vzdálenosti
 	PremiumIncomeBonus = 0.10, -- Roblox Premium: +10 % peněz

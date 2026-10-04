@@ -402,7 +402,7 @@ local function onCharacter(session: Session, character: Model)
 	task.delay(3, ensureFace, character)
 	setupGiftPrompt(session, root)
 	if session.Flight and not session.Flight.Finished then
-		Registry.Jump.Finish(session, session.Flight, {}, {}, {})
+		Registry.Jump.Finish(session, session.Flight, {}, {}, {}, {})
 	end
 	session.Flight = nil
 	session.Swim = nil

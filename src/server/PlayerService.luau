@@ -137,6 +137,7 @@ function PlayerService.BuildState(session: Session): { [string]: any }
 		Flying = session.Flight ~= nil,
 		SwimLevel = data.SwimLevel,
 		Repellents = data.Repellents,
+		Shields = data.Shields,
 		StarterPackBought = data.StarterPackBought,
 		Quests = Registry.Quests.BuildState(session),
 		LoginStreak = data.LoginStreak,

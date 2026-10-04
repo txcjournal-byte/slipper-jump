@@ -40,7 +40,7 @@ local TITLES: { [Reason]: string } = {
 -- Kandidáti podle situace (v pořadí, první vhodný vyhrává)
 local CANDIDATES: { [Reason]: { string } } = {
 	Record = { "SuperJumper", "MegaJumpPack" },
-	Shark = { "TurboFins", "SharkRepellent" },
+	Shark = { "TurboFins", "SharkRepellent", "BubbleShield" },
 }
 
 local function findProduct(key: string): (string?, number, Color3, boolean)
@@ -63,7 +63,7 @@ local function pickOffer(reason: Reason, data: { [string]: any }): Offer?
 		local text, price, color, isPass = findProduct(key)
 		local owned = isPass and passes[key] == true
 		-- repelent nabízet jen tomu, kdo žádný nemá
-		local stocked = key == "SharkRepellent" and (data.Repellents or 0) > 0
+		local stocked = (key == "SharkRepellent" and (data.Repellents or 0) > 0) or (key == "BubbleShield" and (data.Shields or 0) > 0)
 		if text and not owned and not stocked then
 			return { Key = key, Title = TITLES[reason], Text = text, Price = price, Color = color }
 		end

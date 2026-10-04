@@ -327,6 +327,11 @@ startStage = function(session: Session, previous: SwimState?, flight: any, landD
 	}
 	local _ = previous
 	session.Swim = state
+	local shield = if stage == 1 and flight.Shield then flight.Shield else 0
+	if slalom and data.Shields > 0 then
+		data.Shields -= 1
+		shield += 1
+	end
 	Registry.Player.MarkDirty(session)
 	startEvent:FireClient(session.Player, {
 		StartX = state.StartX,
@@ -348,8 +353,8 @@ startStage = function(session: Session, previous: SwimState?, flight: any, landD
 		MaxStage = stages.Max,
 		Treasure = treasure, -- poklad na voru (klient ukáže truhlu)
 		Dir = dir,
-		-- štít z diamantu (Amethyst / Rainbow): ochrání před nárazy ve slalomu na prvním úseku
-		Shield = if stage == 1 and flight.Shield then flight.Shield else 0,
+		-- štít z diamantu (Amethyst / Rainbow) na prvním úseku + Bubble Shield (Robux) na každý slalom
+		Shield = shield,
 	})
 end
 

@@ -43,4 +43,21 @@ return {
 	MinIncome = 5, -- peníze za diamant počítají aspoň s tímhle příjmem za sekundu
 	Radius = 7, -- jak blízko musí hráč proletět
 	Lateral = 26, -- jak daleko do strany od středu dráhy
+	-- události a pass: Diamond Rush (+2 diamanty, vzácné 3× častěji), Treasure Hunter (+1, vzácné 2×)
+	RushExtra = 2,
+	RushRareBoost = 3,
+	HunterExtra = 1,
+	HunterRareBoost = 2,
+	-- Poklad na balónku: občas visí ve vzduchu balónek s truhlou – kdo ho trefí, dostane předmět navíc
+	-- (hned do domečku, o ten už nepřijde) a peníze.
+	Balloon = {
+		MinLevel = 4,
+		Chance = 0.25, -- šance v jednom skoku
+		HunterChance = 0.45, -- s passem Treasure Hunter
+		PartyCount = 2, -- během události Balloon Party (pokaždé)
+		Radius = 8,
+		Lateral = 18,
+		MoneySeconds = 60,
+		ZoneShift = 1, -- předmět z balónku je o zónu vzácnější
+	},
 }
