@@ -159,6 +159,53 @@ local function finishContest()
 	end
 end
 
+local last: Events.ServerEvent? = nil
+local running = false
+
+-- Spustí událost a počká, až skončí (soutěž i s vyhlášením)
+local function runEvent(nextEvent: Events.ServerEvent)
+	running = true
+	local duration = nextEvent.Duration or Events.ServerEventDuration
+	contest = {}
+	contestRunning = nextEvent.Kind == "JumpContest"
+	active = nextEvent
+	last = nextEvent
+	endsAt = os.time() + duration
+	Registry.Player.Announce(`{nextEvent.Name}! {nextEvent.Description}`, "Gift")
+	Net.Event("ServerEvent"):FireAllClients(payload())
+	broadcastContest()
+	task.wait(duration)
+	local wasContest = nextEvent.Kind == "JumpContest"
+	active = nil
+	Net.Event("ServerEvent"):FireAllClients(nil)
+	if wasContest then
+		-- počkat, až dopadnou skoky odstartované během soutěže (max. pár sekund)
+		local waitUntil = os.clock() + Events.ContestGrace
+		while contestFlightsPending() and os.clock() < waitUntil do
+			task.wait(0.5)
+		end
+		contestRunning = false
+		Net.Event("ContestBoard"):FireAllClients(nil)
+		-- ve vlastním vlákně: chyba v odměnách nezastaví smyčku událostí
+		task.spawn(finishContest)
+	end
+	running = false
+end
+
+-- Testovací panel ve Studiu: spustit konkrétní událost hned
+function ServerEventService.ForceStart(kind: string): boolean
+	if running then
+		return false
+	end
+	for _, event in Events.ServerEvents do
+		if event.Kind == kind then
+			task.spawn(runEvent, event)
+			return true
+		end
+	end
+	return false
+end
+
 function ServerEventService.Start()
 	Players.PlayerAdded:Connect(function(player)
 		task.wait(3)
@@ -167,41 +214,25 @@ function ServerEventService.Start()
 		end
 	end)
 	task.spawn(function()
-		local last: Events.ServerEvent? = nil
 		while true do
+			-- kdy začne další událost (klient ukazuje odpočet „Next event in 2:31“)
+			workspace:SetAttribute("NextEventAt", os.time() + Events.ServerEventInterval)
 			task.wait(Events.ServerEventInterval - Events.ServerEventWarning)
-			local choices = {}
-			for _, event in Events.ServerEvents do
-				if event ~= last then
-					table.insert(choices, event)
+			if not running then
+				local choices = {}
+				for _, event in Events.ServerEvents do
+					if event ~= last then
+						table.insert(choices, event)
+					end
 				end
-			end
-			local nextEvent = choices[math.random(1, #choices)]
-			Registry.Player.Announce(`{nextEvent.Name} starts in {Events.ServerEventWarning} seconds! Get to the pier!`, "Info")
-			task.wait(Events.ServerEventWarning)
-			local duration = nextEvent.Duration or Events.ServerEventDuration
-			contest = {}
-			contestRunning = nextEvent.Kind == "JumpContest"
-			active = nextEvent
-			last = nextEvent
-			endsAt = os.time() + duration
-			Registry.Player.Announce(`{nextEvent.Name}! {nextEvent.Description}`, "Gift")
-			Net.Event("ServerEvent"):FireAllClients(payload())
-			broadcastContest()
-			task.wait(duration)
-			local wasContest = nextEvent.Kind == "JumpContest"
-			active = nil
-			Net.Event("ServerEvent"):FireAllClients(nil)
-			if wasContest then
-				-- počkat, až dopadnou skoky odstartované během soutěže (max. pár sekund)
-				local waitUntil = os.clock() + Events.ContestGrace
-				while contestFlightsPending() and os.clock() < waitUntil do
-					task.wait(0.5)
+				local nextEvent = choices[math.random(1, #choices)]
+				Registry.Player.Announce(`{nextEvent.Name} starts in {Events.ServerEventWarning} seconds! Get to the pier!`, "Info")
+				task.wait(Events.ServerEventWarning)
+				if not running then
+					runEvent(nextEvent)
 				end
-				contestRunning = false
-				Net.Event("ContestBoard"):FireAllClients(nil)
-				-- ve vlastním vlákně: chyba v odměnách nezastaví smyčku událostí
-				task.spawn(finishContest)
+			else
+				task.wait(Events.ServerEventWarning)
 			end
 		end
 	end)

@@ -94,6 +94,8 @@ local Zones: { Zone } = {
 
 return {
 	Rarities = Rarities,
+	-- Album (Index): kdo najde všechny předměty jedné vzácnosti, dostane jednou tolik točení kolem štěstí
+	IndexRewardSpins = { Common = 1, Uncommon = 2, Rare = 3, Epic = 4, Legendary = 6, Mythic = 10 } :: { [string]: number },
 	Items = Items,
 	Zones = Zones,
 }

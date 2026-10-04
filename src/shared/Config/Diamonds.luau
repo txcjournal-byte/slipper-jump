@@ -41,7 +41,7 @@ return {
 	MaxCount = 4,
 	RareBoostPerLevel = 0.03, -- vzácnější diamanty (Purple+) jsou s každým levelem o 3 % častější
 	MinIncome = 5, -- peníze za diamant počítají aspoň s tímhle příjmem za sekundu
-	Radius = 7, -- jak blízko musí hráč proletět
+	Radius = 8.5, -- jak blízko musí hráč proletět
 	Lateral = 26, -- jak daleko do strany od středu dráhy
 	-- události a pass: Diamond Rush (+2 diamanty, vzácné 3× častěji), Treasure Hunter (+1, vzácné 2×)
 	RushExtra = 2,

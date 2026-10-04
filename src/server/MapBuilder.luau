@@ -1910,9 +1910,9 @@ function MapBuilder.Build(): MapInfo
 
 	local sellPrompt = Instance.new("ProximityPrompt")
 	sellPrompt.Name = "SellPrompt"
-	sellPrompt.ActionText = "Sell"
-	sellPrompt.ObjectText = "SELL"
-	sellPrompt.HoldDuration = 1
+	sellPrompt.ActionText = "Open Sell Shop"
+	sellPrompt.ObjectText = "SELL ITEMS"
+	sellPrompt.HoldDuration = 0
 	sellPrompt.MaxActivationDistance = 14
 	sellPrompt.RequiresLineOfSight = false
 	sellPrompt.Parent = sellCounter

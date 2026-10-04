@@ -115,6 +115,12 @@ Cestou jsou dva dárkové ostrovy: **Bronze Gift** na 10 000 studech (250 000 $,
 
 **Nové Robux produkty**: game pass **Treasure Hunter** (+1 diamant, vzácnější diamanty, častější balónky) a produkt **Bubble Shield** (5 slalomů s jedním nárazem zdarma). Id doplňte v `Config/Products.luau`.
 
+**Prodejní okno**: u stánku SELL (nebo tlačítkem 💰 SELL vpravo) se otevře seznam všech předmětů z domečku, skladu i z rukou. Prodat jde jednotlivě, „Sell all common“ nebo „Sell all up to Rare“; Legendary a vzácnější jen po potvrzení.
+
+**Testovací panel**: ve Studiu je dole fialové tlačítko TEST – spustí libovolnou událost, nastaví level, přidá peníze, obuje pantofle, plaveckou výbavu, štíty, předměty. Ve zveřejněné hře není.
+
+**Album** (ITEMS → Index): přehled nalezených předmětů po vzácnostech; za kompletní vzácnost točení zdarma (`Config/Items.luau` → `IndexRewardSpins`).
+
 **Žraločí alarm**: když se pronásledovatel blíží, zčervenají okraje obrazovky a zrychluje tlukot srdce.
 
 **Vytuněné boty** (`Shared/Models.luau` → `tune`): od Golden Slippers neonové lemy, pak drahokamy, chromová pata, křídla, duhově se přelévající prstenec, ostny a obří drahokam; nejdražší mají hvězdičkovou auru.

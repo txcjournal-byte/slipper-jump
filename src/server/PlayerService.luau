@@ -112,6 +112,7 @@ function PlayerService.BuildState(session: Session): { [string]: any }
 		EquippedHat = data.EquippedHat,
 		Carried = data.Carried,
 		Storage = data.Storage,
+		HouseItems = data.HouseSlots, -- předměty v domečku (prodejní okno)
 		SlotsTotal = slotsTotal,
 		SlotsUsed = slotsUsed,
 		BestJump = data.BestJump,
@@ -331,6 +332,10 @@ function PlayerService.Start()
 			-- rovnou do zóny skoku na konci mola, čelem k moři (tlačítko JUMP se hned ukáže)
 			local spot = Vector3.new(World.PierEndX - Jump.JumpZoneLength / 2, World.PierDeckY + 3, 0)
 			character:PivotTo(CFrame.lookAt(spot, spot + Vector3.xAxis))
+		elseif target == "Sell" then
+			-- k prodejnímu stánku a rovnou otevřít prodejní okno
+			character:PivotTo(Registry.Map.SellTeleport)
+			Net.Event("OpenUI"):FireClient(player, "Sell")
 		end
 	end)
 

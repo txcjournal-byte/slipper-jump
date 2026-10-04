@@ -26,6 +26,7 @@ local pages: { [string]: ScrollingFrame } = {}
 local slipperCards: { [string]: { Button: TextButton, Status: TextLabel } } = {}
 local hatCards: { [string]: { Button: TextButton, Status: TextLabel } } = {}
 local indexCards: { [string]: { Name: TextLabel, Viewport: ViewportFrame, Built: boolean } } = {}
+local indexProgress: TextLabel
 local storagePage: ScrollingFrame
 local atShop = false
 local currentTab: Tab = "Slippers"
@@ -138,6 +139,11 @@ local function buildHats(page: ScrollingFrame)
 end
 
 local function buildIndex(page: ScrollingFrame)
+	-- nahoře: kolik předmětů z každé vzácnosti už hráč našel (celá vzácnost = točení zdarma)
+	local header = Kit.Panel(page, { BackgroundColor3 = Kit.Colors.Navy, LayoutOrder = 0, StrokeThickness = 3, Radius = 16 })
+	Kit.Text(header, { Text = "📖 ALBUM", Size = UDim2.new(1, -12, 0, 34), Position = UDim2.fromOffset(6, 8), TextColor3 = Kit.Colors.Yellow })
+	indexProgress = Kit.Text(header, { Text = "", Size = UDim2.new(1, -16, 0, 150), Position = UDim2.fromOffset(8, 46), TextColor3 = Kit.Colors.White, StrokeThickness = 1.5, TextWrapped = true, TextScaled = true })
+	Kit.Text(header, { Text = "Find every item of a rarity for free Spins!", Size = UDim2.new(1, -12, 0, 44), Position = UDim2.new(0, 6, 1, -50), TextColor3 = Kit.Colors.Turquoise, StrokeThickness = 1.5, TextWrapped = true })
 	for index, cfg in Catalog.Items do
 		local rarity = Catalog.Rarity(cfg.Rarity)
 		local frame = card(page, index, if rarity.Name == "Secret" then Color3.fromRGB(70, 60, 90) else rarity.Color)
@@ -255,6 +261,27 @@ local function refresh(data: { [string]: any })
 	end
 	-- katalog
 	local discovered = data.Discovered or {}
+	local counts: { [string]: { Found: number, Total: number } } = {}
+	for _, cfg in Catalog.Items do
+		if cfg.CanDrop ~= false then
+			local c = counts[cfg.Rarity] or { Found = 0, Total = 0 }
+			c.Total += 1
+			if discovered[cfg.Id] then
+				c.Found += 1
+			end
+			counts[cfg.Rarity] = c
+		end
+	end
+	local lines = {}
+	for _, rarity in Catalog.Rarities do
+		local c = counts[rarity.Name]
+		if c then
+			table.insert(lines, `{rarity.Name} {c.Found}/{c.Total}{if c.Found >= c.Total then " ✅" else ""}`)
+		end
+	end
+	if indexProgress then
+		indexProgress.Text = table.concat(lines, "\n")
+	end
 	for _, cfg in Catalog.Items do
 		local entry = indexCards[cfg.Id]
 		local found = discovered[cfg.Id] == true

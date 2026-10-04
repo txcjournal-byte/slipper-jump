@@ -239,17 +239,112 @@ function ShopService.Sell(session: Session, confirmed: boolean)
 	Net.Event("PlayEffect"):FireClient(player, "Collect", { Amount = price })
 end
 
+-- ===== Prodejní okno (stánek SELL) =====
+
+local MAX_SELL_BATCH = 200
+
+local function nearSellStall(player: Player): boolean
+	local root = Registry.Player.GetRoot(player)
+	local sellPart = Registry.Map.SellPrompt.Parent
+	return root ~= nil and sellPart ~= nil and sellPart:IsA("BasePart") and (root.Position - sellPart.Position).Magnitude < 40
+end
+
+-- Prodá předměty podle Uid (z domečku, skladu i z rukou). Vzácné (ConfirmSell) jen s confirmRare = true.
+function ShopService.SellMany(session: Session, uids: { number }, confirmRare: boolean): { [string]: any }
+	local player: Player = session.Player
+	local data = session.Data
+	if session.Flight then
+		return { Ok = false, Message = "Land first!" }
+	end
+	if not nearSellStall(player) then
+		return { Ok = false, Message = "Go to the SELL stand to sell items." }
+	end
+	local multiplier = Registry.Economy.Multiplier(session)
+	local sold, money, skippedRare = 0, 0, 0
+	local carriedSold = false
+	for _, uid in uids do
+		-- najít předmět
+		local where: string? = nil
+		local key: any = nil
+		local item: any = nil
+		for slot, entry in data.HouseSlots do
+			if entry.Uid == uid then
+				where, key, item = "House", slot, entry
+				break
+			end
+		end
+		if not where then
+			for index, entry in data.Storage do
+				if entry.Uid == uid then
+					where, key, item = "Storage", index, entry
+					break
+				end
+			end
+		end
+		if not where and data.Carried and data.Carried.Uid == uid then
+			where, item = "Carried", data.Carried
+		end
+		local cfg = item and Catalog.Item(item.Id)
+		if where and cfg and cfg.CanSell ~= false then
+			if Catalog.Rarity(cfg.Rarity).ConfirmSell and not confirmRare then
+				skippedRare += 1
+			else
+				if where == "House" then
+					data.HouseSlots[key] = nil
+				elseif where == "Storage" then
+					table.remove(data.Storage, key)
+				else
+					data.Carried = nil
+					carriedSold = true
+				end
+				local price = math.floor(Formulas.SellPrice(item.Id) * multiplier)
+				money += price
+				sold += 1
+			end
+		end
+	end
+	if sold == 0 then
+		return { Ok = false, Message = if skippedRare > 0 then "Please confirm selling rare items." else "Nothing to sell." }
+	end
+	Registry.Economy.AddMoney(session, money)
+	Registry.Quests.Progress(session, "Sells", sold)
+	if carriedSold then
+		Registry.House.UpdatePrompts(session)
+	end
+	-- uvolněná místa v domečku zaplnit ze skladu
+	Registry.Items.FlushStorage(session)
+	Registry.House.Render(session)
+	Registry.Avatar.UpdateCarried(session)
+	Registry.Player.MarkDirty(session)
+	Net.Event("PlayEffect"):FireClient(player, "Collect", { Amount = money })
+	return { Ok = true, Sold = sold, Money = money, Message = `Sold {sold} item{if sold == 1 then "" else "s"} for {FormatNumber.Money(money)}!` }
+end
+
 function ShopService.Start()
 	game:GetService("Players").PlayerRemoving:Connect(function(player)
 		pendingConfirm[player] = nil
 	end)
 	Net.Function("ShopAction").OnServerInvoke = handleAction
+	-- stánek SELL: otevře prodejní okno se všemi předměty
 	Registry.Map.SellPrompt.Triggered:Connect(function(player)
 		local session = Registry.Player.Get(player)
 		if session and not session.Flight then
-			ShopService.Sell(session, false)
+			Net.Event("OpenUI"):FireClient(player, "Sell")
 		end
 	end)
+	Net.Function("SellItems").OnServerInvoke = function(player, uids, confirmRare)
+		local session = Registry.Player.Get(player)
+		if not session or type(uids) ~= "table" then
+			return { Ok = false, Message = "Try again." }
+		end
+		local list: { number } = {}
+		for _, uid in uids :: { any } do
+			if type(uid) == "number" and #list < MAX_SELL_BATCH then
+				table.insert(list, uid)
+			end
+		end
+		return ShopService.SellMany(session, list, confirmRare == true)
+	end
 	-- rychlý prodej z rukou kdekoli (jen Common/Uncommon/Rare – vzácnější se prodávají u stánku s potvrzením)
 	Net.Event("QuickSell").OnServerEvent:Connect(function(player)
 		local session = Registry.Player.Get(player)

@@ -4,6 +4,7 @@
 -- a série PERFECT skoků.
 
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local Debris = game:GetService("Debris")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -43,6 +44,8 @@ local superJumpLabel: TextLabel
 local eventPanel: Frame
 local eventName: TextLabel
 local eventDesc: TextLabel
+local nextEventPill: Frame
+local nextEventLabel: TextLabel
 local eventEndsAt = 0
 local eventTitle = ""
 local starterButton: TextButton
@@ -137,8 +140,12 @@ function HUD.Announce(text: string, kind: string?)
 	end)
 end
 
+-- Mobil / tablet (dotyk bez klávesnice): větší tlačítka v mřížce, aby se vešla nad joystick a tlačítko skoku
+local TOUCH = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local SIDE_SIZE = if TOUCH then 96 else 78
+
 local function sideButton(parent: Instance, icon: string, text: string, color: Color3, order: number, action: string): TextButton
-	local button = Kit.Button(parent, { Text = "", Color = color, Size = UDim2.fromOffset(78, 78), LayoutOrder = order, Radius = 20, Name = action }, call(action))
+	local button = Kit.Button(parent, { Text = "", Color = color, Size = UDim2.fromOffset(SIDE_SIZE, SIDE_SIZE), LayoutOrder = order, Radius = 20, Name = action }, call(action))
 	Kit.Text(button, { Text = icon, Size = UDim2.new(1, 0, 0.62, 0), Position = UDim2.fromScale(0, 0.04), NoStroke = true, ZIndex = 2 })
 	Kit.Text(button, { Text = text, Size = UDim2.new(1, -6, 0.3, 0), Position = UDim2.new(0, 3, 0.66, 0), ZIndex = 2 })
 	return button
@@ -263,7 +270,14 @@ function HUD.Init()
 		AnchorPoint = Vector2.new(0, 0),
 		Parent = screen,
 	})
-	Kit.new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = left })
+	if TOUCH then
+		-- 3 sloupce × 2 řady (jinak by spodní tlačítka zakryl joystick nebo by se nevešla)
+		left.Size = UDim2.fromOffset(3 * (SIDE_SIZE + 10), 2 * (SIDE_SIZE + 10))
+		left.Position = UDim2.fromOffset(16, 244)
+		Kit.new("UIGridLayout", { CellSize = UDim2.fromOffset(SIDE_SIZE, SIDE_SIZE), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = left })
+	else
+		Kit.new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = left })
+	end
 	sideButton(left, "👟", "ITEMS", Kit.Colors.Turquoise, 1, "Inventory")
 	local spinButton = sideButton(left, "🎡", "SPIN", Kit.Colors.Pink, 2, "Spinner")
 	local badgeFrame = Kit.new("Frame", {
@@ -303,10 +317,18 @@ function HUD.Init()
 		AnchorPoint = Vector2.new(1, 0.5),
 		Parent = screen,
 	})
-	Kit.new("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Right, Parent = right })
+	if TOUCH then
+		-- 2 × 2 výš nad tlačítkem skoku Robloxu
+		right.Size = UDim2.fromOffset(2 * (SIDE_SIZE + 10), 2 * (SIDE_SIZE + 10))
+		right.Position = UDim2.new(1, -16, 0.42, 0)
+		Kit.new("UIGridLayout", { CellSize = UDim2.fromOffset(SIDE_SIZE, SIDE_SIZE), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Right, Parent = right })
+	else
+		Kit.new("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Right, Parent = right })
+	end
 	local storeButton = sideButton(right, "🛒", "STORE", Kit.Colors.Green, 1, "RobuxShop")
 	storeButton.Visible = Products.AnyConfigured()
 	sideButton(right, "⚙", "SETTINGS", Kit.Colors.Gray, 2, "Settings")
+	sideButton(right, "💰", "SELL", Kit.Colors.Orange, 3, "TeleportSell")
 	starterButton = sideButton(right, "🎁", "STARTER", Kit.Colors.Pink, 0, "StarterPack")
 	starterButton.Visible = false
 
@@ -321,6 +343,17 @@ function HUD.Init()
 	Kit.Gradient(eventPanel, Color3.new(1, 1, 1), Color3.fromRGB(215, 215, 215))
 	eventName = Kit.Text(eventPanel, { Text = "", Size = UDim2.new(1, -20, 0, 42), Position = UDim2.fromOffset(10, 6), StrokeThickness = 3 })
 	eventDesc = Kit.Text(eventPanel, { Text = "", Size = UDim2.new(1, -20, 0, 32), Position = UDim2.fromOffset(10, 50), StrokeThickness = 2 })
+
+	-- odpočet do další události (když zrovna žádná neběží) – ať hráči vědí, že se vyplatí zůstat
+	nextEventPill = Kit.Panel(screen, {
+		Size = UDim2.fromOffset(330, 44),
+		Position = UDim2.new(1, -16, 0, 14),
+		AnchorPoint = Vector2.new(1, 0),
+		BackgroundColor3 = Kit.Colors.Navy,
+		Visible = false,
+		Radius = 22,
+	})
+	nextEventLabel = Kit.Text(nextEventPill, { Text = "", Size = UDim2.new(1, -20, 1, -10), Position = UDim2.fromOffset(10, 5), StrokeThickness = 2.5 })
 
 	-- ===== Jump Contest: živá tabulka top 3 (pod událostí) =====
 	contestPanel = Kit.Panel(screen, {
@@ -428,8 +461,14 @@ function HUD.Init()
 				if eventLeft > 0 then
 					eventName.Text = "⚡ " .. eventTitle .. "  " .. FormatNumber.Time(eventLeft)
 				end
-				-- panely vpravo nahoře pod sebou: událost → soutěž → série
-				local y = if eventPanel.Visible then 112 else 14
+				local nextAt = workspace:GetAttribute("NextEventAt")
+				local nextLeft = if typeof(nextAt) == "number" then nextAt - ClientState.ServerNow() else 0
+				nextEventPill.Visible = eventLeft <= 0 and nextLeft > 0
+				if nextEventPill.Visible then
+					nextEventLabel.Text = "⏳ Next event in " .. FormatNumber.Time(nextLeft)
+				end
+				-- panely vpravo nahoře pod sebou: událost (nebo odpočet) → soutěž → série
+				local y = if eventPanel.Visible then 112 elseif nextEventPill.Visible then 66 else 14
 				contestPanel.Visible = contestVisible
 				contestPanel.Position = UDim2.new(1, -16, 0, y)
 				if contestVisible then

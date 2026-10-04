@@ -282,62 +282,113 @@ local function ringModel(position: Vector3, parent: Instance): Model
 	return m
 end
 
--- Barevný diamant: broušený kámen (dvě pyramidy z klínů) se zářícím jádrem, světlem a jiskřičkami
+-- Barevný diamant: velký „briliant“ – osmiboká korunka s plochou tabulkou nahoře, pás a špičatý spodek,
+-- zářící jádro, obrys (vidět i přes mraky), sloupec světla a ikonka 💎 viditelná z dálky
+local GEM_R = 2.8 -- poloměr
+local GEM_TABLE = 1.3 -- poloměr ploché tabulky nahoře
+local GEM_CROWN = 1.5 -- výška korunky
+local GEM_PAVILION = 3.6 -- výška spodku
 local function diamondModel(position: Vector3, kind: string, parent: Instance): Model
 	local t = Diamonds.ByKey[kind] or Diamonds.Types[1]
 	local m = Instance.new("Model")
 	m.Name = "Diamond"
-	local core = Instance.new("Part")
-	core.Name = "Core"
-	core.Shape = Enum.PartType.Ball
-	core.Size = Vector3.one * 1.6
-	core.Material = Enum.Material.Neon
-	core.Color = t.Color
-	core.Anchored = true
-	core.CanCollide = false
-	core.CanQuery = false
-	core.CanTouch = false
-	core.CFrame = CFrame.new(position)
-	core.Parent = m
-	m.PrimaryPart = core
-	-- 8 stěn: 4 klíny nahoře (koruna, nízká) a 4 dole (špička, vysoká)
-	for i = 0, 3 do
-		local yaw = CFrame.Angles(0, i * math.pi / 2, 0)
-		for _, top in { true, false } do
-			local w = Instance.new("WedgePart")
-			local h = if top then 1.6 else 3.2
-			w.Size = Vector3.new(3.4, h, 1.7)
-			w.Material = Enum.Material.Glass
-			w.Transparency = 0.15
-			w.Reflectance = 0.25
-			w.Color = t.Color
-			w.Anchored = true
-			w.CanCollide = false
-			w.CanQuery = false
-			w.CanTouch = false
-			local offset = if top then CFrame.new(0, h / 2, -0.85) else CFrame.new(0, -h / 2, -0.85) * CFrame.Angles(0, 0, math.pi)
-			w:SetAttribute("Offset", offset)
-			w:SetAttribute("Yaw", i * math.pi / 2)
-			w.CFrame = CFrame.new(position) * yaw * offset
-			w.Parent = m
-		end
+	local function add(className: string, size: Vector3, offset: CFrame, yaw: number, material: Enum.Material, transparency: number?): BasePart
+		local p = Instance.new(className) :: BasePart
+		p.Size = size
+		p.Material = material
+		p.Transparency = transparency or 0
+		p.Color = t.Color
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p:SetAttribute("Offset", offset)
+		p:SetAttribute("Yaw", yaw)
+		p.CFrame = CFrame.new(position) * CFrame.Angles(0, yaw, 0) * offset
+		p.Parent = m
+		return p
 	end
+	-- zářící jádro (prosvítá sklem)
+	local core = add("Part", Vector3.one * 2.4, CFrame.identity, 0, Enum.Material.Neon)
+	;(core :: Part).Shape = Enum.PartType.Ball
+	core.Name = "Core"
+	m.PrimaryPart = core
+	local width = 2 * GEM_R * math.tan(math.rad(22.5)) + 0.05
+	for i = 0, 7 do
+		local yaw = i * math.pi / 4
+		-- korunka: vysoká hrana u tabulky, svah ven k pásu
+		local crownDepth = GEM_R - GEM_TABLE
+		local crown = add("WedgePart", Vector3.new(width * 0.8, GEM_CROWN, crownDepth), CFrame.new(0, GEM_CROWN / 2, -(GEM_TABLE + crownDepth / 2)), yaw, Enum.Material.Glass, 0.1)
+		crown.Reflectance = 0.3
+		-- spodek: od pásu ke špičce
+		local pavilion = add("WedgePart", Vector3.new(width, GEM_PAVILION, GEM_R), CFrame.new(0, -GEM_PAVILION / 2, -GEM_R / 2) * CFrame.Angles(0, 0, math.pi), yaw, Enum.Material.Glass, 0.1)
+		pavilion.Reflectance = 0.25
+	end
+	-- plochá tabulka nahoře a pás
+	local tableTop = add("Part", Vector3.new(0.2, GEM_TABLE * 2.1, GEM_TABLE * 2.1), CFrame.new(0, GEM_CROWN, 0) * CFrame.Angles(0, 0, math.pi / 2), 0, Enum.Material.Glass, 0.1)
+	;(tableTop :: Part).Shape = Enum.PartType.Cylinder
+	tableTop.Reflectance = 0.4
+	local girdle = add("Part", Vector3.new(0.35, GEM_R * 2.05, GEM_R * 2.05), CFrame.Angles(0, 0, math.pi / 2), 0, Enum.Material.Neon, 0.2)
+	;(girdle :: Part).Shape = Enum.PartType.Cylinder
+	-- sloupec světla nahoru (je vidět z dálky)
+	local beam = add("Part", Vector3.new(60, 1.2, 1.2), CFrame.new(0, 32, 0) * CFrame.Angles(0, 0, math.pi / 2), 0, Enum.Material.Neon, 0.65)
+	;(beam :: Part).Shape = Enum.PartType.Cylinder
+	beam.Name = "Beam"
 	local light = Instance.new("PointLight")
-	light.Range = 18
-	light.Brightness = 2
+	light.Range = 24
+	light.Brightness = 3
 	light.Color = t.Color
 	light.Parent = core
 	local sparkle = Instance.new("ParticleEmitter")
-	sparkle.Rate = if kind == "Rainbow" or kind == "Gold" then 30 else 14
+	sparkle.Rate = if kind == "Rainbow" or kind == "Gold" then 40 else 20
 	sparkle.Lifetime = NumberRange.new(0.5, 1)
-	sparkle.Speed = NumberRange.new(2, 5)
+	sparkle.Speed = NumberRange.new(3, 7)
 	sparkle.SpreadAngle = Vector2.new(180, 180)
 	sparkle.LightEmission = 1
-	sparkle.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
+	sparkle.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.7), NumberSequenceKeypoint.new(1, 0) })
 	sparkle.Color = ColorSequence.new(Color3.new(1, 1, 1), t.Color)
 	sparkle.Parent = core
+	-- obrys diamantu (svítí i přes jiné věci) a ikonka z dálky
+	local outline = Instance.new("Highlight")
+	outline.FillTransparency = 0.75
+	outline.FillColor = t.Color
+	outline.OutlineColor = Color3.new(1, 1, 1)
+	outline.OutlineTransparency = 0.1
+	outline.DepthMode = Enum.HighlightDepthMode.Occluded
+	outline.Parent = m
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(46, 46)
+	gui.StudsOffset = Vector3.new(0, 5, 0)
+	gui.MaxDistance = 700
+	gui.LightInfluence = 0
+	gui.Parent = core
+	Kit.Text(gui, { Text = "💎", Size = UDim2.fromScale(1, 1), NoStroke = true })
 	m.Parent = parent
 	return m
+end
+
+-- Diamanty se točí a pomalu pohupují (duhový mění barvu)
+local function animateGems(state: FlightState)
+	local now = os.clock()
+	for i, gem in state.Gems do
+		if not gem.Taken and gem.Part.Parent then
+			local base = CFrame.new(gem.Position + Vector3.new(0, math.sin(now * 2 + i) * 0.6, 0)) * CFrame.Angles(0, now * 1.6 + i, 0)
+			local rainbow = if gem.Type == "Rainbow" then Color3.fromHSV((now * 0.4 + i * 0.2) % 1, 0.75, 1) else nil
+			for _, part in gem.Part:GetChildren() do
+				if part:IsA("BasePart") then
+					local offset = part:GetAttribute("Offset")
+					local yaw = part:GetAttribute("Yaw")
+					if typeof(offset) == "CFrame" and typeof(yaw) == "number" then
+						part.CFrame = base * CFrame.Angles(0, yaw, 0) * offset
+					end
+					if rainbow then
+						part.Color = rainbow
+					end
+				end
+			end
+		end
+	end
 end
 
 -- Balónek s truhlou: velký lesklý balónek, provázek a malá zlatá truhla pod ním
@@ -394,31 +445,6 @@ local function balloonModel(position: Vector3, parent: Instance): Model
 	m.PrimaryPart = ball
 	m.Parent = parent
 	return m
-end
-
--- Diamanty se točí a pomalu pohupují (duhový mění barvu)
-local function animateGems(state: FlightState)
-	local now = os.clock()
-	for i, gem in state.Gems do
-		if not gem.Taken and gem.Part.Parent then
-			local base = CFrame.new(gem.Position + Vector3.new(0, math.sin(now * 2 + i) * 0.6, 0)) * CFrame.Angles(0, now * 2.2 + i, 0)
-			local rainbow = if gem.Type == "Rainbow" then Color3.fromHSV((now * 0.4 + i * 0.2) % 1, 0.75, 1) else nil
-			for _, part in gem.Part:GetChildren() do
-				if part:IsA("BasePart") then
-					local offset = part:GetAttribute("Offset")
-					local yaw = part:GetAttribute("Yaw")
-					if typeof(offset) == "CFrame" and typeof(yaw) == "number" then
-						part.CFrame = base * CFrame.Angles(0, yaw, 0) * offset
-					else
-						part.CFrame = base
-					end
-					if rainbow then
-						part.Color = rainbow
-					end
-				end
-			end
-		end
-	end
 end
 
 local function collectEffect(model: Model?, color: Color3)
@@ -949,6 +975,40 @@ local function makeGlow(p: BasePart, color: Color3, range: number)
 	light.Parent = p
 end
 
+-- kreslený obrys celého tvora (hezčí, „cartoon“ vzhled a je vidět i ve vlnách)
+local function addOutline(m: Model, color: Color3)
+	local outline = Instance.new("Highlight")
+	outline.FillTransparency = 1
+	outline.OutlineColor = color
+	outline.OutlineTransparency = 0.15
+	outline.DepthMode = Enum.HighlightDepthMode.Occluded
+	outline.Parent = m
+end
+
+-- lesklá jiskra v oku (živější pohled)
+local function eyeGlint(m: Model, rig: ChaserRig, eyePos: Vector3, side: number, size: number, seg: string)
+	local glint = rigBall(m, rig, size, eyePos + Vector3.new(side * size * 0.9, size * 0.9, -size * 0.9), Color3.new(1, 1, 1), seg)
+	glint.Material = Enum.Material.Neon
+end
+
+-- bílá pěna za tvorem (brázda ve vodě)
+local function addWake(m: Model, rig: ChaserRig, at: Vector3, width: number)
+	local holder = rigAdd(m, rig, "Part", Vector3.one * 0.2, CFrame.new(at), Color3.new(1, 1, 1), "Body")
+	holder.Transparency = 1
+	local foam = Instance.new("ParticleEmitter")
+	foam.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	foam.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(200, 235, 255))
+	foam.LightEmission = 0.2
+	foam.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, width * 0.4), NumberSequenceKeypoint.new(1, width) })
+	foam.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1) })
+	foam.Lifetime = NumberRange.new(0.8, 1.3)
+	foam.Speed = NumberRange.new(1, 3)
+	foam.SpreadAngle = Vector2.new(40, 40)
+	foam.Rate = 22
+	foam.Acceleration = Vector3.new(0, 1, 0)
+	foam.Parent = holder
+end
+
 -- otočení kolem kloubu (v souřadnicích modelu)
 local function aroundHinge(hinge: Vector3, rotation: CFrame): CFrame
 	return CFrame.new(hinge) * rotation * CFrame.new(-hinge)
@@ -1053,16 +1113,32 @@ local function sharkModel(parent: Instance, look: SharkLook?): Model
 		end
 	end
 
-	-- oči: u žraloka malá černá lesklá, u megalodona větší a svítící
+	-- oči: větší, s bílou jiskrou a zamračeným „obočím“ (kreslený zlý pohled); megalodon má svítící oči
 	for _, side in { -1, 1 } do
-		local eye = rigBall(m, rig, if style.Glow then 0.6 else 0.42, Vector3.new(side * 1.35, yc + 0.45, -4.7), Color3.fromRGB(12, 12, 16), "Body")
+		local eyePos = Vector3.new(side * 1.32, yc + 0.5, -4.75)
+		local eye = rigBall(m, rig, if style.Glow then 0.75 else 0.62, eyePos, Color3.fromRGB(12, 12, 16), "Body")
 		eye.Reflectance = 0.3
 		local glow = style.Glow
 		if glow then
 			eye.Reflectance = 0
 			makeGlow(eye, glow, 10)
+		else
+			eyeGlint(m, rig, eyePos, side, 0.18, "Body")
 		end
+		-- obočí: tmavý klínek šikmo nad okem
+		add("WedgePart", Vector3.new(0.18, 0.32, 1.1), CFrame.new(side * 1.25, yc + 0.98, -4.75) * CFrame.Angles(math.rad(-12), 0, side * math.rad(-18)), Color3.fromRGB(40, 50, 62), "Body")
+		-- nozdry na spodku čenichu
+		ellipsoid(Vector3.new(0.3, 0.12, 0.45), Vector3.new(side * 0.5, yc - 0.05, -7.2), Color3.fromRGB(40, 48, 60), "Body")
+		-- břišní ploutvičky
+		add("WedgePart", Vector3.new(0.15, 0.9, 1), CFrame.new(side * 0.9, yc - 1.5, 2.6) * CFrame.Angles(0, 0, side * math.rad(150)), finColor, "Rear")
+		-- světlá postranní čára
+		strip(Vector3.new(side * (midHalfWidth(yc + 0.15, -1.5) + 0.03), yc + 0.15, -1.5), Vector3.new(side * 1.25, yc + 0.2, 3.2), 0.08, top:Lerp(Color3.new(1, 1, 1), 0.3), "Body")
 	end
+	-- světlejší špička hřbetní ploutve (lépe vidět nad vodou)
+	add("WedgePart", Vector3.new(0.32, 0.9, 0.75), CFrame.new(0, yc + 4.35, -0.1), top:Lerp(Color3.new(1, 1, 1), 0.35), "Body")
+	-- pěna za ploutví a obrys
+	addWake(m, rig, Vector3.new(0, 0.2, 1.5), 3)
+	addOutline(m, Color3.fromRGB(20, 28, 45))
 
 	-- tlama: tmavá linka (vnitřek tlamy) mezi hlavou a bílou dolní čelistí
 	ellipsoid(Vector3.new(1.7, 0.3, 2.6), Vector3.new(0, yc - 0.8, -4.6), Color3.fromRGB(90, 25, 35), "Body")
@@ -1114,6 +1190,20 @@ local function whaleModel(parent: Instance): Model
 		local pupil = rigBall(m, rig, 0.6, Vector3.new(side * 2.98, -1, -4.6), Color3.fromRGB(15, 15, 25), "Body")
 		pupil.Reflectance = 0.25
 	end
+	-- jiskry v očích, růžové tváře, rýhy na hrdle a pár přílipek na hlavě
+	for _, side in { -1, 1 } do
+		eyeGlint(m, rig, Vector3.new(side * 2.98, -1, -4.6), side, 0.25, "Body")
+		rigEllipsoid(m, rig, Vector3.new(0.3, 0.9, 1.4), CFrame.new(side * 2.95, -2.2, -5.6), Color3.fromRGB(255, 160, 180), "Body")
+	end
+	for i = -3, 3 do
+		local x = i * 0.65
+		local a = Vector3.new(x, -5.15 + math.abs(i) * 0.12, -7)
+		local b = Vector3.new(x * 1.1, -5.6 + math.abs(i) * 0.15, -0.5)
+		rigAdd(m, rig, "Part", Vector3.new(0.14, 0.14, (b - a).Magnitude), CFrame.lookAt((a + b) / 2, b), Color3.fromRGB(190, 205, 225), "Body")
+	end
+	for _, spot in { Vector3.new(1.2, 0.2, -6.4), Vector3.new(1.7, -0.2, -5.6), Vector3.new(-1.4, 0.1, -6.1) } do
+		rigBall(m, rig, 0.45, spot, Color3.fromRGB(200, 200, 190), "Body")
+	end
 	-- nozdra na temeni + malá hřbetní ploutev
 	local blowhole = ell(Vector3.new(0.9, 0.35, 0.6), Vector3.new(0, 0.55, -4.3), dark, "Body")
 	rigAdd(m, rig, "WedgePart", Vector3.new(0.5, 1.1, 2.2), CFrame.new(0, 0.8, 3.2), dark, "Rear")
@@ -1148,6 +1238,8 @@ local function whaleModel(parent: Instance): Model
 	spout.Rate = 0
 	spout.Parent = blowhole
 	rig.Spout = spout
+	addWake(m, rig, Vector3.new(0, 0.4, 2), 6)
+	addOutline(m, Color3.fromRGB(20, 40, 80))
 	return m
 end
 
@@ -1183,6 +1275,7 @@ local function octopusModel(parent: Instance, kraken: boolean): Model
 		else
 			local pupil = rigBall(m, rig, 0.85, eyePos + Vector3.new(side * 0.5, 0.05, -0.5), Color3.fromRGB(15, 10, 25), "Body")
 			pupil.Reflectance = 0.25
+			eyeGlint(m, rig, eyePos + Vector3.new(side * 0.5, 0.05, -0.5), side, 0.28, "Body")
 		end
 	end
 
@@ -1203,6 +1296,11 @@ local function octopusModel(parent: Instance, kraken: boolean): Model
 			local b = a + dir * length + Vector3.new(0, rise, 0)
 			local seg = "T" .. i .. "_" .. j
 			rigEllipsoid(m, rig, Vector3.new(width, width * 0.85, length + 0.5), CFrame.lookAt((a + b) / 2, b), if j == segCount then tip else arm, seg)
+			-- přísavky na spodku chapadla (dvě světlé kuličky na článek)
+			for q = 1, 2 do
+				local pos = a:Lerp(b, q / 3) + Vector3.new(0, -width * 0.36, 0)
+				rigBall(m, rig, width * 0.32, pos, Color3.fromRGB(255, 215, 225), seg)
+			end
 			table.insert(tentacle.Segs, seg)
 			table.insert(tentacle.Joints, a * k)
 			start = b
@@ -1231,6 +1329,8 @@ local function octopusModel(parent: Instance, kraken: boolean): Model
 			table.insert(rig.Tentacles, tentacle)
 		end
 	end
+	addOutline(m, if kraken then Color3.fromRGB(40, 5, 15) else Color3.fromRGB(60, 20, 80))
+	addWake(m, rig, Vector3.new(0, 0, 2), 5)
 	return m
 end
 

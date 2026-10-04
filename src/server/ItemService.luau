@@ -4,6 +4,7 @@
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Catalog = require(Shared.Catalog)
+local ItemsConfig = require(Shared.Config.Items)
 local Formulas = require(Shared.Formulas)
 local Net = require(Shared.Net)
 
@@ -100,12 +101,37 @@ function ItemService.Store(session: Session, item: ItemData): Placement
 	return placement
 end
 
+-- Album: hráč našel nový předmět → když má celou vzácnost, dostane (jednou) točení
+function ItemService.CheckIndex(session: Session, id: string)
+	local cfg = Catalog.Item(id)
+	if not cfg then
+		return
+	end
+	local data = session.Data
+	local spins = ItemsConfig.IndexRewardSpins[cfg.Rarity]
+	if not spins or data.IndexRewards[cfg.Rarity] then
+		return
+	end
+	for _, other in Catalog.Items do
+		if other.Rarity == cfg.Rarity and other.CanDrop ~= false and not data.Discovered[other.Id] then
+			return
+		end
+	end
+	data.IndexRewards[cfg.Rarity] = true
+	Registry.Spinner.AddSpins(session, spins)
+	Registry.Player.Notify(session.Player, `📖 You found every {cfg.Rarity} item! +{spins} Spin{if spins == 1 then "" else "s"}!`, "Success")
+	Registry.Player.MarkDirty(session)
+end
+
 -- Nový předmět (drop, spinner, odměna). Vrací umístění a jestli je to první nález.
 function ItemService.Give(session: Session, id: string): (ItemData, Placement, boolean)
 	local item = newItem(session, id)
 	local isNew = not session.Data.Discovered[id]
 	session.Data.Discovered[id] = true
 	local placement: Placement = ItemService.Store(session, item)
+	if isNew then
+		ItemService.CheckIndex(session, id)
+	end
 	local cfg = Catalog.Item(id)
 	if cfg then
 		local rarity = Catalog.Rarity(cfg.Rarity)

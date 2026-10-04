@@ -35,12 +35,14 @@ local EVENTS = {
 	"QuickSell", -- klient → server: prodat běžný předmět z rukou kdekoli (tlačítko SELL)
 	"SelectSkin", -- klient → server: který skin tenisek chce koupit (před nákupem za Robux)
 	"StudioTestPurchase", -- klient → server: jen ve Studiu – vyzkoušet nákup zdarma
+	"StudioTest", -- klient → server: jen ve Studiu – testovací panel (události, level, peníze…)
 }
 
 local FUNCTIONS = {
 	"ShopAction", -- koupit / obléct pantofle a čepice
 	"Spin", -- točit kolem štěstí
 	"RedeemCode",
+	"SellItems", -- prodejní okno u stánku SELL: prodat vybrané předměty (domeček, sklad, ruce)
 }
 
 local Net = {}

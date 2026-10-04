@@ -27,6 +27,7 @@ local services: { [string]: any } = {
 	Swim = require(script.Parent.SwimService),
 	ServerEvents = require(script.Parent.ServerEventService),
 	Quests = require(script.Parent.QuestService),
+	TestPanel = require(script.Parent.TestPanelService),
 }
 
 for name, service in services do

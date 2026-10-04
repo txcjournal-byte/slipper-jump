@@ -353,7 +353,8 @@ local function refreshPrompts()
 	end
 	for _, prompt in CollectionService:GetTagged("SellPrompt") do
 		if prompt:IsA("ProximityPrompt") then
-			prompt.Enabled = carrying and not flying
+			-- prodejní okno jde otevřít vždy (i s prázdnýma rukama)
+			prompt.Enabled = not flying
 		end
 	end
 end

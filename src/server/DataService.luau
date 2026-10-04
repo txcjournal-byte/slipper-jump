@@ -47,6 +47,7 @@ export type Data = {
 	Settings: { Music: boolean, Sfx: boolean },
 	PurchaseIds: { string },
 	Discovered: { [string]: boolean },
+	IndexRewards: { [string]: boolean }, -- album: za kterou vzácnost už dostal odměnu
 	NextUid: number,
 	SuperJumps: number,
 	MegaJumps: number,
@@ -96,6 +97,7 @@ local TEMPLATE: Data = {
 	Settings = { Music = true, Sfx = true },
 	PurchaseIds = {},
 	Discovered = {},
+	IndexRewards = {},
 	NextUid = 1,
 	SuperJumps = 0,
 	MegaJumps = 0, -- zbývající skoky z Mega Jump Packu

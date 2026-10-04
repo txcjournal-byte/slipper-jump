@@ -377,20 +377,24 @@ function Effects.Ripple(position: Vector3, size: number?)
 end
 
 -- Velký nápis uprostřed obrazovky ("PERFECT!", "GOOD!", vzdálenost...)
-function Effects.BigText(text: string, color: Color3, duration: number?, yScale: number?)
+-- Velké nápisy na stejné výšce se neukazují přes sebe: další počká, až zmizí předchozí
+-- (nejvýš 2,5 s – starší zprávy pak už nemají smysl a ukážou se hned)
+local bigBusyUntil: { [number]: number } = {}
+
+local function showBigText(text: string, color: Color3, duration: number, y: number)
 	local label = Kit.Text(screen, {
 		Text = text,
 		TextColor3 = color,
 		Size = UDim2.fromOffset(700, 110),
-		Position = UDim2.fromScale(0.5, yScale or 0.3),
+		Position = UDim2.fromScale(0.5, y),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		StrokeThickness = 5,
 		ZIndex = 40,
 		Rotation = -4,
 	})
 	Kit.Pop(label, 1.8)
-	task.delay(duration or 1.2, function()
-		local tween = TweenService:Create(label, TweenInfo.new(0.3), { TextTransparency = 1, Position = UDim2.fromScale(0.5, (yScale or 0.3) - 0.05) })
+	task.delay(duration, function()
+		local tween = TweenService:Create(label, TweenInfo.new(0.3), { TextTransparency = 1, Position = UDim2.fromScale(0.5, y - 0.05) })
 		local stroke = label:FindFirstChildOfClass("UIStroke")
 		if stroke then
 			TweenService:Create(stroke, TweenInfo.new(0.3), { Transparency = 1 }):Play()
@@ -400,23 +404,58 @@ function Effects.BigText(text: string, color: Color3, duration: number?, yScale:
 	end)
 end
 
--- Malý stoupající text ("+$123")
-function Effects.FloatText(text: string, color: Color3)
+function Effects.BigText(text: string, color: Color3, duration: number?, yScale: number?)
+	local y = yScale or 0.3
+	local shown = duration or 1.2
+	-- "pásy" po 0.1 výšky obrazovky (0.25 a 0.28 se překrývají, takže patří do stejného)
+	local band = math.floor(y * 10 + 0.5)
+	local now = os.clock()
+	local wait = math.max(0, (bigBusyUntil[band] or 0) - now)
+	if wait > 0 and shown <= 0.8 then
+		-- krátké „bleskové“ nápisy (+5 % DISTANCE…) se při plném místě vynechají, jinak by chodily pozdě
+		return
+	end
+	if wait > 2.5 then
+		wait = 0
+	end
+	bigBusyUntil[band] = now + wait + shown + 0.15
+	if wait > 0 then
+		task.delay(wait, showBigText, text, color, shown, y)
+	else
+		showBigText(text, color, shown, y)
+	end
+end
+
+-- Malý stoupající text ("+$123"): víc najednou jde jeden po druhém, pod kartou předmětu
+local nextFloatAt = 0
+
+local function showFloatText(text: string, color: Color3)
 	local label = Kit.Text(screen, {
 		Text = text,
 		TextColor3 = color,
-		Size = UDim2.fromOffset(300, 54),
-		Position = UDim2.fromScale(0.5, 0.62),
+		Size = UDim2.fromOffset(520, 50),
+		Position = UDim2.fromScale(0.5, 0.84),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		ZIndex = 40,
 	})
 	Kit.Pop(label, 1.4)
-	TweenService:Create(label, TweenInfo.new(1.2, Enum.EasingStyle.Quad), { Position = UDim2.fromScale(0.5, 0.5), TextTransparency = 1 }):Play()
+	TweenService:Create(label, TweenInfo.new(1.4, Enum.EasingStyle.Quad), { Position = UDim2.fromScale(0.5, 0.74), TextTransparency = 1 }):Play()
 	local stroke = label:FindFirstChildOfClass("UIStroke")
 	if stroke then
-		TweenService:Create(stroke, TweenInfo.new(1.2), { Transparency = 1 }):Play()
+		TweenService:Create(stroke, TweenInfo.new(1.4), { Transparency = 1 }):Play()
 	end
-	Debris:AddItem(label, 1.3)
+	Debris:AddItem(label, 1.5)
+end
+
+function Effects.FloatText(text: string, color: Color3)
+	local now = os.clock()
+	local wait = math.clamp(nextFloatAt - now, 0, 3)
+	nextFloatAt = now + wait + 0.6
+	if wait > 0 then
+		task.delay(wait, showFloatText, text, color)
+	else
+		showFloatText(text, color)
+	end
 end
 
 function Effects.Fade(toBlack: boolean, duration: number)
