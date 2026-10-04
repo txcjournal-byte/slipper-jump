@@ -230,7 +230,7 @@ function HUD.Init()
 
 	superJumpLabel = Kit.Text(screen, {
 		Text = "",
-		Size = UDim2.fromOffset(330, 28),
+		Size = UDim2.fromOffset(560, 28),
 		Position = UDim2.fromOffset(20, 206),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = Color3.fromRGB(120, 230, 255),
@@ -488,6 +488,13 @@ function HUD.Refresh(data: { [string]: any })
 	end
 	if data.SuperJumps > 0 then
 		table.insert(charges, "⚡ Super Jump x" .. data.SuperJumps)
+	end
+	-- štíty do slalomu (Bubble Shield) a repelenty proti žralokům – ať hráč vidí, co koupil
+	if (data.Shields or 0) > 0 then
+		table.insert(charges, "💜 Shield x" .. data.Shields)
+	end
+	if (data.Repellents or 0) > 0 then
+		table.insert(charges, "🦈 Repellent x" .. data.Repellents)
 	end
 	superJumpLabel.Visible = #charges > 0
 	superJumpLabel.Text = table.concat(charges, "   ")
