@@ -105,6 +105,14 @@ game.Players:GetPlayers()[1]:SetAttribute("DevMoney", 1e9)
 Pak kup Royal Diamond Slippers a skoč k dárku → Golden Splash, 1M $, titulek, Rebirth.
 Cestou jsou dva dárkové ostrovy: **Bronze Gift** na 10 000 studech (250 000 $, Epic předmět, Propeller Cap) a **Silver Gift** na 40 000 studech (3M $, Legendary předmět, titulek). Skok se u nezískaného ostrova zastaví a hráč na něm přistane; po Rebirthu se dají získat znovu (`Config/GiantGift.luau` → `Islands`).
 
+**Diamanty** (`Config/Diamonds.luau`): od levelu 3 (nebo po 5 skocích) se mezi kruhy objevují barevné diamanty – Emerald (peníze), Sapphire (peníze + XP), Amethyst (štít proti nárazu ve slalomu), Golden (2× mince) a Rainbow (všechno + delší skok). S levelem jich přibývá a vzácné jsou častější.
+
+**Slalomy** (`Config/Swim.luau` → `Slalom.Variants`): kromě běžného slalomu (těžší s každým levelem) přicházejí zvláštní druhy – Rock Garden, Jellyfish Field, Storm (vlny posouvají do stran), Log Jam, Night (tma) a Puffer Party. Za slalom bez nárazu jsou ★★★ a bonus k odměně za vor.
+
+**Žraločí alarm**: když se pronásledovatel blíží, zčervenají okraje obrazovky a zrychluje tlukot srdce.
+
+**Vytuněné boty** (`Shared/Models.luau` → `tune`): od Golden Slippers neonové lemy, pak drahokamy, chromová pata, křídla, duhově se přelévající prstenec, ostny a obří drahokam; nejdražší mají hvězdičkovou auru.
+
 ## 4. Struktura projektu
 
 ```

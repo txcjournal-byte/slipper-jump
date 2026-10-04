@@ -35,6 +35,9 @@ export type SwimState = {
 	Treasure: string?, -- poklad na voru 2 a 3 (dostane ho, až k voru doplave)
 	Waiting: boolean, -- stojí na voru a vybírá si (dál / zpět)
 	Dir: number, -- 1 = plave ke břehu (−X), −1 = na moře (+X, vory 2 a 3)
+	HasSlalom: boolean,
+	Hits: number, -- nárazy ve slalomu (hlásí klient) → hvězdičky
+	LastHit: number,
 }
 
 local SwimService = {}
@@ -43,17 +46,50 @@ local rng = Random.new()
 
 export type SlalomGate = { X: number, Z: number, Gap: number, Amp: number, Speed: number, Phase: number }
 export type SlalomObstacle = { Kind: string, X: number, Z: number, Amp: number, Speed: number, Phase: number }
-export type SlalomLayout = { Name: string, Color: Color3, Gates: { SlalomGate }, Obstacles: { SlalomObstacle } }
+export type SlalomLayout = {
+	Name: string,
+	Color: Color3,
+	Gates: { SlalomGate },
+	Obstacles: { SlalomObstacle },
+	Variant: string?, -- zvláštní druh slalomu (Storm, Night …)
+	Hint: string?,
+	Drift: number?, -- vlny posouvají hráče do stran (studů/s)
+	Night: boolean?,
+}
 
 -- Vylosuje slalom pro level hráče. X = vzdálenost od místa startu směrem k voru,
 -- Z = posun do strany od dráhy (klient přičte StartZ). Mezery branek se střídají vlevo a vpravo,
 -- překážky leží zhruba na spojnici dvou sousedních mezer, takže je hráč musí objet.
-local function generateSlalom(level: number, distance: number): SlalomLayout?
+local function generateSlalom(level: number, distance: number, stage: number): SlalomLayout?
 	local tier = Formulas.SlalomTier(level)
 	if not tier then
 		return nil
 	end
 	local cfg = Swim.Slalom
+	-- občas zvláštní druh slalomu (čím dál k pláži, tím častěji)
+	local variant: Swim.SlalomVariant? = nil
+	local unlocked = {}
+	for _, v in cfg.Variants do
+		if level >= v.MinLevel then
+			table.insert(unlocked, v)
+		end
+	end
+	if #unlocked > 0 and rng:NextNumber() < (cfg.VariantChance[stage] or 0.5) then
+		variant = unlocked[rng:NextInteger(1, #unlocked)]
+	end
+	if variant then
+		tier.Name = variant.Name
+		tier.Color = variant.Color
+		tier.Gates = math.max(2, tier.Gates + (variant.GateDelta or 0))
+		tier.Moving = math.min(tier.Moving, math.ceil(tier.Gates / 2))
+		if variant.Kind then
+			local total = variant.Extra or 0
+			for _, n in tier.Obstacles do
+				total += n
+			end
+			tier.Obstacles = { [variant.Kind] = math.max(total, 2) }
+		end
+	end
 	local gates: { SlalomGate } = {}
 	local sign = if rng:NextNumber() < 0.5 then -1 else 1
 	local moving = {}
@@ -120,7 +156,16 @@ local function generateSlalom(level: number, distance: number): SlalomLayout?
 			Phase = rng:NextNumber(0, math.pi * 2),
 		})
 	end
-	return { Name = tier.Name, Color = tier.Color, Gates = gates, Obstacles = obstacles }
+	return {
+		Name = tier.Name,
+		Color = tier.Color,
+		Gates = gates,
+		Obstacles = obstacles,
+		Variant = if variant then variant.Key else nil,
+		Hint = if variant then variant.Hint else nil,
+		Drift = if variant then variant.Drift else nil,
+		Night = if variant then variant.Night else nil,
+	}
 end
 
 local startEvent: RemoteEvent
@@ -173,9 +218,18 @@ local function finish(session: Session, state: SwimState, success: boolean, reas
 		end
 	end
 	local bonus = 0
+	local stars: number? = nil
+	local starBonus = 0
 	if success then
 		local base = math.max(Swim.BonusMin, math.floor(Registry.Economy.IncomePerSecond(session) * Swim.BonusSeconds))
 		bonus = base * (stages.BonusMultiplier[state.Stage] or 1)
+		-- hvězdičky za slalom (podle nárazů): ★★★ = bonus navíc
+		if state.HasSlalom then
+			local cfg = Swim.Slalom
+			stars = if state.Hits <= cfg.StarHits.Three then 3 elseif state.Hits <= cfg.StarHits.Two then 2 else 1
+			starBonus = math.floor(bonus * (cfg.StarBonus[stars :: number] or 0))
+			bonus += starBonus
+		end
 		Registry.Economy.AddMoney(session, bonus)
 		if not state.NoShark then
 			Registry.Quests.Progress(session, "Escapes", 1)
@@ -192,6 +246,8 @@ local function finish(session: Session, state: SwimState, success: boolean, reas
 		Success = success,
 		Reason = reason,
 		Bonus = bonus,
+		Stars = stars,
+		StarBonus = starBonus,
 		Item = if success then itemId else nil, -- dostal do domečku / nad hlavu / do skladu
 		Placement = placement,
 		LostItem = if success then nil else itemId, -- o tenhle předmět přišel
@@ -238,7 +294,7 @@ startStage = function(session: Session, previous: SwimState?, flight: any, landD
 	local distance = Formulas.SwimDistance(data.SwimLevel, slalomLevel)
 	-- vor nesmí skončit pod molem ani na pláži (krátký skok)
 	distance = math.max(60, math.min(distance, root.Position.X - World.PierEndX - 8))
-	local slalom = generateSlalom(slalomLevel, distance)
+	local slalom = generateSlalom(slalomLevel, distance, stage)
 	-- delší plavba nesmí být nefér: pronásledovatel vyrazí o tolik později, kolik hráč plave navíc
 	local sharkDelay = Swim.SharkDelay + math.max(0, distance - Swim.Distance) / speed
 		+ (if slalom then #slalom.Gates * Swim.Slalom.DelayPerGate else 0)
@@ -265,6 +321,9 @@ startStage = function(session: Session, previous: SwimState?, flight: any, landD
 		Treasure = treasure,
 		Waiting = false,
 		Dir = dir,
+		HasSlalom = slalom ~= nil,
+		Hits = 0,
+		LastHit = 0,
 	}
 	local _ = previous
 	session.Swim = state
@@ -289,6 +348,8 @@ startStage = function(session: Session, previous: SwimState?, flight: any, landD
 		MaxStage = stages.Max,
 		Treasure = treasure, -- poklad na voru (klient ukáže truhlu)
 		Dir = dir,
+		-- štít z diamantu (Amethyst / Rainbow): ochrání před nárazy ve slalomu na prvním úseku
+		Shield = if stage == 1 and flight.Shield then flight.Shield else 0,
 	})
 end
 
@@ -311,6 +372,15 @@ end
 function SwimService.Init()
 	startEvent = Net.Event("SwimStart")
 	resultEvent = Net.Event("SwimResult")
+	-- klient hlásí náraz ve slalomu (kvůli hvězdičkám)
+	Net.Event("SlalomHit").OnServerEvent:Connect(function(player)
+		local session = Registry.Player.Get(player)
+		local state: SwimState? = session and session.Swim
+		if state and not state.Done and os.clock() - state.LastHit > 0.3 then
+			state.LastHit = os.clock()
+			state.Hits += 1
+		end
+	end)
 	-- na voru: dál k dalšímu voru, nebo zpět na pláž
 	Net.Event("SwimChoice").OnServerEvent:Connect(function(player, goOn)
 		local session = Registry.Player.Get(player)

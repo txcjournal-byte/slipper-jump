@@ -132,13 +132,42 @@ local SlalomNames = {
 	{ MinLevel = 2, Name = "MINI SLALOM", Color = Color3.fromRGB(90, 200, 255) },
 	{ MinLevel = 7, Name = "BUOY SLALOM", Color = Color3.fromRGB(80, 220, 120) },
 	{ MinLevel = 12, Name = "ROCKY SLALOM", Color = Color3.fromRGB(255, 200, 60) },
-	{ MinLevel = 20, Name = "JELLYFISH SLALOM", Color = Color3.fromRGB(255, 120, 200) },
-	{ MinLevel = 30, Name = "STORM SLALOM", Color = Color3.fromRGB(170, 110, 255) },
-	{ MinLevel = 42, Name = "MEGA STORM SLALOM", Color = Color3.fromRGB(255, 80, 80) },
+	{ MinLevel = 20, Name = "WILD SLALOM", Color = Color3.fromRGB(255, 120, 200) },
+	{ MinLevel = 30, Name = "EXTREME SLALOM", Color = Color3.fromRGB(170, 110, 255) },
+	{ MinLevel = 42, Name = "MEGA SLALOM", Color = Color3.fromRGB(255, 80, 80) },
+}
+
+-- Zvláštní druhy slalomu (náhodně místo běžného, od svého levelu):
+-- Kind = všechny překážky jsou tohoto druhu (+Extra navíc), GateDelta = branek méně/víc,
+-- Drift = vlny posouvají hráče do stran (studů/s), Night = tma, svítí jen branky a překážky.
+export type SlalomVariant = {
+	Key: string,
+	Name: string,
+	Color: Color3,
+	MinLevel: number,
+	Kind: string?,
+	Extra: number?,
+	GateDelta: number?,
+	Drift: number?,
+	Night: boolean?,
+	Hint: string,
+}
+local Variants: { SlalomVariant } = {
+	{ Key = "RockGarden", Name = "ROCK GARDEN", Color = Color3.fromRGB(200, 170, 120), MinLevel = 8, Kind = "Rock", Extra = 2, Hint = "Weave between the rocks!" },
+	{ Key = "JellyField", Name = "JELLYFISH FIELD", Color = Color3.fromRGB(255, 120, 220), MinLevel = 15, Kind = "Jellyfish", Extra = 2, GateDelta = -1, Hint = "Don't touch the jellyfish!" },
+	{ Key = "Storm", Name = "STORM SLALOM", Color = Color3.fromRGB(150, 170, 255), MinLevel = 20, Drift = 7, Hint = "Waves push you sideways - fight them!" },
+	{ Key = "LogJam", Name = "LOG JAM", Color = Color3.fromRGB(190, 130, 70), MinLevel = 25, Kind = "Log", Extra = 1, Hint = "Time it between the rolling logs!" },
+	{ Key = "Night", Name = "NIGHT SLALOM", Color = Color3.fromRGB(120, 140, 255), MinLevel = 30, Night = true, Hint = "It's dark! Follow the glowing gates!" },
+	{ Key = "PufferParty", Name = "PUFFER PARTY", Color = Color3.fromRGB(255, 170, 60), MinLevel = 35, Kind = "Puffer", Extra = 2, Hint = "Pufferfish everywhere!" },
 }
 
 local Slalom = {
 	Names = SlalomNames,
+	Variants = Variants,
+	VariantChance = { 0.4, 0.65, 0.85 }, -- šance na zvláštní slalom na voru 1, 2, 3
+	-- hvězdičky za slalom podle počtu nárazů: 0 = ★★★, do 2 = ★★, víc = ★
+	StarHits = { Three = 0, Two = 2 },
+	StarBonus = { 0, 0.25, 0.6 }, -- bonus k odměně za vor podle hvězdiček (1, 2, 3)
 	StartLevel = 2, -- od kterého levelu se slalom objeví
 	-- plynulý růst s levelem L (viz Formulas.SlalomTier)
 	GatesBase = 2, -- branek na levelu 2, pak +1 každých GatesEvery levelů

@@ -6,8 +6,11 @@
 --  • překážka: krátké omráčení a odhození o kus zpět.
 -- Souřadnice ze serveru: X = vzdálenost od místa startu směrem k voru, Z = posun do strany od StartZ.
 
+local Lighting = game:GetService("Lighting")
+
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Swim = require(Shared.Config.Swim)
+local Net = require(Shared.Net)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Sound = require(script.Parent.Parent.Sound)
 local Effects = require(script.Parent.Parent.Effects.Effects)
@@ -16,7 +19,16 @@ local Slalom = {}
 
 type GateData = { X: number, Z: number, Gap: number, Amp: number, Speed: number, Phase: number }
 type ObstacleData = { Kind: string, X: number, Z: number, Amp: number, Speed: number, Phase: number }
-type Layout = { Name: string, Color: Color3, Gates: { GateData }, Obstacles: { ObstacleData } }
+type Layout = {
+	Name: string,
+	Color: Color3,
+	Gates: { GateData },
+	Obstacles: { ObstacleData },
+	Variant: string?,
+	Hint: string?,
+	Drift: number?,
+	Night: boolean?,
+}
 
 type Gate = { Data: GateData, Model: Model, Passed: boolean, LastBump: number }
 type Obstacle = { Data: ObstacleData, Model: Model, LastHit: number, Bob: number }
@@ -32,6 +44,9 @@ export type Run = {
 	StunUntil: number,
 	Passed: number,
 	Folder: Folder,
+	Hits: number, -- nárazy (hvězdičky: 0 = ★★★)
+	Shield: number, -- štít z diamantu: tolik nárazů se nepočítá
+	Mood: ColorCorrectionEffect?, -- tma / bouřka (jen u tohoto hráče)
 }
 
 local PLAYER_HALF_WIDTH = 0.9
@@ -226,7 +241,7 @@ local function obstacleExtent(kind: string): (number, number)
 	return r, r
 end
 
-function Slalom.Start(layout: Layout, startX: number, startZ: number, y: number, parent: Instance, dir: number?): Run
+function Slalom.Start(layout: Layout, startX: number, startZ: number, y: number, parent: Instance, dir: number?, shield: number?): Run
 	local folder = Instance.new("Folder")
 	folder.Name = "Slalom"
 	folder.Parent = parent
@@ -241,7 +256,27 @@ function Slalom.Start(layout: Layout, startX: number, startZ: number, y: number,
 		StunUntil = 0,
 		Passed = 0,
 		Folder = folder,
+		Hits = 0,
+		Shield = shield or 0,
+		Mood = nil,
 	}
+	-- noční slalom = tma, bouřka = šero (barevná korekce jen u tohoto hráče)
+	-- (pojistka: starý filtr z minulého slalomu pryč)
+	for _, old in Lighting:GetChildren() do
+		if old.Name == "SlalomMood" then
+			old:Destroy()
+		end
+	end
+	if layout.Night or layout.Drift then
+		local mood = Instance.new("ColorCorrectionEffect")
+		mood.Name = "SlalomMood"
+		mood.Brightness = if layout.Night then -0.32 else -0.12
+		mood.Contrast = if layout.Night then 0.15 else 0.05
+		mood.Saturation = if layout.Night then -0.35 else -0.25
+		mood.TintColor = if layout.Night then Color3.fromRGB(150, 170, 255) else Color3.fromRGB(200, 210, 230)
+		mood.Parent = Lighting
+		run.Mood = mood
+	end
 	for _, g in layout.Gates do
 		local model = gateModel(folder, g.Gap, layout.Color, #run.Gates + 1, #layout.Gates)
 		table.insert(run.Gates, { Data = g, Model = model, Passed = false, LastBump = 0 })
@@ -249,7 +284,16 @@ function Slalom.Start(layout: Layout, startX: number, startZ: number, y: number,
 	for _, o in layout.Obstacles do
 		local build = BUILDERS[o.Kind]
 		if build then
-			table.insert(run.Obstacles, { Data = o, Model = build(folder), LastHit = 0, Bob = math.random() * 6 })
+			local model = build(folder)
+			if layout.Night then
+				-- v noci překážky trochu svítí, ať jdou vidět
+				local light = Instance.new("PointLight")
+				light.Range = 12
+				light.Brightness = 1.5
+				light.Color = Color3.fromRGB(255, 190, 150)
+				light.Parent = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+			end
+			table.insert(run.Obstacles, { Data = o, Model = model, LastHit = 0, Bob = math.random() * 6 })
 		end
 	end
 	Slalom.Animate(run, 0)
@@ -258,6 +302,26 @@ end
 
 function Slalom.Destroy(run: Run)
 	run.Folder:Destroy()
+	if run.Mood then
+		run.Mood:Destroy()
+		run.Mood = nil
+	end
+end
+
+-- Náraz: se štítem se nic nestane, jinak se započítá (hvězdičky) a server se to dozví.
+-- Vrací true, když náraz zachytil štít.
+local function registerHit(run: Run, progress: number, z: number): boolean
+	if run.Shield > 0 then
+		run.Shield -= 1
+		local pos = Vector3.new(run.StartX - run.Dir * progress, run.Y + 2, run.StartZ + z)
+		Effects.Splash(pos, false)
+		Sound.Play("Ring", 0.7)
+		Effects.FloatText(if run.Shield > 0 then `SHIELD! ({run.Shield} left)` else "SHIELD SAVED YOU!", Color3.fromRGB(190, 120, 255))
+		return true
+	end
+	run.Hits += 1
+	Net.Event("SlalomHit"):FireServer()
+	return false
 end
 
 function Slalom.Stunned(run: Run): boolean
@@ -320,8 +384,10 @@ function Slalom.Resolve(run: Run, t: number, prev: number, new: number, z: numbe
 				result = math.min(result, g.X - 1.2)
 				if now - gate.LastBump > 0.7 then
 					gate.LastBump = now
-					run.StunUntil = math.max(run.StunUntil, now + Swim.Slalom.BumpStun)
-					bumpEffect(run, result, z, "BUMP! Swim through the gap!", Kit.Colors.Orange)
+					if not registerHit(run, result, z) then
+						run.StunUntil = math.max(run.StunUntil, now + Swim.Slalom.BumpStun)
+						bumpEffect(run, result, z, "BUMP! Swim through the gap!", Kit.Colors.Orange)
+					end
 				end
 			end
 		end
@@ -332,6 +398,9 @@ function Slalom.Resolve(run: Run, t: number, prev: number, new: number, z: numbe
 		local ex, ez = obstacleExtent(o.Kind)
 		if now - obstacle.LastHit > 1 and math.abs(result - o.X) < ex + PLAYER_HALF_WIDTH and math.abs(z - obstacleZ(o, t)) < ez + PLAYER_HALF_WIDTH then
 			obstacle.LastHit = now
+			if registerHit(run, result, z) then
+				continue
+			end
 			run.StunUntil = math.max(run.StunUntil, now + Swim.Slalom.HitStun)
 			result = math.max(0, result - Swim.Slalom.KnockBack)
 			local text = if o.Kind == "Jellyfish" then "ZAP! Jellyfish!" elseif o.Kind == "Puffer" then "OUCH! Pufferfish!" elseif o.Kind == "Log" then "BONK! Log!" else "BONK! Rock!"

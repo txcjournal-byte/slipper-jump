@@ -20,6 +20,7 @@ local PLAYER_GROUP = "Players"
 local SHOE_SCALE = 1.15
 local IDLE_SPARKLE_TIER = 9 -- od této boty v řadě boty pořád jiskří
 local GLOW_SOLE_TIER = 13 -- od této boty zářící podrážka
+local LEGEND_TIER = 17 -- od této boty duhová hvězdičková aura
 
 local RAINBOW = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 70)),
@@ -192,6 +193,23 @@ function AvatarService.ApplySlippers(session: Session)
 			light.Range = 6
 			light.Brightness = 1.5
 			light.Parent = sole
+		end
+		if tier >= LEGEND_TIER then
+			-- legendární boty: hvězdičková aura kolem nohou (i při chůzi)
+			local legend = Instance.new("ParticleEmitter")
+			legend.Name = "LegendAura"
+			legend.Rate = 6 + (tier - LEGEND_TIER) * 4
+			legend.Lifetime = NumberRange.new(0.8, 1.5)
+			legend.Speed = NumberRange.new(1, 3)
+			legend.SpreadAngle = Vector2.new(180, 30)
+			legend.Acceleration = Vector3.new(0, 3, 0)
+			legend.Rotation = NumberRange.new(0, 360)
+			legend.RotSpeed = NumberRange.new(-120, 120)
+			legend.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(0.3, 0.45), NumberSequenceKeypoint.new(1, 0) })
+			legend.LightEmission = 1
+			legend.Color = RAINBOW
+			legend.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+			legend.Parent = handle
 		end
 		m.Parent = character
 	end
@@ -384,7 +402,7 @@ local function onCharacter(session: Session, character: Model)
 	task.delay(3, ensureFace, character)
 	setupGiftPrompt(session, root)
 	if session.Flight and not session.Flight.Finished then
-		Registry.Jump.Finish(session, session.Flight, {}, {})
+		Registry.Jump.Finish(session, session.Flight, {}, {}, {})
 	end
 	session.Flight = nil
 	session.Swim = nil

@@ -4,6 +4,8 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local CollectionService = game:GetService("CollectionService")
+
 local Catalog = require(script.Parent.Catalog)
 
 local Models = {}
@@ -178,6 +180,120 @@ local function eyes(b: Builder, y: number, z: number, spread: number, size: numb
 	end
 end
 
+-- ===== Vytuněné drahé boty =====
+-- Čím dražší bota (pozice v řadě 1–20), tím víc „tuningu“: neonové lemy, drahokamy, chromová pata,
+-- křídla, svítící prstenec, ostny a obří drahokam. Díly s tagem ShoeRainbow klient přebarvuje dokola
+-- (duhově se přelévají).
+local function tagPart(part: BasePart, tag: string)
+	CollectionService:AddTag(part, tag)
+end
+
+local function tune(b: Builder, cfg: any, tier: number, isSneaker: boolean)
+	if tier < 10 or cfg.Worn then
+		return
+	end
+	local glow = cfg.TrailColor
+	local accent = cfg.Accent
+	local e = cfg.Effect
+	local halfW = if isSneaker then 0.69 else 0.64
+	local soleY = if isSneaker then 0.02 else 0
+	local length = if isSneaker then 3.3 else 3.2
+	local topY = if isSneaker then (if cfg.HighTop then 1.9 else 1.15) else 0.7
+	local cycle = tier >= 18 -- nejdražší boty se duhově přelévají
+	-- 1) neonový lem kolem podrážky (od Golden)
+	for _, side in { -1, 1 } do
+		local strip = b:Add(BLOCK, Vector3.new(0.09, 0.12, length - 0.6), CFrame.new(side * halfW, soleY, 0), glow, NEON)
+		if cycle then
+			tagPart(strip, "ShoeRainbow")
+		end
+	end
+	local toe = b:Add(BLOCK, Vector3.new(halfW * 2 - 0.2, 0.12, 0.09), CFrame.new(0, soleY, -length / 2 + 0.05), glow, NEON)
+	local heel = b:Add(BLOCK, Vector3.new(halfW * 2 - 0.2, 0.12, 0.09), CFrame.new(0, soleY, length / 2 - 0.05), glow, NEON)
+	if cycle then
+		tagPart(toe, "ShoeRainbow")
+		tagPart(heel, "ShoeRainbow")
+	end
+	-- 2) drahokamy po stranách (od Rocket)
+	if tier >= 12 then
+		for _, side in { -1, 1 } do
+			for i = 0, 2 do
+				b:Add(BLOCK, Vector3.one * 0.2, CFrame.new(side * (halfW + 0.04), soleY + 0.28, -0.6 + i * 0.6) * CFrame.Angles(math.rad(45), 0, math.rad(45)), glow, GLASS)
+			end
+		end
+	end
+	-- 3) chromová pata a svítící tečky nahoře (od Crystal)
+	if tier >= 14 then
+		b:Add(BLOCK, Vector3.new(halfW * 2 + 0.06, 0.45, 0.35), CFrame.new(0, soleY + 0.35, length / 2 - 0.35), accent, METAL)
+		for i = -1, 1 do
+			local dot = b:Add(BALL, Vector3.one * 0.16, CFrame.new(i * 0.3, topY + 0.02, 0.35), glow, NEON)
+			if cycle then
+				tagPart(dot, "ShoeRainbow")
+			end
+		end
+	end
+	-- 4) křídla po stranách (od Cloud Wing), u Cloud Wing obří a bílá
+	if tier >= 16 then
+		local big = e == "Clouds"
+		local wingColor = if big then Color3.fromRGB(250, 252, 255) else accent
+		for _, side in { -1, 1 } do
+			for k = 0, 2 do
+				local len = (if big then 1.6 else 1.1) - k * 0.25
+				local h = (if big then 0.9 else 0.6) - k * 0.12
+				local part = b:Add("Wedge", Vector3.new(0.08, h, len), CFrame.new(side * (halfW + 0.12), topY * 0.6 + k * 0.16, 0.55 + k * 0.12) * CFrame.Angles(math.rad(-25 - k * 10), math.rad(side * 15), 0), wingColor, if big then Enum.Material.SmoothPlastic else METAL)
+				if k == 0 and not big then
+					part.Material = NEON
+					part.Color = glow
+					if cycle then
+						tagPart(part, "ShoeRainbow")
+					end
+				end
+			end
+		end
+	end
+	-- Robot: anténa se svítící kuličkou
+	if e == "Leds" and tier >= 16 then
+		b:Add(CYL, Vector3.new(0.9, 0.08, 0.08), CFrame.new(0.3, topY + 0.45, 0.5) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(180, 185, 195), METAL)
+		b:Add(BALL, Vector3.one * 0.25, CFrame.new(0.3, topY + 0.92, 0.5), glow, NEON)
+	end
+	-- 5) svítící prstenec kolem boty, který se točí (od Galaxy)
+	if tier >= 18 then
+		local count = 14
+		for i = 0, count - 1 do
+			local a = i / count * math.pi * 2
+			local seg = b:Add(BLOCK, Vector3.new(0.12, 0.08, 0.42), CFrame.new(math.cos(a) * 1.15, soleY + 0.1, math.sin(a) * 1.85) * CFrame.Angles(0, -a, 0), glow, NEON)
+			seg.Transparency = 0.15
+			tagPart(seg, "ShoeRainbow")
+		end
+		-- Galaxy: malá planeta s prstencem na patě
+		if e == "Stars" then
+			b:Add(BALL, Vector3.one * 0.55, CFrame.new(0, topY + 0.3, 0.75), Color3.fromRGB(255, 150, 80))
+			b:Add(CYL, Vector3.new(0.05, 1.0, 1.0), CFrame.new(0, topY + 0.3, 0.75) * CFrame.Angles(math.rad(20), 0, math.rad(90)), Color3.fromRGB(200, 170, 255), NEON)
+		end
+	end
+	-- 6) ostny podél hřbetu a rohy (Dragon a výš)
+	if tier >= 19 then
+		for i = 0, 3 do
+			local spike = b:Add("Wedge", Vector3.new(0.1, 0.45 - i * 0.05, 0.4), CFrame.new(0, topY + 0.15, 0.2 + i * 0.32), accent, METAL)
+			spike.Color = if e == "Flames" then Color3.fromRGB(255, 200, 60) else accent
+		end
+		if e == "Flames" then
+			for _, side in { -1, 1 } do
+				b:Add("Wedge", Vector3.new(0.12, 0.55, 0.3), CFrame.new(side * 0.35, topY + 0.2, -0.95) * CFrame.Angles(0, 0, math.rad(side * -15)), Color3.fromRGB(250, 240, 220))
+				b:Add(BALL, Vector3.one * 0.16, CFrame.new(side * 0.25, topY - 0.05, -1.2), Color3.fromRGB(255, 60, 30), NEON)
+			end
+		end
+	end
+	-- 7) obří drahokam a zlatá korunka (nejlepší boty)
+	if tier >= 20 then
+		local gem = b:Add(BLOCK, Vector3.one * 0.6, CFrame.new(0, topY + 0.55, -0.4) * CFrame.Angles(math.rad(45), math.rad(45), 0), Color3.fromRGB(150, 235, 255), GLASS)
+		gem.Reflectance = 0.4
+		for i = 0, 5 do
+			local a = i / 6 * math.pi * 2
+			b:Add("Wedge", Vector3.new(0.1, 0.32, 0.2), CFrame.new(math.cos(a) * 0.42, topY + 0.15, -0.4 + math.sin(a) * 0.42) * CFrame.Angles(0, -a, 0), Color3.fromRGB(255, 210, 60), METAL)
+		end
+	end
+end
+
 -- ===== Tenisky (jeden kus, špička míří na -Z) =====
 
 local function sneaker(id: string, cfg: any): Model
@@ -232,6 +348,7 @@ local function sneaker(id: string, cfg: any): Model
 	elseif e == "Boing" then
 		b:Add(CYL, Vector3.new(0.6, 0.5, 0.5), CFrame.new(0, 0.7, 1.35) * CFrame.Angles(0, math.rad(90), 0), accent, METAL)
 	end
+	tune(b, cfg, Catalog.SlipperIndex(id), true)
 	return finalize(b.Model)
 end
 
@@ -343,6 +460,7 @@ function Models.Slipper(id: string): Model
 	elseif e == "Drops" then
 		b:Add(BALL, Vector3.new(0.4, 0.3, 0.4), CFrame.new(0, 0.7, -0.55), Color3.fromRGB(255, 220, 80))
 	end
+	tune(b, cfg, Catalog.SlipperIndex(id), false)
 	return finalize(b.Model)
 end
 

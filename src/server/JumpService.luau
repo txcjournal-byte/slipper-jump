@@ -12,6 +12,7 @@ local Tutorial = require(Shared.Config.Tutorial)
 local Events = require(Shared.Config.Events)
 local Swim = require(Shared.Config.Swim)
 local Products = require(Shared.Config.Products)
+local Diamonds = require(Shared.Config.Diamonds)
 local Formulas = require(Shared.Formulas)
 local Catalog = require(Shared.Catalog)
 local Net = require(Shared.Net)
@@ -37,6 +38,9 @@ export type Flight = {
 	Tier: string,
 	Coins: { [string]: Vector3 },
 	Rings: { [string]: Vector3 },
+	Diamonds: { [string]: { Position: Vector3, Type: string } },
+	DiamondIncome: number, -- příjem za sekundu pro výpočet peněz za diamant
+	Shield: number?, -- štít z diamantu pro slalom (SwimService)
 	CoinValue: number,
 	Samples: { Sample },
 	Finished: boolean,
@@ -74,6 +78,30 @@ local function meterPeriod(session: Session): number
 		return Jump.Meter.TutorialPeriod
 	end
 	return Jump.Meter.Period
+end
+
+-- Vylosuje druh diamantu podle levelu (vyšší level = častěji vzácné)
+local function rollDiamond(level: number): string
+	local total = 0
+	local pool = {}
+	for _, t in Diamonds.Types do
+		if level >= t.MinLevel then
+			local w = t.Weight
+			if t.Key ~= "Green" and t.Key ~= "Blue" then
+				w *= 1 + level * Diamonds.RareBoostPerLevel
+			end
+			total += w
+			table.insert(pool, { Key = t.Key, W = w })
+		end
+	end
+	local r = rng:NextNumber() * total
+	for _, e in pool do
+		r -= e.W
+		if r <= 0 then
+			return e.Key
+		end
+	end
+	return "Green"
 end
 
 -- Najde Z (a Y) hráče ve chvíli, kdy míjel dané X – z pozic, které viděl server
@@ -220,6 +248,26 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		table.insert(ringList, { Id = id, Position = pos })
 	end
 
+	-- barevné diamanty mezi kruhy (od levelu 3 nebo po 5 skocích)
+	local diamonds: { [string]: { Position: Vector3, Type: string } } = {}
+	local diamondList = {}
+	local level = data.Level or 1
+	if level >= Diamonds.MinLevel or data.TotalJumps >= Diamonds.MinJumps then
+		local count = math.min(Diamonds.BaseCount + math.floor(level / Diamonds.LevelsPerExtra), Diamonds.MaxCount, ringCount + 1)
+		for index = 1, count do
+			-- mezi kruhy (posunuto o půl mezery) a kousek do strany, ať se pro ně musí kormidlovat
+			local p = c.StartFraction + span * (index - 0.5) / (count + 0.5) + span * 0.04
+			p = math.clamp(p, c.StartFraction, c.EndFraction)
+			local x, y = Formulas.Trajectory(p, startPosition.X, endX, startPosition.Y, endY, height)
+			local side = if rng:NextNumber() < 0.5 then -1 else 1
+			local pos = Vector3.new(x, y + rng:NextNumber(-2, 3), side * rng:NextNumber(8, Diamonds.Lateral))
+			local id = "d" .. index
+			local kind = rollDiamond(level)
+			diamonds[id] = { Position = pos, Type = kind }
+			table.insert(diamondList, { Id = id, Position = pos, Type = kind })
+		end
+	end
+
 	flightCounter += 1
 	local flight: Flight = {
 		Id = flightCounter,
@@ -234,6 +282,8 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		Tier = tier,
 		Coins = coins,
 		Rings = rings,
+		Diamonds = diamonds,
+		DiamondIncome = math.max(Diamonds.MinIncome, Registry.Economy.IncomePerSecond(session)),
 		CoinValue = math.max(1, Registry.Economy.IncomePerSecond(session) * c.CoinValueSeconds)
 			* (if Registry.ServerEvents.IsActive("CoinStorm") then Events.CoinStormMultiplier else 1),
 		Samples = {},
@@ -268,6 +318,7 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		Tier = tier,
 		Coins = coinList,
 		Rings = ringList,
+		Diamonds = diamondList,
 		CoinValue = flight.CoinValue,
 		SuperJump = superJump,
 		MegaJump = megaJump,
@@ -281,12 +332,12 @@ function JumpService.Release(player: Player, clientValue: unknown)
 	local maxTime = duration + Jump.Flight.ExtraGlideMax + 6
 	task.delay(maxTime, function()
 		if session.Flight == flight and not flight.Finished then
-			JumpService.Finish(session, flight, {}, {})
+			JumpService.Finish(session, flight, {}, {}, {})
 		end
 	end)
 end
 
-function JumpService.Finish(session: Session, flight: Flight, coinIds: { string }, ringIds: { string })
+function JumpService.Finish(session: Session, flight: Flight, coinIds: { string }, ringIds: { string }, diamondIds: { string })
 	if flight.Finished then
 		return
 	end
@@ -314,7 +365,33 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 		end
 	end
 
-	local distance = math.min(flight.BaseDistance * (1 + flight.RingBonus * ringCount), flight.Cap)
+	-- diamanty: peníze a bonusy
+	local diamondMoney = 0
+	local xpBonus = 0
+	local coinMultiplier = 1
+	local distanceBonus = 0
+	local shield = 0
+	local collected = {}
+	for _, id in diamondIds do
+		local d = flight.Diamonds[id]
+		if d and not seen[id] and verify(flight, d.Position, Diamonds.Radius) then
+			seen[id] = true
+			local t = Diamonds.ByKey[d.Type]
+			if t then
+				local money = math.floor(flight.DiamondIncome * t.MoneySeconds)
+				diamondMoney += money
+				xpBonus += t.XPBonus or 0
+				shield += t.Shield or 0
+				coinMultiplier = math.max(coinMultiplier, t.CoinMultiplier or 1)
+				distanceBonus += t.DistanceBonus or 0
+				table.insert(collected, { Type = t.Key, Money = money })
+			end
+		end
+	end
+	flight.Shield = if shield > 0 then shield else nil
+	Registry.Economy.AddMoney(session, diamondMoney)
+
+	local distance = math.min(flight.BaseDistance * (1 + flight.RingBonus * ringCount + distanceBonus), flight.Cap)
 	local reachedGift = distance >= flight.GiftAt
 	if reachedGift then
 		distance = flight.GiftAt
@@ -323,8 +400,8 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	distance = math.floor(distance)
 
 	-- XP, peníze za mince
-	local xp = Formulas.XPForJump(distance) * flight.XPMultiplier
-	local coinMoney = math.floor(coinCount * flight.CoinValue)
+	local xp = math.floor(Formulas.XPForJump(distance) * flight.XPMultiplier * (1 + xpBonus))
+	local coinMoney = math.floor(coinCount * flight.CoinValue * coinMultiplier)
 	Registry.Economy.AddMoney(session, coinMoney)
 
 	-- předmět z vody (první skok je vždy Uncommon)
@@ -372,6 +449,9 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 		Coins = coinCount,
 		CoinMoney = coinMoney,
 		Rings = ringCount,
+		Diamonds = collected,
+		DiamondMoney = diamondMoney,
+		CoinMultiplier = coinMultiplier,
 		Item = if itemId then { Id = itemId, Income = if cfg then cfg.Income else 0 } else nil,
 		Placement = if itemId then "Pending" else nil,
 		IsNew = isNew,
@@ -409,7 +489,7 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	end
 end
 
-function JumpService.Landed(player: Player, flightId: unknown, coinIds: unknown, ringIds: unknown)
+function JumpService.Landed(player: Player, flightId: unknown, coinIds: unknown, ringIds: unknown, diamondIds: unknown)
 	local session = Registry.Player.Get(player)
 	local flight: Flight? = session and session.Flight
 	if not session or not flight or flight.Finished or flightId ~= flight.Id then
@@ -428,16 +508,17 @@ function JumpService.Landed(player: Player, flightId: unknown, coinIds: unknown,
 	end
 	local coins = sanitize(coinIds, Jump.Collectibles.CoinRows * Jump.Collectibles.CoinsPerRow)
 	local rings = sanitize(ringIds, Jump.Collectibles.Rings * Events.RainbowRingsMultiplier)
+	local gems = sanitize(diamondIds, Diamonds.MaxCount)
 	-- klient nesmí přistát dřív, než by let doopravdy trval
 	local remaining = flight.Duration * 0.9 - (os.clock() - flight.StartClock)
 	if remaining > 0 then
 		task.delay(remaining, function()
 			if session.Flight == flight then
-				JumpService.Finish(session, flight, coins, rings)
+				JumpService.Finish(session, flight, coins, rings, gems)
 			end
 		end)
 	else
-		JumpService.Finish(session, flight, coins, rings)
+		JumpService.Finish(session, flight, coins, rings, gems)
 	end
 end
 

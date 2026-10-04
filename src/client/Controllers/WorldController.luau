@@ -530,6 +530,21 @@ function WorldController.Init()
 
 	RunService.Stepped:Connect(poseCarrying)
 
+	-- nejdražší boty: neonové díly se duhově přelévají (každý díl s malým posunem barvy)
+	local lastShoeTick = 0
+	RunService.Heartbeat:Connect(function()
+		local now = os.clock()
+		if now - lastShoeTick < 0.05 then
+			return
+		end
+		lastShoeTick = now
+		for i, part in CollectionService:GetTagged("ShoeRainbow") do
+			if part:IsA("BasePart") then
+				part.Color = Color3.fromHSV((now * 0.35 + i * 0.045) % 1, 0.8, 1)
+			end
+		end
+	end)
+
 	for _, other in Players:GetPlayers() do
 		watchHeads(other)
 	end

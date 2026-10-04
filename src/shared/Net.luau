@@ -27,6 +27,7 @@ local EVENTS = {
 	"HoldStoredItem", -- klient → server: vzít předmět ze skladu nad hlavu
 	"SwimStart", -- server → klient: začni plavat k voru (žralok)
 	"SwimResult", -- server → klient: doplaval / chytil ho žralok
+	"SlalomHit", -- klient → server: náraz ve slalomu (hvězdičky)
 	"SwimChoice", -- klient → server: na voru plavat dál k dalšímu voru (true) / zpět na pláž (false)
 	"ServerEvent", -- server → všichni: právě běžící událost (nebo konec)
 	"ContestBoard", -- server → všichni: živá tabulka soutěže o nejdelší skok (nebo nil = konec)

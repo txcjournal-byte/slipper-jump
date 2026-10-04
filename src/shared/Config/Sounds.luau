@@ -35,6 +35,9 @@ return {
 	Swim = "rbxasset://sounds/action_swim.mp3", -- tempa při plavání
 	Land = "rbxasset://sounds/action_jump_land.mp3", -- doskok na vor
 	SharkAlert = PING, -- varování před žralokem (hluboký tón)
+	Diamond = PING, -- sebraný diamant (vysoký cinkot)
+	Heartbeat = "rbxasset://sounds/action_jump_land.mp3", -- tlukot srdce, když se blíží žralok
+	DangerBeep = PING, -- pípání, když je žralok těsně za hráčem
 
 	-- Výchozí výška tónu (když volající žádnou nepředá; jinak se násobí)
 	Pitch = {
@@ -47,6 +50,9 @@ return {
 		Perfect = 0.9,
 		Spin = 0.8,
 		SharkAlert = 0.45,
+		Diamond = 2.3,
+		Heartbeat = 0.5,
+		DangerBeep = 0.75,
 	} :: { [string]: number },
 	-- Hlasitost jednotlivých zvuků (násobí SfxVolume)
 	Volume = {
@@ -58,6 +64,8 @@ return {
 		Seagulls = 0.18,
 		Fanfare = 0.9,
 		LevelUp = 0.9,
+		Heartbeat = 1.6,
+		DangerBeep = 0.5,
 	} :: { [string]: number },
 
 	MusicVolume = 0.3,

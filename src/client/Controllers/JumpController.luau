@@ -13,6 +13,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Jump = require(Shared.Config.Jump)
 local Swim = require(Shared.Config.Swim)
+local Diamonds = require(Shared.Config.Diamonds)
 local World = require(Shared.Config.World)
 local Formulas = require(Shared.Formulas)
 local Catalog = require(Shared.Catalog)
@@ -36,6 +37,7 @@ local showRaftChoice: (any, { [string]: any }) -> ()
 local player = Players.LocalPlayer
 
 type Collectible = { Id: string, Position: Vector3, Part: Model?, Taken: boolean }
+type Gem = { Id: string, Position: Vector3, Type: string, Part: Model, Taken: boolean }
 
 type FlightState = {
 	Id: number,
@@ -47,6 +49,9 @@ type FlightState = {
 	Rings: { Collectible },
 	CollectedCoins: { string },
 	CollectedRings: { string },
+	Gems: { Gem },
+	CollectedGems: { string },
+	GemDistanceBonus: number, -- Rainbow diamant: delší skok
 	FinalDistance: number,
 	GlideStart: number,
 	GlideDuration: number,
@@ -73,6 +78,7 @@ local flightHud: Frame
 local distanceLabel: TextLabel
 local coinsLabel: TextLabel
 local ringsLabel: TextLabel
+local gemsLabel: TextLabel
 local steerHint: TextLabel
 -- ukazatel cesty k Obřímu dárku (pod vzdáleností)
 local giftBar: Frame
@@ -273,6 +279,89 @@ local function ringModel(position: Vector3, parent: Instance): Model
 	return m
 end
 
+-- Barevný diamant: broušený kámen (dvě pyramidy z klínů) se zářícím jádrem, světlem a jiskřičkami
+local function diamondModel(position: Vector3, kind: string, parent: Instance): Model
+	local t = Diamonds.ByKey[kind] or Diamonds.Types[1]
+	local m = Instance.new("Model")
+	m.Name = "Diamond"
+	local core = Instance.new("Part")
+	core.Name = "Core"
+	core.Shape = Enum.PartType.Ball
+	core.Size = Vector3.one * 1.6
+	core.Material = Enum.Material.Neon
+	core.Color = t.Color
+	core.Anchored = true
+	core.CanCollide = false
+	core.CanQuery = false
+	core.CanTouch = false
+	core.CFrame = CFrame.new(position)
+	core.Parent = m
+	m.PrimaryPart = core
+	-- 8 stěn: 4 klíny nahoře (koruna, nízká) a 4 dole (špička, vysoká)
+	for i = 0, 3 do
+		local yaw = CFrame.Angles(0, i * math.pi / 2, 0)
+		for _, top in { true, false } do
+			local w = Instance.new("WedgePart")
+			local h = if top then 1.6 else 3.2
+			w.Size = Vector3.new(3.4, h, 1.7)
+			w.Material = Enum.Material.Glass
+			w.Transparency = 0.15
+			w.Reflectance = 0.25
+			w.Color = t.Color
+			w.Anchored = true
+			w.CanCollide = false
+			w.CanQuery = false
+			w.CanTouch = false
+			local offset = if top then CFrame.new(0, h / 2, -0.85) else CFrame.new(0, -h / 2, -0.85) * CFrame.Angles(0, 0, math.pi)
+			w:SetAttribute("Offset", offset)
+			w:SetAttribute("Yaw", i * math.pi / 2)
+			w.CFrame = CFrame.new(position) * yaw * offset
+			w.Parent = m
+		end
+	end
+	local light = Instance.new("PointLight")
+	light.Range = 18
+	light.Brightness = 2
+	light.Color = t.Color
+	light.Parent = core
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Rate = if kind == "Rainbow" or kind == "Gold" then 30 else 14
+	sparkle.Lifetime = NumberRange.new(0.5, 1)
+	sparkle.Speed = NumberRange.new(2, 5)
+	sparkle.SpreadAngle = Vector2.new(180, 180)
+	sparkle.LightEmission = 1
+	sparkle.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
+	sparkle.Color = ColorSequence.new(Color3.new(1, 1, 1), t.Color)
+	sparkle.Parent = core
+	m.Parent = parent
+	return m
+end
+
+-- Diamanty se točí a pomalu pohupují (duhový mění barvu)
+local function animateGems(state: FlightState)
+	local now = os.clock()
+	for i, gem in state.Gems do
+		if not gem.Taken and gem.Part.Parent then
+			local base = CFrame.new(gem.Position + Vector3.new(0, math.sin(now * 2 + i) * 0.6, 0)) * CFrame.Angles(0, now * 2.2 + i, 0)
+			local rainbow = if gem.Type == "Rainbow" then Color3.fromHSV((now * 0.4 + i * 0.2) % 1, 0.75, 1) else nil
+			for _, part in gem.Part:GetChildren() do
+				if part:IsA("BasePart") then
+					local offset = part:GetAttribute("Offset")
+					local yaw = part:GetAttribute("Yaw")
+					if typeof(offset) == "CFrame" and typeof(yaw) == "number" then
+						part.CFrame = base * CFrame.Angles(0, yaw, 0) * offset
+					else
+						part.CFrame = base
+					end
+					if rainbow then
+						part.Color = rainbow
+					end
+				end
+			end
+		end
+	end
+end
+
 local function collectEffect(model: Model?, color: Color3)
 	if not model then
 		return
@@ -319,6 +408,30 @@ local function checkCollect(state: FlightState, fromX: number, toX: number, y: n
 			end
 		end
 	end
+	for _, gem in state.Gems do
+		if not gem.Taken and gem.Position.X >= fromX - 1 and gem.Position.X <= toX + 1 then
+			if math.abs(gem.Position.Z - state.Z) <= Diamonds.Radius and math.abs(gem.Position.Y - y) <= Diamonds.Radius + 1 then
+				gem.Taken = true
+				table.insert(state.CollectedGems, gem.Id)
+				local t = Diamonds.ByKey[gem.Type] or Diamonds.Types[1]
+				state.GemDistanceBonus += t.DistanceBonus or 0
+				collectEffect(gem.Part, Color3.new(1, 1, 1))
+				local rare = gem.Type == "Gold" or gem.Type == "Rainbow" or gem.Type == "Purple"
+				Sound.Play("Diamond", if rare then 1.25 else 1)
+				if rare then
+					Sound.Play("Perfect", 1.4)
+					Effects.ScreenConfetti(if gem.Type == "Rainbow" then 80 else 35)
+				end
+				Effects.FovKick(10)
+				Effects.Shake(0.15)
+				gemsLabel.Text = "💎 " .. #state.CollectedGems
+				gemsLabel.Visible = true
+				Kit.Pop(gemsLabel, 1.4)
+				Effects.BigText(`{string.upper(t.Name)}! {t.Text}`, t.Color, 1, 0.42)
+			end
+		end
+	end
+	animateGems(state)
 end
 
 -- ===== Cesta k Obřímu dárku =====
@@ -427,7 +540,7 @@ local function finishFlight(state: FlightState)
 	if root then
 		state.LandPosition = root.Position
 	end
-	Net.Event("FlightLanded"):FireServer(state.Id, state.CollectedCoins, state.CollectedRings)
+	Net.Event("FlightLanded"):FireServer(state.Id, state.CollectedCoins, state.CollectedRings, state.CollectedGems)
 	Sound.Play("Splash")
 	Sound.SetLoop("Wind", false)
 	Effects.SetSpeed(0)
@@ -457,6 +570,9 @@ local function startFlight(info: { [string]: any })
 	charging = false
 	destroyMeter()
 	if flight then
+		if flight.Slalom then
+			Slalom.Destroy(flight.Slalom)
+		end
 		flight.Folder:Destroy()
 	end
 	local folder = Instance.new("Folder")
@@ -470,6 +586,12 @@ local function startFlight(info: { [string]: any })
 	for _, ring in info.Rings do
 		table.insert(rings, { Id = ring.Id, Position = ring.Position, Part = ringModel(ring.Position, folder), Taken = false })
 	end
+	local gems: { Gem } = {}
+	if typeof(info.Diamonds) == "table" then
+		for _, d in info.Diamonds do
+			table.insert(gems, { Id = d.Id, Position = d.Position, Type = d.Type, Part = diamondModel(d.Position, d.Type, folder), Taken = false })
+		end
+	end
 	local state: FlightState = {
 		Id = info.Id,
 		Info = info,
@@ -480,6 +602,9 @@ local function startFlight(info: { [string]: any })
 		Rings = rings,
 		CollectedCoins = {},
 		CollectedRings = {},
+		Gems = gems,
+		CollectedGems = {},
+		GemDistanceBonus = 0,
 		FinalDistance = info.BaseDistance,
 		GlideStart = 0,
 		GlideDuration = 0,
@@ -502,6 +627,8 @@ local function startFlight(info: { [string]: any })
 	flightHud.Visible = true
 	coinsLabel.Text = "Coins: 0"
 	ringsLabel.Text = "⭕ 0"
+	gemsLabel.Text = "💎 0"
+	gemsLabel.Visible = #gems > 0
 	resetGiftProgress()
 	steerHint.Visible = true
 	task.delay(2.5, function()
@@ -558,6 +685,32 @@ local swimHud: Frame
 local swimBarYou: Frame
 local swimBarShark: TextLabel
 local swimHint: TextLabel
+local dangerVignette: CanvasGroup
+local lastBeat = 0
+local lastDangerText = 0
+
+-- Žraločí alarm: červené okraje obrazovky a tlukot srdce, čím blíž pronásledovatel je (0–1)
+local function setDanger(danger: number)
+	if danger < 0.05 then
+		dangerVignette.Visible = false
+		return
+	end
+	local now = os.clock()
+	dangerVignette.Visible = true
+	local pulse = 0.75 + 0.25 * math.sin(now * (4 + danger * 8))
+	dangerVignette.GroupTransparency = 1 - (0.2 + 0.6 * danger) * pulse
+	local interval = 0.95 - 0.6 * danger
+	if danger > 0.12 and now - lastBeat > interval then
+		lastBeat = now
+		Sound.Play("Heartbeat", 1 + danger * 0.3)
+		task.delay(0.17, function()
+			Sound.Play("Heartbeat", 0.85 + danger * 0.2)
+		end)
+		if danger > 0.7 then
+			Sound.Play("DangerBeep", 1 + danger * 0.4)
+		end
+	end
+end
 
 local function raftModel(position: Vector3, parent: Instance, treasure: boolean?): Model
 	local m = Instance.new("Model")
@@ -1164,7 +1317,9 @@ local function startSwim(info: { [string]: any })
 	raftModel(Vector3.new(info.StartX - dir * info.Distance, info.Y, info.StartZ), state.Folder, info.Treasure ~= nil)
 	-- slalom (od levelu 10): branky a překážky mezi hráčem a vorem
 	local slalom = info.Slalom
-	state.Slalom = if typeof(slalom) == "table" then Slalom.Start(slalom, info.StartX, info.StartZ, info.Y, state.Folder, dir) else nil
+	local shield = if typeof(info.Shield) == "number" then info.Shield else 0
+	state.Slalom = if typeof(slalom) == "table" then Slalom.Start(slalom, info.StartX, info.StartZ, info.Y, state.Folder, dir, shield) else nil
+	lastDangerText = os.clock()
 	-- kdo honí: tier podle klíče ze serveru (chybí / neznámý → žralok)
 	local tier = Formulas.ChaserByKey(info.Chaser)
 	info.Tier = tier
@@ -1203,7 +1358,14 @@ local function startSwim(info: { [string]: any })
 				Effects.BigText(layout.Name .. "!", layout.Color, 1.3, 0.36)
 			end
 		end)
-		swimHint.Text = "Steer with A / D (joystick) through the gaps!"
+		swimHint.Text = layout.Hint or "Steer with A / D (joystick) through the gaps!"
+		if state.Slalom.Shield > 0 then
+			task.delay(2.4, function()
+				if flight == state and not state.SwimEnded then
+					Effects.FloatText(`💜 DIAMOND SHIELD x{shield} - one free bump!`, Color3.fromRGB(200, 140, 255))
+				end
+			end)
+		end
 	else
 		swimHint.Text = "Hold W / joystick forward to swim!"
 	end
@@ -1235,7 +1397,9 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 		local steer = (if run then Swim.Slalom.SteerFactor else 0.5) * (if stunned then 0.5 else 1)
 		local lane = Swim.Slalom.LaneHalfWidth
 		-- doprava na obrazovce = doprava ve světě i při plavání opačným směrem (kamera je vždy za hráčem)
-		state.Z = math.clamp(state.Z - move.X * dir * info.Speed * steer * dt, info.StartZ - lane, info.StartZ + lane)
+		-- bouřkový slalom: vlny posouvají hráče do stran (střídavě)
+		local drift = if run and run.Layout.Drift then run.Layout.Drift * math.sin(elapsed * 0.9) else 0
+		state.Z = math.clamp(state.Z - move.X * dir * info.Speed * steer * dt + drift * dt, info.StartZ - lane, info.StartZ + lane)
 		local progress = math.min(info.Distance, state.SwimProgress + info.Speed * forward * dt)
 		if run then
 			progress = Slalom.Resolve(run, elapsed, state.SwimProgress, progress, state.Z - info.StartZ)
@@ -1269,6 +1433,18 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 	local chaseElapsed = if typeof(escapedAt) == "number" then math.min(elapsed, escapedAt) else elapsed
 	local dive = if typeof(escapedAt) == "number" then math.max(0, elapsed - escapedAt) * 6 else 0
 	local sharkProgress = Formulas.SharkProgress(chaseElapsed, info.SharkSpeed)
+	-- jak blízko je pronásledovatel (0 = daleko, 1 = těsně za hráčem)
+	local danger = 0
+	if not info.NoShark and not state.SwimEnded and elapsed >= info.SharkDelay then
+		danger = 1 - math.clamp((state.SwimProgress - sharkProgress - 3) / 28, 0, 1)
+		-- (ne hned po startu pronásledovatele – tam už svítí jeho vlastní varování)
+		if danger > 0.8 and elapsed > info.SharkDelay + 2.5 and os.clock() - lastDangerText > 5 then
+			lastDangerText = os.clock()
+			local tier = info.Tier or Formulas.ChaserByKey(nil)
+			Effects.BigText(`{string.upper(tier.Name)} RIGHT BEHIND YOU!`, Kit.Colors.Coral, 1, 0.5)
+		end
+	end
+	setDanger(danger)
 	for _, model in state.Chasers do
 		local chaserCFrame: CFrame
 		if elapsed < info.SharkDelay then
@@ -1310,6 +1486,11 @@ returnToBeach = function(state: FlightState, delay: number)
 		Effects.Fade(true, 0.35)
 	end)
 	task.delay(delay + 0.15, function()
+		if state.Slalom then
+			-- uklidit i tmu/bouřku (filtr v Lighting není ve složce letu)
+			Slalom.Destroy(state.Slalom)
+			state.Slalom = nil
+		end
 		if flight == state then
 			state.Folder:Destroy()
 			flight = nil
@@ -1398,11 +1579,24 @@ local function endSwim(result: { [string]: any })
 		return
 	end
 	state.SwimEnded = true
+	setDanger(0)
 	if result.Success then
 		if state.SwimInfo then
 			state.SwimInfo.EscapedAt = os.clock() - state.SwimStart
 		end
 		Effects.BigText("SAFE! +" .. FormatNumber.Money(result.Bonus), Kit.Colors.Green, 1.4, 0.28)
+		if typeof(result.Stars) == "number" then
+			local stars = result.Stars :: number
+			local text = string.rep("★", stars) .. string.rep("☆", 3 - stars)
+			local extra = if typeof(result.StarBonus) == "number" and result.StarBonus > 0 then `  +{FormatNumber.Money(result.StarBonus)}` else ""
+			local label = if stars == 3 then "PERFECT SLALOM!" elseif stars == 2 then "GREAT SLALOM!" else "SLALOM DONE"
+			task.delay(0.9, function()
+				Effects.BigText(`{text} {label}{extra}`, if stars == 3 then Kit.Colors.Yellow else Kit.Colors.White, 1.6, 0.4)
+				if stars == 3 then
+					Sound.Play("Perfect", 1.2)
+				end
+			end)
+		end
 		local kept = if typeof(result.Item) == "string" then Catalog.Item(result.Item) else nil
 		if kept then
 			local where = if result.Placement == "Carried" then "carry it home!" elseif result.Placement == "Storage" then "sent to storage." else "placed in your house!"
@@ -1508,7 +1702,7 @@ local function updateFlight(dt: number)
 		if p >= 1 then
 			-- dolet díky kruhům
 			local c = Jump.Collectibles
-			local final = math.min(info.BaseDistance * (1 + (info.RingBonus or c.RingBonus) * #state.CollectedRings), info.Cap)
+			local final = math.min(info.BaseDistance * (1 + (info.RingBonus or c.RingBonus) * #state.CollectedRings + state.GemDistanceBonus), info.Cap)
 			state.FinalDistance = final
 			local extra = final - info.BaseDistance
 			if extra > 1 then
@@ -1618,7 +1812,14 @@ local function showResult(result: { [string]: any })
 		end)
 	end
 	if result.CoinMoney > 0 then
-		Effects.FloatText("+" .. FormatNumber.Money(result.CoinMoney) .. " from coins", Kit.Colors.Yellow)
+		local x2 = if typeof(result.CoinMultiplier) == "number" and result.CoinMultiplier > 1 then ` (x{result.CoinMultiplier}!)` else ""
+		Effects.FloatText("+" .. FormatNumber.Money(result.CoinMoney) .. " from coins" .. x2, Kit.Colors.Yellow)
+	end
+	if typeof(result.DiamondMoney) == "number" and result.DiamondMoney > 0 then
+		local n = if typeof(result.Diamonds) == "table" then #result.Diamonds else 0
+		task.delay(0.4, function()
+			Effects.FloatText(`💎 +{FormatNumber.Money(result.DiamondMoney)} from {n} diamond{if n == 1 then "" else "s"}`, Color3.fromRGB(150, 230, 255))
+		end)
 	end
 	if result.DoubleXP then
 		Effects.FloatText("DOUBLE XP! +" .. FormatNumber.Short(result.XP) .. " XP", Color3.fromRGB(120, 220, 255))
@@ -1762,6 +1963,7 @@ function JumpController.Init(parentScreen: ScreenGui)
 	distanceLabel = Kit.Text(flightHud, { Text = "0 studs", Size = UDim2.fromOffset(520, 80), Position = UDim2.new(0.5, 0, 0, 20), AnchorPoint = Vector2.new(0.5, 0), StrokeThickness = 4 })
 	coinsLabel = Kit.Text(flightHud, { Text = "Coins: 0", Size = UDim2.fromOffset(260, 54), Position = UDim2.new(0, 24, 0, 30), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Kit.Colors.Yellow })
 	ringsLabel = Kit.Text(flightHud, { Text = "⭕ 0", Size = UDim2.fromOffset(340, 54), Position = UDim2.new(0, 24, 0, 90), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(255, 230, 120) })
+	gemsLabel = Kit.Text(flightHud, { Text = "💎 0", Size = UDim2.fromOffset(340, 54), Position = UDim2.new(0, 24, 0, 150), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(150, 230, 255) })
 	-- pruh cesty k Obřímu dárku: hned pod vzdáleností, dárek na konci
 	giftBar = Kit.Panel(flightHud, { Size = UDim2.fromOffset(360, 20), Position = UDim2.new(0.5, -20, 0, 106), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.fromRGB(30, 50, 95), Radius = 10, StrokeThickness = 3 })
 	giftFill = Kit.new("Frame", { BackgroundColor3 = Kit.Colors.Yellow, BorderSizePixel = 0, Size = UDim2.fromScale(0, 1), ZIndex = 2, Parent = giftBar })
@@ -1778,6 +1980,34 @@ function JumpController.Init(parentScreen: ScreenGui)
 	Kit.Text(bar, { Text = "YOU  >>>  RAFT", Size = UDim2.new(1, -20, 1, -10), Position = UDim2.fromOffset(10, 5), ZIndex = 3 })
 	swimBarShark = Kit.Text(bar, { Text = "SHARK", Size = UDim2.fromOffset(150, 36), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), TextColor3 = Kit.Colors.Coral, StrokeThickness = 3, ZIndex = 4 }) :: any
 	swimHint = Kit.Text(swimHud, { Text = "Hold W / joystick forward to swim!", Size = UDim2.fromOffset(640, 46), Position = UDim2.new(0.5, 0, 1, -60), AnchorPoint = Vector2.new(0.5, 1) })
+	-- červené okraje obrazovky (žraločí alarm)
+	dangerVignette = Instance.new("CanvasGroup")
+	dangerVignette.Name = "DangerVignette"
+	dangerVignette.BackgroundTransparency = 1
+	dangerVignette.Size = UDim2.fromScale(1, 1)
+	dangerVignette.GroupTransparency = 1
+	dangerVignette.Visible = false
+	dangerVignette.ZIndex = 0
+	dangerVignette.Parent = swimHud
+	type Edge = { Size: UDim2, Position: UDim2, Rotation: number }
+	local edges: { Edge } = {
+		{ Size = UDim2.fromScale(1, 0.22), Position = UDim2.fromScale(0, 0), Rotation = 90 },
+		{ Size = UDim2.fromScale(1, 0.22), Position = UDim2.fromScale(0, 0.78), Rotation = 270 },
+		{ Size = UDim2.fromScale(0.16, 1), Position = UDim2.fromScale(0, 0), Rotation = 0 },
+		{ Size = UDim2.fromScale(0.16, 1), Position = UDim2.fromScale(0.84, 0), Rotation = 180 },
+	}
+	for _, edge in edges do
+		local f = Instance.new("Frame")
+		f.BorderSizePixel = 0
+		f.BackgroundColor3 = Color3.fromRGB(230, 20, 30)
+		f.Size = edge.Size
+		f.Position = edge.Position
+		f.Parent = dangerVignette
+		local g = Instance.new("UIGradient")
+		g.Rotation = edge.Rotation
+		g.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) })
+		g.Parent = f
+	end
 	Net.Event("SwimStart").OnClientEvent:Connect(startSwim)
 	Net.Event("SwimResult").OnClientEvent:Connect(endSwim)
 
@@ -1807,6 +2037,9 @@ function JumpController.Init(parentScreen: ScreenGui)
 
 	player.CharacterAdded:Connect(function()
 		if flight then
+			if flight.Slalom then
+				Slalom.Destroy(flight.Slalom)
+			end
 			flight.Folder:Destroy()
 			flight = nil
 		end
