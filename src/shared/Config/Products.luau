@@ -9,16 +9,16 @@ export type GamePass = { Key: string, Id: number, Name: string, Price: number, D
 export type DevProduct = { Key: string, Id: number, Name: string, Price: number, Description: string, Color: Color3, ShowOdds: boolean?, OneTime: boolean?, Hidden: boolean?, Random: boolean? }
 
 local GamePasses: { GamePass } = {
-	{ Key = "RainbowTrail", Id = 0, Name = "Rainbow Trail", Price = 49, Description = "A rainbow trail behind every jump", Color = Color3.fromRGB(255, 110, 200) },
-	{ Key = "AutoCollect", Id = 0, Name = "Auto Collect", Price = 99, Description = "Money from your house is collected automatically", Color = Color3.fromRGB(80, 200, 120) },
-	{ Key = "PlusSlots", Id = 0, Name = "+5 Slots", Price = 149, Description = "5 more item spots in your house", Color = Color3.fromRGB(60, 160, 255) },
-	{ Key = "DoubleMoney", Id = 0, Name = "2x Money", Price = 199, Description = "Double money from everything, forever", Color = Color3.fromRGB(255, 200, 40) },
-	{ Key = "TurboFins", Id = 0, Name = "Turbo Fins", Price = 149, Description = "Swim 30% faster, forever. Outswim every sea monster!", Color = Color3.fromRGB(60, 200, 255) },
-	{ Key = "SuperJumper", Id = 0, Name = "Super Jumper", Price = 199, Description = "+25% jump distance, forever", Color = Color3.fromRGB(80, 220, 255) },
-	{ Key = "LuckyCharm", Id = 0, Name = "Lucky Charm", Price = 179, Description = "Rarer items from the water, forever (1.5x luck)", Color = Color3.fromRGB(90, 220, 140) },
-	{ Key = "VIP", Id = 0, Name = "VIP", Price = 249, Description = "Golden name and +1 daily spin", Color = Color3.fromRGB(255, 170, 30) },
-	{ Key = "TreasureHunter", Id = 0, Name = "Treasure Hunter", Price = 149, Description = "+1 diamond every jump, rarer diamonds and more treasure balloons, forever!", Color = Color3.fromRGB(120, 220, 255) },
-	{ Key = "AllSneakers", Id = 0, Name = "All Sneaker Skins", Price = 299, Description = "Unlock all 20 sneaker skins, forever!", Color = Color3.fromRGB(255, 90, 160) },
+	{ Key = "RainbowTrail", Id = 2005617527, Name = "Rainbow Trail", Price = 49, Description = "A rainbow trail behind every jump", Color = Color3.fromRGB(255, 110, 200) },
+	{ Key = "AutoCollect", Id = 2006823498, Name = "Auto Collect", Price = 99, Description = "Money from your house is collected automatically", Color = Color3.fromRGB(80, 200, 120) },
+	{ Key = "PlusSlots", Id = 2006403514, Name = "+5 Slots", Price = 149, Description = "5 more item spots in your house", Color = Color3.fromRGB(60, 160, 255) },
+	{ Key = "DoubleMoney", Id = 2007609413, Name = "2x Money", Price = 199, Description = "Double money from everything, forever", Color = Color3.fromRGB(255, 200, 40) },
+	{ Key = "TurboFins", Id = 2006985504, Name = "Turbo Fins", Price = 149, Description = "Swim 30% faster, forever. Outswim every sea monster!", Color = Color3.fromRGB(60, 200, 255) },
+	{ Key = "SuperJumper", Id = 2006637483, Name = "Super Jumper", Price = 199, Description = "+25% jump distance, forever", Color = Color3.fromRGB(80, 220, 255) },
+	{ Key = "LuckyCharm", Id = 2007627481, Name = "Lucky Charm", Price = 179, Description = "Rarer items from the water, forever (1.5x luck)", Color = Color3.fromRGB(90, 220, 140) },
+	{ Key = "VIP", Id = 2004969517, Name = "VIP", Price = 249, Description = "Golden name and +1 daily spin", Color = Color3.fromRGB(255, 170, 30) },
+	{ Key = "TreasureHunter", Id = 2006997458, Name = "Treasure Hunter", Price = 149, Description = "+1 diamond every jump, rarer diamonds and more treasure balloons, forever!", Color = Color3.fromRGB(120, 220, 255) },
+	{ Key = "AllSneakers", Id = 2005863531, Name = "All Sneaker Skins", Price = 299, Description = "Unlock all 20 sneaker skins, forever!", Color = Color3.fromRGB(255, 90, 160) },
 }
 
 local DevProducts: { DevProduct } = {
