@@ -265,6 +265,9 @@ Opravy:
   tlačítka SKIP/HOME v úkolu jsou větší (na prst).
 - Tutoriál se nezasekne na „Collect your money!“, když hráč vybere kasičku hned u vchodu.
 - „1 item“ místo „1 items“ v prodeji; testovací panel (TEST → Challenge) už nehodí hráče zpět na pláž.
+- **Nové pantofle nebyly na nohou vidět**, když měl hráč oblečený skin tenisek (např. Street Runners ze Starter Packu).
+  Koupě nebo výběr pantoflí teď skin sundá; u pantoflí schovaných pod skinem je v obchodě tlačítko SHOW.
+  Ověřeno: všech 20 pantoflí, 20 skinů tenisek a 20 čepic se na postavě ukáže správně, i po respawnu.
 
 Co se ve Studiu otestovat nedá (ověř po zveřejnění): ukládání dat a příjem offline (DataStore), žebříček
 (OrderedDataStore), darování mezi dvěma hráči (potřeba 2 klienti – Test → Clients and Servers) a skutečné nákupy za Robux.

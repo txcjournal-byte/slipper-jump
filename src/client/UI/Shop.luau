@@ -222,8 +222,10 @@ local function refresh(data: { [string]: any })
 		local entry = slipperCards[cfg.Id]
 		local owned = table.find(data.OwnedSlippers, cfg.Id) ~= nil
 		local equipped = data.EquippedSlippers == cfg.Id
-		entry.Button.BackgroundColor3 = if equipped then Kit.Colors.Gray elseif owned then Kit.Colors.Blue elseif data.Money >= cfg.Price then Kit.Colors.Green else Kit.Colors.Coral
-		Kit.SetButtonText(entry.Button, if equipped then "EQUIPPED" elseif owned then "EQUIP" elseif not atShop then "AT SHOP " .. FormatNumber.Money(cfg.Price) elseif cfg.Price == 0 then "FREE" else FormatNumber.Money(cfg.Price))
+		-- s oblečeným skinem tenisek jsou pantofle schované: tlačítko je zase ukáže (sundá skin)
+		local hidden = equipped and (data.EquippedSkin or "") ~= ""
+		entry.Button.BackgroundColor3 = if hidden then Kit.Colors.Blue elseif equipped then Kit.Colors.Gray elseif owned then Kit.Colors.Blue elseif data.Money >= cfg.Price then Kit.Colors.Green else Kit.Colors.Coral
+		Kit.SetButtonText(entry.Button, if hidden then "SHOW" elseif equipped then "EQUIPPED" elseif owned then "EQUIP" elseif not atShop then "AT SHOP " .. FormatNumber.Money(cfg.Price) elseif cfg.Price == 0 then "FREE" else FormatNumber.Money(cfg.Price))
 	end
 	local swimLevel = data.SwimLevel or 0
 	for index, button in swimCards do

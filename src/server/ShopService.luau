@@ -51,6 +51,8 @@ local function buySlippers(session: Session, id: string): Result
 	end
 	table.insert(data.OwnedSlippers, id)
 	data.EquippedSlippers = id
+	-- nové pantofle musí být na nohách vidět: oblečený skin tenisek se sundá (jde zase obléct v Sneakers)
+	data.EquippedSkin = ""
 	Registry.Avatar.ApplySlippers(session)
 	Registry.Tutorial.OnPurchase(session)
 	Net.Event("PlayEffect"):FireClient(session.Player, "Purchase", { Id = id })
@@ -191,6 +193,8 @@ local function handleAction(player: Player, action: unknown, kind: unknown, id: 
 			return { Ok = false, Message = "You don't own these yet." }
 		end
 		data.EquippedSlippers = id
+		-- (stejně jako při nákupu: vybrané pantofle mají být vidět, ne skin tenisek)
+		data.EquippedSkin = ""
 		Registry.Avatar.ApplySlippers(session)
 		result = { Ok = true, Message = "Equipped!" }
 	elseif action == "Equip" and kind == "Hats" then

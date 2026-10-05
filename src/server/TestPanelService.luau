@@ -42,6 +42,7 @@ function TestPanelService.Start()
 				table.insert(data.OwnedSlippers, value)
 			end
 			data.EquippedSlippers = value
+			data.EquippedSkin = "" -- ať jsou pantofle vidět (ne skin tenisek)
 			Registry.Avatar.ApplySlippers(session)
 			message = "Wearing " .. value
 		elseif action == "Swim" and type(value) == "number" then
