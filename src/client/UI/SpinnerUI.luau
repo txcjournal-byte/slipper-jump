@@ -221,13 +221,21 @@ function SpinnerUI.Init(screen: ScreenGui)
 
 	spinButton = Kit.Button(content, { Text = "SPIN!", Color = Kit.Colors.Green, Size = UDim2.fromOffset(420, 70), Position = UDim2.new(0, 0, 1, -4), AnchorPoint = Vector2.new(0, 1) }, doSpin)
 	if Products.IsConfigured("Spin1") then
-		Kit.Button(content, { Text = "+1 Spin  R$" .. priceOf("Spin1"), Color = Kit.Colors.Orange, Size = UDim2.fromOffset(195, 60), Position = UDim2.new(1, -205, 1, -4), AnchorPoint = Vector2.new(1, 1) }, function()
+		local buy1 = Kit.Button(content, { Text = "+1 Spin  R$" .. priceOf("Spin1"), Color = Kit.Colors.Orange, Size = UDim2.fromOffset(195, 60), Position = UDim2.new(1, -205, 1, -4), AnchorPoint = Vector2.new(1, 1) }, function()
 			promptProduct("Spin1")
+		end)
+		buy1.Visible = false
+		Purchase.OnPolicy(function()
+			buy1.Visible = Purchase.Allowed("Spin1")
 		end)
 	end
 	if Products.IsConfigured("Spins5") then
-		Kit.Button(content, { Text = "+5 Spins  R$" .. priceOf("Spins5"), Color = Kit.Colors.Pink, Size = UDim2.fromOffset(195, 60), Position = UDim2.new(1, 0, 1, -4), AnchorPoint = Vector2.new(1, 1) }, function()
+		local buy5 = Kit.Button(content, { Text = "+5 Spins  R$" .. priceOf("Spins5"), Color = Kit.Colors.Pink, Size = UDim2.fromOffset(195, 60), Position = UDim2.new(1, 0, 1, -4), AnchorPoint = Vector2.new(1, 1) }, function()
 			promptProduct("Spins5")
+		end)
+		buy5.Visible = false
+		Purchase.OnPolicy(function()
+			buy5.Visible = Purchase.Allowed("Spins5")
 		end)
 	end
 

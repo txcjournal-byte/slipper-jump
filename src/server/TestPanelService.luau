@@ -55,6 +55,19 @@ function TestPanelService.Start()
 				Registry.Items.GiveRandom(session, rarity)
 			end
 			message = "+6 random items"
+		elseif action == "Trial" and (value == "Bronze" or value == "Silver" or value == "Giant") then
+			-- přenést na ostrov a nabídnout úkol na cestu domů
+			local landing = if value == "Giant" then Registry.Map.GiftLanding else Registry.Map.IslandLandings[value]
+			local character = player.Character
+			if character and landing then
+				if session.Flight or session.Swim then
+					return
+				end
+				character:PivotTo(CFrame.new(landing + Vector3.new(0, 4, 0)))
+				task.wait(0.3)
+				Registry.Trials.Offer(session, value)
+			end
+			message = "Island challenge: " .. value
 		elseif action == "ResetGifts" then
 			data.ClaimedGifts = {}
 			message = "Gift islands reset"

@@ -47,6 +47,7 @@ Dokud mají produkty `Id = 0`, v obchodě se neukazují (a tlačítka jen ukáž
 | Game pass | **Lucky Charm** (`LuckyCharm`) | 179 R$ | 1,5× štěstí na vzácné předměty z vody natrvalo |
 | Game pass | VIP (`VIP`) | 249 R$ | zlaté jméno, +1 denní točení |
 | Game pass | **All Sneaker Skins** (`AllSneakers`) | 299 R$ | všech 20 skinů tenisek natrvalo |
+| Game pass | **Treasure Hunter** (`TreasureHunter`) | 149 R$ | +1 diamant v každém skoku, vzácnější diamanty, častější balónky |
 | Developer product | Starter Pack (`StarterPack`) | 49 R$ | jednorázový balíček |
 | Developer product | Shark Repellent (`SharkRepellent`) | 29 R$ | 3 plavání bez žraloka |
 | Developer product | Super Jump (`SuperJump`) | 15 R$ | příští skok +20 % |
@@ -58,6 +59,9 @@ Dokud mají produkty `Id = 0`, v obchodě se neukazují (a tlačítka jen ukáž
 | Developer product | 5 Spins (`Spins5`) | 99 R$ | 5 točení (šance jsou vidět) |
 | Developer product | Money Chest (`MoneyChest`) | 149 R$ | příjem domečku za 1 h |
 | Developer product | **10 Spins** (`Spins10`) | 179 R$ | 10 točení (nejvýhodnější) |
+| Developer product | **Bubble Shield** (`BubbleShield`) | 25 R$ | 5 slalomů s jedním nárazem zdarma |
+| Developer product | **Easy Path** (`TrialEasy`) | 19 R$ | snazší úkol na ostrově (nabízí se jen tam) |
+| Developer product | **Skip Challenge** (`TrialSkip`) | 39 R$ | domů z ostrova hned i s bonusem (nabízí se jen tam) |
 | Developer product | **Sneaker Skin** (`SkinTier1`) | 19 R$ | 1 skin tenisek (pozice 2–5) |
 | Developer product | **Cool Sneaker Skin** (`SkinTier2`) | 39 R$ | 1 skin tenisek (pozice 6–10) |
 | Developer product | **Epic Sneaker Skin** (`SkinTier3`) | 69 R$ | 1 skin tenisek (pozice 11–15) |
@@ -73,8 +77,8 @@ Hráč si v ITEMS → Sneakers vybere skin, hra si zapamatuje který a otevře n
 ### Zveřejnění hry – krok za krokem
 1. Ve Studiu **File → Publish to Roblox** (pojmenuj hru *Slipper Jump!*).
 2. Game Settings → Security → zapni **Enable Studio Access to API Services** (ukládání dat).
-3. Creator Dashboard → hra → **Monetization → Passes**: založ 9 passů z tabulky (název, cena, ikonka).
-4. **Monetization → Developer Products**: založ 15 produktů z tabulky.
+3. Creator Dashboard → hra → **Monetization → Passes**: založ 10 passů z tabulky (název, cena, ikonka).
+4. **Monetization → Developer Products**: založ 18 produktů z tabulky.
 5. ID všech passů a produktů vlož do `src/shared/Config/Products.luau` (pole `Id`) a hru znovu publikuj.
 6. Vyplň dotazník **Maturity & Compliance**, nahraj ikonu a obrázky a hru přepni na **Public**.
 
@@ -120,6 +124,10 @@ Cestou jsou dva dárkové ostrovy: **Bronze Gift** na 10 000 studech (250 000 $,
 **Testovací panel**: ve Studiu je dole fialové tlačítko TEST – spustí libovolnou událost, nastaví level, přidá peníze, obuje pantofle, plaveckou výbavu, štíty, předměty. Ve zveřejněné hře není.
 
 **Album** (ITEMS → Index): přehled nalezených předmětů po vzácnostech; za kompletní vzácnost točení zdarma (`Config/Items.luau` → `IndexRewardSpins`).
+
+**Úkoly na cestu z ostrovů** (`Config/Trials.luau`, stavby v `server/TrialCourses.luau`): po otevření dárku hráč zůstane na ostrově a dostane úkol domů – Bronze = závod na kánoi (slalom, žralok), Silver = barevná dráha nad mořem (vlaječky, mizející plošiny, otáčející se tyče, klády), Obří dárek = kánoe v bouři před Krakenem. Dárek už má, úkol je bonus (peníze, točení, titulek). Kdykoli může zdarma „GO HOME (no bonus)“, za Robux Easy Path nebo Skip + bonus. Ve Studiu: TEST → Challenge: Bronze / Silver / Giant.
+
+**Točení za Robux a PolicyService**: v zemích, kde Roblox zakazuje placené náhodné odměny, se nákupy točení (a Starter Pack se točeními) automaticky skryjí (`client/Purchase.luau`).
 
 **Žraločí alarm**: když se pronásledovatel blíží, zčervenají okraje obrazovky a zrychluje tlukot srdce.
 

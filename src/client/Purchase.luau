@@ -10,11 +10,59 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Products = require(Shared.Config.Products)
 local Net = require(Shared.Net)
 
+local PolicyService = game:GetService("PolicyService")
+
 local Purchase = {}
+
+-- Pravidla Robloxu: v některých zemích se nesmí prodávat náhodné odměny za Robux (točení kolem štěstí).
+-- Zjistí se z PolicyService; dokud se neví, bereme to jako zakázané (bezpečnější).
+local randomRestricted = true
+local policyLoaded = false
+local policyCallbacks: { () -> () } = {}
+task.spawn(function()
+	local ok, info = pcall(function()
+		return PolicyService:GetPolicyInfoForPlayerAsync(Players.LocalPlayer)
+	end)
+	if ok and type(info) == "table" then
+		randomRestricted = info.ArePaidRandomItemsRestricted == true
+	elseif RunService:IsStudio() then
+		randomRestricted = false
+	end
+	policyLoaded = true
+	for _, callback in policyCallbacks do
+		task.spawn(callback)
+	end
+end)
+
+-- Zavolá callback, až se zjistí pravidla (nebo hned, když už se ví)
+function Purchase.OnPolicy(callback: () -> ())
+	if policyLoaded then
+		task.spawn(callback)
+	else
+		table.insert(policyCallbacks, callback)
+	end
+end
+
+local function isRandom(key: string): boolean
+	for _, product in Products.DevProducts do
+		if product.Key == key then
+			return product.Random == true
+		end
+	end
+	return false
+end
+
+-- Smí se produkt tomuto hráči nabídnout? (náhodné odměny jen tam, kde to Roblox dovoluje)
+function Purchase.Allowed(key: string): boolean
+	return not (randomRestricted and isRandom(key))
+end
 
 -- Vrací false, když produkt není založený (a nejsme ve Studiu)
 function Purchase.Prompt(key: string): boolean
 	local player = Players.LocalPlayer
+	if not Purchase.Allowed(key) then
+		return false
+	end
 	for _, pass in Products.GamePasses do
 		if pass.Key == key then
 			if pass.Id ~= 0 then

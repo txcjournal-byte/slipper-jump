@@ -822,6 +822,31 @@ function Models.AddRarityFx(model: Model, rarityName: string)
 end
 
 -- Pomocník pro anchored rekvizity (předměty na podstavcích, ve vodě)
+-- Dřevěná kánoe (špička míří na -Z), sedí na hladině (dno v y = 0). Kánoe na ostrovní úkoly.
+function Models.Canoe(): Model
+	local wood = Color3.fromRGB(176, 110, 58)
+	local dark = Color3.fromRGB(120, 72, 38)
+	local b = newBuilder("Canoe", Vector3.new(3.2, 0.6, 9), wood, BLOCK, Enum.Material.Wood)
+	b.Handle.CFrame = CFrame.new(0, 0.3, 0)
+	-- boky a lemy (červeno-bílý pruh)
+	for _, side in { -1, 1 } do
+		b:Add(BLOCK, Vector3.new(0.35, 1.4, 9), CFrame.new(side * 1.6, 0.9, 0), wood, Enum.Material.Wood)
+		b:Add(BLOCK, Vector3.new(0.45, 0.22, 9.1), CFrame.new(side * 1.62, 1.62, 0), Color3.fromRGB(220, 60, 50))
+		b:Add(BLOCK, Vector3.new(0.47, 0.1, 9.1), CFrame.new(side * 1.63, 1.4, 0), WHITE)
+	end
+	-- špičatá příď a záď (kosočtverec otočený o 45°)
+	for _, z in { -4.6, 4.6 } do
+		b:Add(BLOCK, Vector3.new(2.3, 1.75, 2.3), CFrame.new(0, 0.95, z) * CFrame.Angles(0, math.rad(45), 0), wood, Enum.Material.Wood)
+		b:Add(BLOCK, Vector3.new(0.5, 0.5, 0.5), CFrame.new(0, 1.95, z + (if z < 0 then -0.9 else 0.9)), Color3.fromRGB(220, 60, 50))
+	end
+	-- vnitřek, sedátko a pádlo
+	b:Add(BLOCK, Vector3.new(2.85, 0.2, 8.6), CFrame.new(0, 0.7, 0), dark, Enum.Material.Wood)
+	b:Add(BLOCK, Vector3.new(2.9, 0.25, 0.9), CFrame.new(0, 1.15, 1.2), dark, Enum.Material.Wood)
+	b:Add(CYL, Vector3.new(5.2, 0.22, 0.22), CFrame.new(1.2, 1.9, -0.6) * CFrame.Angles(0, math.rad(20), math.rad(35)), Color3.fromRGB(150, 100, 60))
+	b:Add(BLOCK, Vector3.new(0.15, 1.3, 0.75), CFrame.new(2.85, 0.55, -1.2) * CFrame.Angles(0, math.rad(20), math.rad(35)), Color3.fromRGB(255, 200, 60))
+	return finalize(b.Model)
+end
+
 function Models.Anchor(model: Model)
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") then

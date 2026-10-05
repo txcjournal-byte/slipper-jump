@@ -69,6 +69,7 @@ type FlightState = {
 	Chasers: { Model }, -- pronásledovatelé (žralok, velryba, chobotnice…)
 	Slalom: Slalom.Run?, -- branky a překážky na cestě k voru (od levelu 2)
 	OnRaft: boolean, -- doplaval a stojí na voru (vybírá: dál / zpět)
+	Canoe: Model?, -- závod na kánoi z ostrova (úkol)
 	ExpectedPosition: Vector3?,
 }
 
@@ -1460,8 +1461,56 @@ local function animateChaser(model: Model, target: Vector3, dt: number)
 	end
 end
 
+-- Závod na kánoi z ostrova začíná bez letu – připravit prázdný stav
+local function newTrialState(info: { [string]: any }): FlightState
+	if flight then
+		flight.Folder:Destroy()
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = "TrialRace"
+	folder.Parent = Workspace
+	local state: FlightState = {
+		Id = 0,
+		Info = info,
+		StartClock = os.clock(),
+		Phase = "Swim",
+		Z = info.StartZ,
+		Coins = {},
+		Rings = {},
+		CollectedCoins = {},
+		CollectedRings = {},
+		Gems = {},
+		CollectedGems = {},
+		GemDistanceBonus = 0,
+		Balloons = {},
+		PoppedBalloons = {},
+		FinalDistance = 0,
+		GlideStart = 0,
+		GlideDuration = 0,
+		LastX = info.StartX,
+		LandPosition = nil,
+		Folder = folder,
+		SwimInfo = nil,
+		SwimStart = 0,
+		SwimProgress = 0,
+		SwimEnded = false,
+		Chasers = {},
+		Slalom = nil,
+		OnRaft = false,
+		ExpectedPosition = nil,
+		Canoe = nil,
+	}
+	flight = state
+	setCharacterFlying(true)
+	HUD.SetVisible(false)
+	return state
+end
+
 local function startSwim(info: { [string]: any })
 	local state = flight
+	if info.Trial and (not state or state.Phase == "Returned") then
+		state = newTrialState(info)
+	end
 	if not state or state.Phase == "Returned" then
 		return
 	end
@@ -1489,6 +1538,12 @@ local function startSwim(info: { [string]: any })
 	end
 	local stage = if typeof(info.Stage) == "number" then info.Stage else 1
 	state.SwimInfo = info
+	if info.Mode == "Canoe" and not state.Canoe then
+		local canoe = Models.Canoe()
+		Models.Anchor(canoe)
+		canoe.Parent = state.Folder
+		state.Canoe = canoe
+	end
 	state.SwimStart = os.clock()
 	state.SwimProgress = 0
 	state.SwimEnded = false
@@ -1517,7 +1572,7 @@ local function startSwim(info: { [string]: any })
 	swimBarShark.Text = tier.Name
 	swimBarShark.TextColor3 = tier.Color
 	flightHud.Visible = false
-	local swimText = if stage > 1 then `SWIM TO RAFT {stage}/{info.MaxStage or 3}!` else "SWIM TO THE RAFT!"
+	local swimText = if info.Mode == "Canoe" then "PADDLE HOME!" elseif stage > 1 then `SWIM TO RAFT {stage}/{info.MaxStage or 3}!` else "SWIM TO THE RAFT!"
 	if stage > 1 then
 		Sound.Play("Splash")
 		Effects.Splash(Vector3.new(info.StartX, info.Y, info.StartZ), true)
@@ -1602,6 +1657,14 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 		-- stojí na voru čelem k dalšímu voru (k pláži), kousek vedle vlajky, ať ji nemá před sebou
 		position = Vector3.new(info.StartX - dir * info.Distance, info.Y + 4.1, info.StartZ - 2.5) + ahead * 3
 		root.CFrame = CFrame.lookAt(position, position + ahead)
+	elseif state.Canoe then
+		-- sedí v kánoi: kánoe se houpe na vlnách, hráč v ní vzpřímeně
+		local bob = math.sin(os.clock() * 2.4) * 0.12
+		local roll = CFrame.Angles(0, 0, math.sin(os.clock() * 1.7) * 0.05)
+		local boat = Vector3.new(position.X, info.Y + 0.05 + bob, position.Z)
+		state.Canoe:PivotTo(CFrame.lookAt(boat, boat + ahead) * roll)
+		position = boat + Vector3.new(0, 2.45, 0) + ahead * 0.6
+		root.CFrame = CFrame.lookAt(position, position + ahead) * roll
 	else
 		-- plavecká poloha: břichem dolů, hlavou k voru
 		root.CFrame = CFrame.lookAt(position, position + ahead) * CFrame.Angles(math.rad(-80), 0, math.sin(os.clock() * 8) * 0.2)
@@ -1762,6 +1825,24 @@ local function endSwim(result: { [string]: any })
 	end
 	state.SwimEnded = true
 	setDanger(0)
+	if result.Trial then
+		-- závod na kánoi z ostrova: oslava / zkus znovu (zbytek řeší TrialUI a server)
+		if result.Success then
+			if state.SwimInfo then
+				state.SwimInfo.EscapedAt = os.clock() - state.SwimStart
+			end
+			Effects.BigText("YOU MADE IT!", Kit.Colors.Green, 1.6, 0.28)
+			Effects.ScreenConfetti(80)
+			Sound.Play("Fanfare")
+		else
+			local tier = if state.SwimInfo and state.SwimInfo.Tier then state.SwimInfo.Tier else Formulas.ChaserByKey(nil)
+			Effects.BigText(if result.Reason == "Shark" then tier.Caught else "Too slow!", tier.Color, 1.4, 0.28)
+			Effects.Shake(0.5)
+			Sound.Play("Splash", 0.8)
+		end
+		returnToBeach(state, Swim.ReturnDelay)
+		return
+	end
 	if result.Success then
 		if state.SwimInfo then
 			state.SwimInfo.EscapedAt = os.clock() - state.SwimStart
@@ -2047,19 +2128,25 @@ local function showResult(result: { [string]: any })
 	if not result.ReachedGift then
 		return -- dál pokračuje plavání (SwimStart / SwimResult)
 	end
-	local delayTime = Jump.GiftReturnDelay
-	task.delay(delayTime - 0.45, function()
-		Effects.Fade(true, 0.35)
-	end)
-	task.delay(delayTime + 0.15, function()
+	-- po otevření dárku hráč zůstane na ostrově: úkol na cestu domů (TrialUI) – jen uklidit let
+	task.delay(Jump.GiftReturnDelay, function()
 		if flight == state and state then
 			state.Folder:Destroy()
 			flight = nil
 		end
 		setCharacterFlying(false)
 		endFlightVisuals()
-		Effects.Fade(false, 0.5)
 	end)
+end
+
+-- Úkol z ostrova skončil jinak než dojetím (Skip za Robux, GO HOME) – uklidit závod na kánoi
+function JumpController.EndTrialRace()
+	local state = flight
+	if state and state.SwimInfo and state.SwimInfo.Trial and not state.SwimEnded then
+		state.SwimEnded = true
+		setDanger(0)
+		returnToBeach(state, 0.5)
+	end
 end
 
 function JumpController.ShowItemCard(itemId: string, isNew: boolean?, placement: string?)

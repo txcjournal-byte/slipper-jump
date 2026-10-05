@@ -60,7 +60,8 @@ export type MapInfo = {
 	Leaderboard: LeaderboardInfo,
 	GiftLanding: Vector3,
 	GiftModel: Model,
-	IslandLandings: { [string]: Vector3 }, -- dárkové ostrovy (Bronze, Silver): kde hráč přistane
+	IslandLandings: { [string]: Vector3 },
+	Trials: { [string]: any }, -- úkoly na cestu zpět z ostrovů (TrialCourses.Spot) -- dárkové ostrovy (Bronze, Silver): kde hráč přistane
 }
 
 local MapBuilder = {}
@@ -1947,6 +1948,7 @@ function MapBuilder.Build(): MapInfo
 	for _, island in GiantGift.Islands do
 		islandLandings[island.Key] = buildGiftIsland(root, island)
 	end
+	local trials = require(script.Parent.TrialCourses).Build(root, islandLandings, giftLanding)
 
 	return {
 		Folder = root,
@@ -1963,6 +1965,7 @@ function MapBuilder.Build(): MapInfo
 		GiftLanding = giftLanding,
 		GiftModel = giftModel,
 		IslandLandings = islandLandings,
+		Trials = trials,
 	}
 end
 

@@ -85,6 +85,12 @@ function TestPanel.Init(screen: ScreenGui, hudScreen: ScreenGui)
 	button(other, "+6 random items", Kit.Colors.Green, function()
 		send("Items", true)
 	end)
+	for _, key in { "Bronze", "Silver", "Giant" } do
+		button(other, "Challenge: " .. key, Kit.Colors.Pink, function()
+			send("Trial", key)
+			window.Close()
+		end)
+	end
 	button(other, "Reset gift islands", Kit.Colors.Coral, function()
 		send("ResetGifts", true)
 	end)

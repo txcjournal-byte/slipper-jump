@@ -518,10 +518,12 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	session.Returning = true
 	Registry.Avatar.SetFlightEffects(session, false)
 	if reachedGift then
+		-- po otevření dárku zůstane hráč na ostrově a dostane úkol na cestu domů (TrialService)
 		task.delay(Jump.GiftReturnDelay, function()
 			if session.Flight == flight then
 				session.Flight = nil
-				Registry.Player.ReturnToBeach(session)
+				session.Returning = false
+				Registry.Trials.Offer(session, islandKey or "Giant")
 				Registry.Player.MarkDirty(session)
 			end
 		end)

@@ -28,6 +28,9 @@ local EVENTS = {
 	"SwimStart", -- server → klient: začni plavat k voru (žralok)
 	"SwimResult", -- server → klient: doplaval / chytil ho žralok
 	"SlalomHit", -- klient → server: náraz ve slalomu (hvězdičky)
+	"TrialOffer", -- server → klient: úkol na cestu domů z dárkového ostrova (panel + šipka)
+	"TrialAction", -- klient → server: "Start" / "GoHome"
+	"TrialState", -- server → klient: průběh úkolu (Running, Checkpoint, Respawn, Complete, End)
 	"SwimChoice", -- klient → server: na voru plavat dál k dalšímu voru (true) / zpět na pláž (false)
 	"ServerEvent", -- server → všichni: právě běžící událost (nebo konec)
 	"ContestBoard", -- server → všichni: živá tabulka soutěže o nejdelší skok (nebo nil = konec)

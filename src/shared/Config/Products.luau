@@ -6,7 +6,7 @@
 local RunService = game:GetService("RunService")
 
 export type GamePass = { Key: string, Id: number, Name: string, Price: number, Description: string, Color: Color3 }
-export type DevProduct = { Key: string, Id: number, Name: string, Price: number, Description: string, Color: Color3, ShowOdds: boolean?, OneTime: boolean?, Hidden: boolean? }
+export type DevProduct = { Key: string, Id: number, Name: string, Price: number, Description: string, Color: Color3, ShowOdds: boolean?, OneTime: boolean?, Hidden: boolean?, Random: boolean? }
 
 local GamePasses: { GamePass } = {
 	{ Key = "RainbowTrail", Id = 0, Name = "Rainbow Trail", Price = 49, Description = "A rainbow trail behind every jump", Color = Color3.fromRGB(255, 110, 200) },
@@ -22,18 +22,21 @@ local GamePasses: { GamePass } = {
 }
 
 local DevProducts: { DevProduct } = {
-	{ Key = "StarterPack", Id = 0, Name = "Starter Pack", Price = 49, Description = "$5,000 + 3 Spins + 3 Shark Repellents + Street Runners skin. Once per player!", Color = Color3.fromRGB(255, 120, 180), OneTime = true },
+	{ Key = "StarterPack", Id = 0, Name = "Starter Pack", Price = 49, Description = "$5,000 + 3 Spins + 3 Shark Repellents + Street Runners skin. Once per player!", Color = Color3.fromRGB(255, 120, 180), OneTime = true, Random = true }, -- obsahuje točení = náhodná odměna
 	{ Key = "SharkRepellent", Id = 0, Name = "Shark Repellent", Price = 29, Description = "No sharks or sea monsters for your next 3 swims", Color = Color3.fromRGB(80, 200, 160) },
 	{ Key = "BubbleShield", Id = 0, Name = "Bubble Shield", Price = 25, Description = "Your next 5 slaloms: one free bump each (no stun)", Color = Color3.fromRGB(190, 120, 255) },
+	-- úkoly na cestu z dárkových ostrovů (nabízí se jen tam, v obchodě skryté)
+	{ Key = "TrialEasy", Id = 0, Name = "Easy Path", Price = 19, Description = "Easier island challenge: wider gates, slower chaser, respawn right where you fell", Color = Color3.fromRGB(80, 200, 255), Hidden = true },
+	{ Key = "TrialSkip", Id = 0, Name = "Skip Challenge", Price = 39, Description = "Go home right now and still get the challenge bonus", Color = Color3.fromRGB(255, 180, 40), Hidden = true },
 	{ Key = "SuperJump", Id = 0, Name = "Super Jump", Price = 15, Description = "Your next jump goes 20% farther", Color = Color3.fromRGB(80, 220, 255) },
 	{ Key = "MegaJumpPack", Id = 0, Name = "Mega Jump Pack", Price = 39, Description = "Your next 3 jumps go 50% farther", Color = Color3.fromRGB(255, 140, 60) },
-	{ Key = "Spin1", Id = 0, Name = "1 Spin", Price = 25, Description = "One extra spin of the wheel", Color = Color3.fromRGB(255, 120, 60), ShowOdds = true },
+	{ Key = "Spin1", Id = 0, Name = "1 Spin", Price = 25, Description = "One extra spin of the wheel", Color = Color3.fromRGB(255, 120, 60), ShowOdds = true, Random = true },
 	{ Key = "Boost30", Id = 0, Name = "2x Money (30 min)", Price = 49, Description = "Double money for 30 minutes", Color = Color3.fromRGB(255, 200, 40) },
 	{ Key = "LuckyPotion", Id = 0, Name = "Lucky Potion", Price = 39, Description = "2x luck for rarer items for 15 minutes", Color = Color3.fromRGB(120, 230, 120) },
 	{ Key = "MoneyBag", Id = 0, Name = "Money Bag", Price = 49, Description = "Money equal to 15 minutes of house income", Color = Color3.fromRGB(80, 200, 120) },
-	{ Key = "Spins5", Id = 0, Name = "5 Spins", Price = 99, Description = "Five extra spins of the wheel", Color = Color3.fromRGB(255, 90, 150), ShowOdds = true },
+	{ Key = "Spins5", Id = 0, Name = "5 Spins", Price = 99, Description = "Five extra spins of the wheel", Color = Color3.fromRGB(255, 90, 150), ShowOdds = true, Random = true },
 	{ Key = "MoneyChest", Id = 0, Name = "Money Chest", Price = 149, Description = "Money equal to 1 hour of house income", Color = Color3.fromRGB(170, 80, 255) },
-	{ Key = "Spins10", Id = 0, Name = "10 Spins", Price = 179, Description = "Ten extra spins of the wheel (best value!)", Color = Color3.fromRGB(255, 60, 120), ShowOdds = true },
+	{ Key = "Spins10", Id = 0, Name = "10 Spins", Price = 179, Description = "Ten extra spins of the wheel (best value!)", Color = Color3.fromRGB(255, 60, 120), ShowOdds = true, Random = true },
 	-- Skiny tenisek: jeden produkt na cenovou skupinu, který skin hráč chce, si server pamatuje (SelectSkin)
 	{ Key = "SkinTier1", Id = 0, Name = "Sneaker Skin", Price = 19, Description = "One sneaker skin (looks only)", Color = Color3.fromRGB(120, 180, 255), Hidden = true },
 	{ Key = "SkinTier2", Id = 0, Name = "Cool Sneaker Skin", Price = 39, Description = "One sneaker skin (looks only)", Color = Color3.fromRGB(120, 220, 140), Hidden = true },

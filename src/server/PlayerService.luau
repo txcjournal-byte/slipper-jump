@@ -25,6 +25,7 @@ export type Session = {
 	Passes: { [string]: boolean },
 	Flight: any?, -- JumpService.Flight
 	Swim: any?, -- SwimService.SwimState
+	Trial: any?, -- TrialService.TrialState (úkol na cestu z ostrova)
 	PendingSkin: string?, -- skin vybraný v obchodě před nákupem za Robux
 	Charge: { Start: number, Period: number }?,
 	LastJump: number,
@@ -202,6 +203,7 @@ local function onPlayerAdded(player: Player)
 		Passes = {},
 		Flight = nil,
 		Swim = nil,
+		Trial = nil,
 		PendingSkin = nil,
 		Charge = nil,
 		LastJump = 0,
@@ -271,7 +273,7 @@ local function boundsLoop()
 	while true do
 		task.wait(0.5)
 		for _, session in PlayerService.Sessions do
-			if session.Loaded and not session.Flight and not session.Returning then
+			if session.Loaded and not session.Flight and not session.Returning and not session.Trial then
 				local root = PlayerService.GetRoot(session.Player)
 				if root then
 					local pos = root.Position
@@ -326,6 +328,10 @@ function PlayerService.Start()
 			return
 		end
 		session.LastQuickTeleport = os.clock()
+		if session.Trial then
+			-- teleport z ostrova = vzdát úkol (bez bonusu)
+			Registry.Trials.Abandon(session)
+		end
 		if target == "House" and session.House then
 			character:PivotTo(session.House.Entrance)
 		elseif target == "Pier" then

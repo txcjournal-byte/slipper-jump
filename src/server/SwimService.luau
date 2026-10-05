@@ -36,6 +36,7 @@ export type SwimState = {
 	Waiting: boolean, -- stojí na voru a vybírá si (dál / zpět)
 	Dir: number, -- 1 = plave ke břehu (−X), −1 = na moře (+X, vory 2 a 3)
 	HasSlalom: boolean,
+	Trial: string?, -- úkol z ostrova (kánoe) – po doplutí rozhodne TrialService
 	Hits: number, -- nárazy ve slalomu (hlásí klient) → hvězdičky
 	LastHit: number,
 }
@@ -60,11 +61,12 @@ export type SlalomLayout = {
 -- Vylosuje slalom pro level hráče. X = vzdálenost od místa startu směrem k voru,
 -- Z = posun do strany od dráhy (klient přičte StartZ). Mezery branek se střídají vlevo a vpravo,
 -- překážky leží zhruba na spojnici dvou sousedních mezer, takže je hráč musí objet.
-local function generateSlalom(level: number, distance: number, stage: number): SlalomLayout?
+local function generateSlalom(level: number, distance: number, stage: number, gapBonus: number?, noVariants: boolean?): SlalomLayout?
 	local tier = Formulas.SlalomTier(level)
 	if not tier then
 		return nil
 	end
+	tier.Gap += gapBonus or 0
 	local cfg = Swim.Slalom
 	-- občas zvláštní druh slalomu (čím dál k pláži, tím častěji)
 	local variant: Swim.SlalomVariant? = nil
@@ -74,7 +76,7 @@ local function generateSlalom(level: number, distance: number, stage: number): S
 			table.insert(unlocked, v)
 		end
 	end
-	if #unlocked > 0 and rng:NextNumber() < (cfg.VariantChance[stage] or 0.5) then
+	if not noVariants and #unlocked > 0 and rng:NextNumber() < (cfg.VariantChance[stage] or 0.5) then
 		variant = unlocked[rng:NextInteger(1, #unlocked)]
 	end
 	if variant then
@@ -204,6 +206,13 @@ local function finish(session: Session, state: SwimState, success: boolean, reas
 		return
 	end
 	state.Done = true
+	if state.Trial then
+		-- závod na kánoi z ostrova: žádný předmět ani bonus za vor – vyhodnotí TrialService
+		resultEvent:FireClient(session.Player, { Success = success, Reason = reason, Trial = state.Trial, Bonus = 0, Stage = 1, MaxStage = 1, CanContinue = false })
+		session.Swim = nil
+		Registry.Trials.OnCanoeFinished(session, success)
+		return
+	end
 	local stages = Swim.Stages
 	-- vor 1: předmět z vody, vor 2 a 3: poklad
 	local itemId, placement
@@ -356,6 +365,78 @@ startStage = function(session: Session, previous: SwimState?, flight: any, landD
 		-- štít z diamantu (Amethyst / Rainbow) na prvním úseku + Bubble Shield (Robux) na každý slalom
 		Shield = shield,
 	})
+end
+
+-- Závod na kánoi z dárkového ostrova (TrialService). Stejné jako plavání k voru, jen rychlejší,
+-- s pevnou obtížností a cílem daleko na moři směrem k pláži.
+function SwimService.StartTrial(session: Session, key: string, cfg: any, easy: boolean, waterStart: Vector3): boolean
+	local root = Registry.Player.GetRoot(session.Player)
+	if not root then
+		return false
+	end
+	local flight = { Trial = key }
+	session.Flight = flight
+	local trials = require(Shared.Config.Trials)
+	local slalom = generateSlalom(cfg.SlalomLevel, cfg.Distance, 1, if easy then trials.EasyGapBonus else 0, true)
+	if slalom then
+		local trialCfg = trials.Trials[key]
+		slalom.Name = trialCfg.Name
+		slalom.Hint = "Paddle with W, steer with A / D through the gates!"
+		if cfg.Drift then
+			slalom.Drift = cfg.Drift
+		end
+	end
+	local chaser = Formulas.ChaserByKey(cfg.Chaser)
+	local speed = cfg.Speed
+	local sharkDelay = cfg.Delay + (if slalom then #slalom.Gates * Swim.Slalom.DelayPerGate else 0)
+	local state: SwimState = {
+		Flight = flight,
+		StartClock = os.clock(),
+		StartX = waterStart.X,
+		Distance = cfg.Distance,
+		Speed = speed,
+		SharkSpeed = cfg.ChaserSpeed * (if easy then trials.EasyChaserFactor else 1),
+		CatchDistance = Swim.CatchDistance + chaser.Reach,
+		NoShark = false,
+		Done = false,
+		Character = session.Player.Character,
+		SharkDelay = sharkDelay,
+		Stage = 1,
+		LandDistance = 0,
+		UsedRepellent = false,
+		Treasure = nil,
+		Waiting = false,
+		Dir = 1,
+		HasSlalom = slalom ~= nil,
+		Hits = 0,
+		LastHit = 0,
+		Trial = key,
+	}
+	session.Swim = state
+	startEvent:FireClient(session.Player, {
+		StartX = waterStart.X,
+		StartZ = waterStart.Z,
+		Y = World.WaterY,
+		Distance = cfg.Distance,
+		Speed = speed,
+		SharkSpeed = state.SharkSpeed,
+		SharkDelay = sharkDelay,
+		Chaser = chaser.Key,
+		ChaserName = chaser.Name,
+		NoShark = false,
+		UsedRepellent = false,
+		MaxTime = Swim.MaxTime,
+		Slalom = slalom,
+		CanUpgrade = false,
+		Stage = 1,
+		MaxStage = 1,
+		Treasure = nil,
+		Dir = 1,
+		Shield = 0,
+		Trial = key,
+		Mode = "Canoe",
+	})
+	return true
 end
 
 -- Zavolá JumpService po dopadu do vody

@@ -81,6 +81,14 @@ function RobuxShop.Init(screen: ScreenGui)
 		local button = item(productGrid, i, product.Name, product.Description, product.Price, product.Color, function()
 			RobuxShop.PromptKey(product.Key)
 		end)
+		if product.Random then
+			-- točení (náhodné odměny) jen tam, kde to Roblox dovoluje
+			local card = button.Parent :: GuiObject
+			card.Visible = false
+			Purchase.OnPolicy(function()
+				card.Visible = Purchase.Allowed(product.Key) and (product.Key ~= "StarterPack" or ClientState.Get().StarterPackBought ~= true)
+			end)
+		end
 		if product.Key == "StarterPack" then
 			starterCard = button.Parent :: GuiObject
 		end
@@ -91,7 +99,7 @@ function RobuxShop.Init(screen: ScreenGui)
 
 	ClientState.Changed:Connect(function(data)
 		if starterCard then
-			starterCard.Visible = data.StarterPackBought ~= true
+			starterCard.Visible = data.StarterPackBought ~= true and Purchase.Allowed("StarterPack")
 		end
 		premiumBadge.Visible = data.Premium == true
 		for key, button in passButtons do

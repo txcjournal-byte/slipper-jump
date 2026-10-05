@@ -15,6 +15,7 @@ local Catalog = require(Shared.Catalog)
 local Products = require(Shared.Config.Products)
 local Net = require(Shared.Net)
 local Kit = require(script.Parent.Kit)
+local Purchase = require(script.Parent.Parent.Purchase)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Sound = require(script.Parent.Parent.Sound)
 
@@ -542,7 +543,7 @@ function HUD.Refresh(data: { [string]: any })
 	local badgeFrame = spinBadge.Parent :: Frame
 	badgeFrame.Visible = spins > 0
 	rebirthButton.Visible = data.CanRebirth == true
-	starterButton.Visible = data.StarterPackBought ~= true and Products.IsConfigured("StarterPack")
+	starterButton.Visible = data.StarterPackBought ~= true and Products.IsConfigured("StarterPack") and Purchase.Allowed("StarterPack")
 	local unfinished = false
 	for _, quest in data.Quests or {} do
 		if not quest.Done then
