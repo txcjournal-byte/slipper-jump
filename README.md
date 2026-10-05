@@ -1,4 +1,4 @@
-# Slipper Jump! 🩴🌊🎁
+# Slipper Jump: Island Legend 🩴🏝️🎁
 
 Roblox hra: skáčeš v pantoflích z mola do dlouhé vody, sbíráš předměty, domeček ti vydělává,
 kupuješ lepší pantofle a čepice a snažíš se doskočit až k obřímu dárku na 100 000 studech.
@@ -75,7 +75,7 @@ Hráč si v ITEMS → Sneakers vybere skin, hra si zapamatuje který a otevře n
 (nápis *[Studio test]*), takže jde vše vyzkoušet. Ve zveřejněné hře se nezaložené produkty skryjí.
 
 ### Zveřejnění hry – krok za krokem
-1. Ve Studiu **File → Publish to Roblox** (pojmenuj hru *Slipper Jump!*).
+1. Ve Studiu **File → Publish to Roblox** (pojmenuj hru *Slipper Jump: Island Legend*).
 2. Game Settings → Security → zapni **Enable Studio Access to API Services** (ukládání dat).
 3. Creator Dashboard → hra → **Monetization → Passes**: založ 10 passů z tabulky (název, cena, ikonka).
 4. **Monetization → Developer Products**: založ 18 produktů z tabulky.

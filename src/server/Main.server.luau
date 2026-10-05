@@ -53,4 +53,4 @@ end
 -- hráče připojit až nakonec, když vše ostatní běží
 services.Player.Start()
 
-print("[Slipper Jump!] Server ready")
+print("[Slipper Jump: Island Legend] Server ready")

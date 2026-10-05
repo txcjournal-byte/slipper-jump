@@ -131,9 +131,9 @@ corner(beach, 400)
 
 -- ===== Nápis hry =====
 local title = text(root, {
-	Text = "SLIPPER JUMP!",
-	Size = UDim2.fromScale(0.8, 0.16),
-	Position = UDim2.fromScale(0.5, 0.16),
+	Text = "SLIPPER JUMP",
+	Size = UDim2.fromScale(0.8, 0.15),
+	Position = UDim2.fromScale(0.5, 0.13),
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	TextColor3 = Color3.fromRGB(255, 215, 60),
 	StrokeThickness = 6,
@@ -144,10 +144,21 @@ new("UIGradient", {
 	Color = ColorSequence.new(Color3.fromRGB(255, 240, 120), Color3.fromRGB(255, 150, 40)),
 }, title)
 new("UITextSizeConstraint", { MaxTextSize = 110 }, title)
+-- druhý řádek názvu hry (Slipper Jump: Island Legend)
+local legend = text(root, {
+	Text = "🏝️ ISLAND LEGEND 🏝️",
+	Size = UDim2.fromScale(0.6, 0.075),
+	Position = UDim2.fromScale(0.5, 0.235),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	TextColor3 = Color3.fromRGB(120, 235, 255),
+	StrokeThickness = 4,
+	ZIndex = 5,
+})
+new("UITextSizeConstraint", { MaxTextSize = 56 }, legend)
 local subtitle = text(root, {
 	Text = "Jump from the pier. Find treasure. Reach the Giant Gift!",
 	Size = UDim2.fromScale(0.7, 0.05),
-	Position = UDim2.fromScale(0.5, 0.27),
+	Position = UDim2.fromScale(0.5, 0.305),
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	StrokeThickness = 2.5,
 	ZIndex = 5,
@@ -225,7 +236,7 @@ local animation = RunService.RenderStepped:Connect(function(dt: number)
 	end
 	sunGlow.Size = UDim2.fromScale(1.6 + math.sin(t * 2) * 0.12, 1.6 + math.sin(t * 2) * 0.12)
 	title.Rotation = math.sin(t * 1.6) * 2.5
-	title.Size = UDim2.fromScale(0.8 + math.sin(t * 3.2) * 0.012, 0.16)
+	title.Size = UDim2.fromScale(0.8 + math.sin(t * 3.2) * 0.012, 0.15)
 	local model, camera = spinModel, spinCamera
 	if model and camera then
 		local cf = model:GetBoundingBox()
