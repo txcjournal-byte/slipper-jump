@@ -374,14 +374,16 @@ function SwimService.StartTrial(session: Session, key: string, cfg: any, easy: b
 	if not root then
 		return false
 	end
-	local flight = { Trial = key }
+	-- jen značka „hráč je v závodě“ (není to skutečný let): Finished = true, ať ji JumpService
+	-- (záznam poloh letu) a AvatarService (respawn uprostřed letu) neberou jako rozletěný skok
+	local flight = { Trial = key, Finished = true }
 	session.Flight = flight
 	local trials = require(Shared.Config.Trials)
 	local slalom = generateSlalom(cfg.SlalomLevel, cfg.Distance, 1, if easy then trials.EasyGapBonus else 0, true)
 	if slalom then
 		local trialCfg = trials.Trials[key]
 		slalom.Name = trialCfg.Name
-		slalom.Hint = "Paddle with W, steer with A / D through the gates!"
+		slalom.Hint = "Paddle with W / joystick, steer through the gates!"
 		if cfg.Drift then
 			slalom.Drift = cfg.Drift
 		end

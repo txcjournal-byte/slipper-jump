@@ -104,7 +104,7 @@ function TrialService.Offer(session: Session, key: string)
 end
 
 -- Úkol splněn: bonus a domů
-function TrialService.Complete(session: Session, homeDelay: number?)
+function TrialService.Complete(session: Session, homeDelay: number?, skipped: boolean?)
 	local trial: TrialState? = session.Trial
 	if not trial or trial.State == "Done" then
 		return
@@ -120,7 +120,10 @@ function TrialService.Complete(session: Session, homeDelay: number?)
 		table.insert(rewards, `Title "{cfg.Title}"`)
 	end
 	Registry.Player.MarkDirty(session)
-	Registry.Player.Announce(`{session.Player.DisplayName} completed the {cfg.Name}!`, "Record")
+	if not skipped then
+		-- (přeskočení za Robux se celému serveru nehlásí – úkol hráč nesplnil)
+		Registry.Player.Announce(`{session.Player.DisplayName} completed the {cfg.Name}!`, "Record")
+	end
 	stateEvent:FireClient(session.Player, { State = "Complete", Name = cfg.Name, Icon = cfg.Icon, Rewards = rewards })
 	session.Trial = nil
 	sendHome(session, homeDelay or 2.2)
@@ -168,8 +171,10 @@ function TrialService.OnCanoeFinished(session: Session, success: boolean)
 		end)
 		return
 	end
-	if session.Player.Character ~= trial.Character then
-		-- resetoval se během závodu → je na pláži
+	local character = session.Player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if character ~= trial.Character or not humanoid or humanoid.Health <= 0 then
+		-- resetoval se během závodu (nebo právě umírá) → objeví se na pláži, úkol končí
 		clear(session)
 		if session.Flight and session.Flight.Trial then
 			session.Flight = nil
@@ -178,9 +183,10 @@ function TrialService.OnCanoeFinished(session: Session, success: boolean)
 		return
 	end
 	-- nevyšlo: zpátky na molo s kánoí a zkusit znovu
+	-- (až klient za tmou přestane řídit kánoi – jinak by hráče hned vrátil zpátky na vodu)
 	trial.Fails += 1
 	trial.State = "Offer"
-	task.delay(Swim.ReturnDelay, function()
+	task.delay(Swim.ReturnDelay + 0.3, function()
 		if session.Trial ~= trial then
 			return
 		end
@@ -251,7 +257,7 @@ function TrialService.ApplySkip(session: Session): boolean
 	if session.Swim and session.Swim.Trial then
 		session.Swim.Done = true
 	end
-	TrialService.Complete(session)
+	TrialService.Complete(session, nil, true)
 	return true
 end
 

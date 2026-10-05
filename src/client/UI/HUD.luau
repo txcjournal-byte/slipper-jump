@@ -274,10 +274,21 @@ function HUD.Init()
 	if TOUCH then
 		-- 3 sloupce × 2 řady (jinak by spodní tlačítka zakryl joystick nebo by se nevešla)
 		left.Size = UDim2.fromOffset(3 * (SIDE_SIZE + 10), 2 * (SIDE_SIZE + 10))
-		left.Position = UDim2.fromOffset(16, 244)
+		-- (pod pilulkami 2x MONEY / 2x LUCK na y = 240, ať je nepřekrývají)
+		left.Position = UDim2.fromOffset(16, 292)
 		Kit.new("UIGridLayout", { CellSize = UDim2.fromOffset(SIDE_SIZE, SIDE_SIZE), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = left })
 	else
-		Kit.new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = left })
+		-- nejvýš 4 pod sebou, další do druhého sloupce (6 tlačítek pod sebou se nevešlo na výšku
+		-- a tlačítko REBIRTH po Obřím dárku bylo mimo obrazovku)
+		left.Size = UDim2.fromOffset(2 * (SIDE_SIZE + 8), 4 * (SIDE_SIZE + 8))
+		Kit.new("UIGridLayout", {
+			CellSize = UDim2.fromOffset(SIDE_SIZE, SIDE_SIZE),
+			CellPadding = UDim2.fromOffset(8, 8),
+			FillDirection = Enum.FillDirection.Vertical,
+			FillDirectionMaxCells = 4,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Parent = left,
+		})
 	end
 	sideButton(left, "👟", "ITEMS", Kit.Colors.Turquoise, 1, "Inventory")
 	local spinButton = sideButton(left, "🎡", "SPIN", Kit.Colors.Pink, 2, "Spinner")
@@ -314,7 +325,8 @@ function HUD.Init()
 	local right = Kit.new("Frame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.fromOffset(110, 330),
-		Position = UDim2.new(1, -16, 0.5, 0),
+		-- trochu níž než střed: nahoře vpravo se pod sebe skládá událost, tabulka soutěže a série PERFECT
+		Position = UDim2.new(1, -16, 0.58, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
 		Parent = screen,
 	})

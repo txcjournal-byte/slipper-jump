@@ -133,10 +133,16 @@ local function onState(info: { [string]: any })
 	if state == "Running" then
 		panel.Visible = false
 		clearArrow()
+		-- lišta s tlačítky SKIP a HOME i během závodu na kánoi (jinak by se z kánoe nedalo odejít)
+		progress.Visible = true
 		if info.Kind == "Obby" then
-			progress.Visible = true
+			progress.Position = UDim2.new(0.5, 0, 0, 70)
 			progressLabel.Text = `{currentIcon} {currentName}   🚩 {info.Checkpoint}/{info.Total}`
 			Effects.BigText("GO! Get back home!", Kit.Colors.Green, 1.2, 0.3)
+		else
+			-- pod lištou plavání (YOU >>> HOME)
+			progress.Position = UDim2.new(0.5, 0, 0, 84)
+			progressLabel.Text = `{currentIcon} {currentName}`
 		end
 	elseif state == "Checkpoint" then
 		progressLabel.Text = `{currentIcon} {currentName}   🚩 {info.Checkpoint}/{info.Total}`
@@ -170,8 +176,9 @@ end
 function TrialUI.Init(screen: ScreenGui)
 	panel = Kit.Panel(screen, {
 		Name = "TrialPanel",
-		Size = UDim2.fromOffset(720, 250),
-		Position = UDim2.new(0.5, 0, 1, -110),
+		-- užší a kousek doprava: na malých telefonech by jinak zakrýval tlačítka vlevo (ITEMS, SPIN, QUESTS…)
+		Size = UDim2.fromOffset(660, 250),
+		Position = UDim2.new(0.5, 40, 1, -110),
 		AnchorPoint = Vector2.new(0.5, 1),
 		Visible = false,
 		StrokeThickness = 4,
@@ -185,38 +192,40 @@ function TrialUI.Init(screen: ScreenGui)
 	failLabel = Kit.Text(panel, { Text = "", Size = UDim2.new(1, -24, 0, 26), Position = UDim2.fromOffset(12, 140), TextColor3 = Kit.Colors.Coral, StrokeThickness = 1.5, Visible = false })
 	local row = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -24, 0, 60), Position = UDim2.new(0, 12, 1, -70), Parent = panel })
 	Kit.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 10), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder, Parent = row })
-	Kit.Button(row, { Text = "START", Color = Kit.Colors.Green, Size = UDim2.fromOffset(150, 58), LayoutOrder = 1 }, function()
+	Kit.Button(row, { Text = "START", Color = Kit.Colors.Green, Size = UDim2.fromOffset(140, 58), LayoutOrder = 1 }, function()
 		Sound.Play("Click")
 		Net.Event("TrialAction"):FireServer("Start")
 	end)
-	easyButton = Kit.Button(row, { Text = "EASY PATH R$ " .. price("TrialEasy"), Color = Kit.Colors.Blue, Size = UDim2.fromOffset(170, 58), LayoutOrder = 2 }, function()
+	easyButton = Kit.Button(row, { Text = "EASY PATH R$ " .. price("TrialEasy"), Color = Kit.Colors.Blue, Size = UDim2.fromOffset(156, 58), LayoutOrder = 2 }, function()
 		Sound.Play("Click")
 		RobuxShop.PromptKey("TrialEasy")
 	end)
-	Kit.Button(row, { Text = "SKIP + BONUS R$ " .. price("TrialSkip"), Color = Kit.Colors.Orange, Size = UDim2.fromOffset(190, 58), LayoutOrder = 3 }, function()
+	Kit.Button(row, { Text = "SKIP + BONUS R$ " .. price("TrialSkip"), Color = Kit.Colors.Orange, Size = UDim2.fromOffset(170, 58), LayoutOrder = 3 }, function()
 		Sound.Play("Click")
 		RobuxShop.PromptKey("TrialSkip")
 	end)
-	Kit.Button(row, { Text = "GO HOME (no bonus)", Color = Kit.Colors.Gray, Size = UDim2.fromOffset(150, 58), LayoutOrder = 4 }, function()
+	Kit.Button(row, { Text = "GO HOME (no bonus)", Color = Kit.Colors.Gray, Size = UDim2.fromOffset(140, 58), LayoutOrder = 4 }, function()
 		Sound.Play("Click")
 		Net.Event("TrialAction"):FireServer("GoHome")
 	end)
 
 	-- průběh dráhy nahoře uprostřed
-	progress = Kit.Panel(screen, {
+	-- vlastní ScreenGui: během závodu na kánoi se celé HUD schovává, ale SKIP a HOME musí být vidět
+	progress = Kit.Panel(Kit.Screen("TrialBar", 10), {
 		Name = "TrialProgress",
-		Size = UDim2.fromOffset(520, 60),
+		Size = UDim2.fromOffset(580, 72),
 		Position = UDim2.new(0.5, 0, 0, 70),
 		AnchorPoint = Vector2.new(0.5, 0),
 		Visible = false,
 		BackgroundColor3 = Kit.Colors.Purple,
-		Radius = 30,
+		Radius = 36,
 	})
-	progressLabel = Kit.Text(progress, { Text = "", Size = UDim2.new(1, -200, 1, -12), Position = UDim2.fromOffset(16, 6), TextXAlignment = Enum.TextXAlignment.Left })
-	Kit.Button(progress, { Text = "SKIP R$ " .. price("TrialSkip"), Color = Kit.Colors.Orange, Size = UDim2.fromOffset(84, 46), Position = UDim2.new(1, -184, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Radius = 12 }, function()
+	-- větší tlačítka, ať se na telefonu dají trefit prstem
+	progressLabel = Kit.Text(progress, { Text = "", Size = UDim2.new(1, -270, 1, -12), Position = UDim2.fromOffset(16, 6), TextXAlignment = Enum.TextXAlignment.Left })
+	Kit.Button(progress, { Text = "SKIP R$ " .. price("TrialSkip"), Color = Kit.Colors.Orange, Size = UDim2.fromOffset(120, 58), Position = UDim2.new(1, -254, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Radius = 12 }, function()
 		RobuxShop.PromptKey("TrialSkip")
 	end)
-	Kit.Button(progress, { Text = "HOME", Color = Kit.Colors.Gray, Size = UDim2.fromOffset(84, 46), Position = UDim2.new(1, -94, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Radius = 12 }, function()
+	Kit.Button(progress, { Text = "HOME", Color = Kit.Colors.Gray, Size = UDim2.fromOffset(120, 58), Position = UDim2.new(1, -128, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Radius = 12 }, function()
 		Net.Event("TrialAction"):FireServer("GoHome")
 	end)
 

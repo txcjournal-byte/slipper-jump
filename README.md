@@ -243,3 +243,30 @@ Jak to funguje:
 - V EU je zakázané přímo vybízet děti k nákupu („Kup teď!“). Nabídky ukazujeme, netlačíme.
 - Všechno, co ovlivňuje hru, jde získat i hraním; Robux jen zrychluje nebo přidává vzhled.
 - Roblox platí i za čas hráčů s Premium (Engagement-Based Payouts) – zábavná hra vydělává i bez nákupů.
+
+## 10. v18 – otestováno ve Studiu a opraveno
+
+Celá hra prošla testem v Robloxu Studiu: tutoriál, skok, plavání se slalomem a voru 2, domeček, kasička,
+SHOP, SELL, kolo štěstí, kódy, denní úkoly, Jump Contest, všechny Robux produkty, všechny 3 dárkové ostrovy
+skutečným skokem, úkoly na ostrovech celou trasu (kánoe autopilotem, Sky Path chodícím botem), Rebirth,
+telefon (Galaxy A06) a 720p.
+
+Opravy:
+- **Sky Path (Silver) nešel dojít**: mizející plošiny mizely „proti hráči“ – plošina před ním vždycky zmizela dřív
+  než ta, na které stál. Vlna teď jde stejným směrem jako hráč (`TrialCourses.luau`, `Phase`).
+- **Kulaté klády** na konci Sky Path: hráč z nich sklouzával do vody. Na kládách je teď neviditelná plochá deska.
+- **Po neúspěchu na kánoi** stál hráč ve vodě místo na molu (klient ho vracel zpátky). Opraveno.
+- **Chyba v konzoli při každém snímku závodu na kánoi** (`JumpService:587 attempt to get length of a nil value`).
+- **Během závodu na kánoi** jdou vidět tlačítka SKIP a HOME a lišta ukazuje „YOU >>> HOME“ místo „RAFT“.
+- **Smrt během závodu na kánoi** už na chvíli neukáže nabídku „zkus znovu“.
+- **Přeskočení úkolu za Robux** se už celému serveru nehlásí jako „completed“.
+- **Tlačítko REBIRTH** bylo na PC mimo obrazovku (6 tlačítek pod sebou). Levá tlačítka jsou teď ve 2 sloupcích.
+- Pravá tlačítka se nepřekrývají s tabulkou Jump Contest, tutoriál a panel úkolu nezakrývají tlačítka na telefonu,
+  tlačítka SKIP/HOME v úkolu jsou větší (na prst).
+- Tutoriál se nezasekne na „Collect your money!“, když hráč vybere kasičku hned u vchodu.
+- „1 item“ místo „1 items“ v prodeji; testovací panel (TEST → Challenge) už nehodí hráče zpět na pláž.
+
+Co se ve Studiu otestovat nedá (ověř po zveřejnění): ukládání dat a příjem offline (DataStore), žebříček
+(OrderedDataStore), darování mezi dvěma hráči (potřeba 2 klienti – Test → Clients and Servers) a skutečné nákupy za Robux.
+Hláška `Failed to load animation ... 114302219876492` v konzoli je výchozí animace nálady avatara od Robloxu,
+ve Studiu se nenačte u nezveřejněné hry – není to chyba hry.

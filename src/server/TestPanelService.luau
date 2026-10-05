@@ -63,9 +63,9 @@ function TestPanelService.Start()
 				if session.Flight or session.Swim then
 					return
 				end
-				character:PivotTo(CFrame.new(landing + Vector3.new(0, 4, 0)))
-				task.wait(0.3)
+				-- úkol nejdřív, ať hráče hlídač hranic mezitím nevrátí na pláž
 				Registry.Trials.Offer(session, value)
+				character:PivotTo(CFrame.new(landing + Vector3.new(0, 4, 0)))
 			end
 			message = "Island challenge: " .. value
 		elseif action == "ResetGifts" then

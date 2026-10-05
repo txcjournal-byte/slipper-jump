@@ -141,7 +141,7 @@ local function rebuild()
 	for _, entry in list do
 		total += entry.Price
 	end
-	summary.Text = if #list == 0 then "You have no items to sell. Jump into the sea to find some!" else `{#list} items  •  worth {FormatNumber.Money(total)} in total`
+	summary.Text = if #list == 0 then "You have no items to sell. Jump into the sea to find some!" else `{#list} {if #list == 1 then "item" else "items"}  •  worth {FormatNumber.Money(total)} in total`
 	for index, entry in list do
 		local cfg = Catalog.Item(entry.Id)
 		if cfg then

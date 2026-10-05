@@ -59,7 +59,10 @@ function TutorialService.OnJumped(session: Session)
 end
 
 function TutorialService.OnCollect(session: Session)
-	if session.Data.TutorialStep == 4 then
+	-- (krok 3 taky: kasička je hned u vchodu, takže ji hráč často vybere dřív, než ho hlídání polohy
+	-- stihne „pustit“ do domečku – pak by návod zůstal viset na „Collect your money!“)
+	local step = session.Data.TutorialStep
+	if step == 3 or step == 4 then
 		setStep(session, 5)
 	end
 end

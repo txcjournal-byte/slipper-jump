@@ -793,6 +793,7 @@ end
 local swimHud: Frame
 local swimBarYou: Frame
 local swimBarShark: TextLabel
+local swimBarLabel: TextLabel
 local swimHint: TextLabel
 local dangerVignette: CanvasGroup
 local lastBeat = 0
@@ -1570,6 +1571,8 @@ local function startSwim(info: { [string]: any })
 	swimHud.Visible = true
 	swimBarShark.Visible = not info.NoShark
 	swimBarShark.Text = tier.Name
+	-- kánoe z ostrova pádluje domů, ne k voru
+	swimBarLabel.Text = if info.Mode == "Canoe" then "YOU  >>>  HOME" else "YOU  >>>  RAFT"
 	swimBarShark.TextColor3 = tier.Color
 	flightHud.Visible = false
 	local swimText = if info.Mode == "Canoe" then "PADDLE HOME!" elseif stage > 1 then `SWIM TO RAFT {stage}/{info.MaxStage or 3}!` else "SWIM TO THE RAFT!"
@@ -1729,6 +1732,13 @@ end
 returnToBeach = function(state: FlightState, delay: number)
 	task.delay(math.max(0, delay - 0.45), function()
 		Effects.Fade(true, 0.35)
+	end)
+	-- jakmile je obrazovka černá, přestat řídit postavu, ať ji server může přenést
+	-- (jinak by ji klient hned vrátil na vodu – hlavně po neúspěchu na kánoi, kdy je molo blízko)
+	task.delay(math.max(0, delay - 0.1), function()
+		if flight == state then
+			state.Phase = "Returned"
+		end
 	end)
 	task.delay(delay + 0.15, function()
 		if state.Slalom then
@@ -2257,7 +2267,7 @@ function JumpController.Init(parentScreen: ScreenGui)
 	local bar = Kit.Panel(swimHud, { Size = UDim2.fromOffset(560, 44), Position = UDim2.new(0.5, 0, 0, 30), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.fromRGB(40, 80, 140), Radius = 20 })
 	swimBarYou = Kit.new("Frame", { BackgroundColor3 = Kit.Colors.Green, Size = UDim2.fromScale(0, 1), Parent = bar })
 	Kit.Corner(swimBarYou, 20)
-	Kit.Text(bar, { Text = "YOU  >>>  RAFT", Size = UDim2.new(1, -20, 1, -10), Position = UDim2.fromOffset(10, 5), ZIndex = 3 })
+	swimBarLabel = Kit.Text(bar, { Text = "YOU  >>>  RAFT", Size = UDim2.new(1, -20, 1, -10), Position = UDim2.fromOffset(10, 5), ZIndex = 3 })
 	swimBarShark = Kit.Text(bar, { Text = "SHARK", Size = UDim2.fromOffset(150, 36), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), TextColor3 = Kit.Colors.Coral, StrokeThickness = 3, ZIndex = 4 }) :: any
 	swimHint = Kit.Text(swimHud, { Text = "Hold W / joystick forward to swim!", Size = UDim2.fromOffset(640, 46), Position = UDim2.new(0.5, 0, 1, -60), AnchorPoint = Vector2.new(0.5, 1) })
 	-- červené okraje obrazovky (žraločí alarm)

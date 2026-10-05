@@ -98,8 +98,9 @@ end
 
 function TutorialUI.Init(screen: ScreenGui)
 	banner = Kit.Panel(screen, {
-		Size = UDim2.fromOffset(720, 84),
-		Position = UDim2.new(0.5, 0, 0, 90),
+		-- užší a kousek doprava, ať na malých telefonech nepřekrývá peníze a level vlevo nahoře
+		Size = UDim2.fromOffset(640, 84),
+		Position = UDim2.new(0.5, 40, 0, 90),
 		AnchorPoint = Vector2.new(0.5, 0),
 		BackgroundColor3 = Kit.Colors.Yellow,
 		Visible = false,

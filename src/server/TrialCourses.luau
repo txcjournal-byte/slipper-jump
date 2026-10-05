@@ -234,7 +234,9 @@ local function skyPath(root: Instance, key: string, title: string, fromX: number
 		x -= 5
 		local color = nextColor()
 		local f = pad(x - 4, if i % 2 == 0 then 3 else -3, Vector3.new(8, 1, 8), color, "FadingPad")
-		table.insert(faders, { Part = f :: BasePart, Phase = i * 0.55, Color = color })
+		-- vlna jde stejným směrem jako hráč: každá další plošina se objeví o 0,55 s později
+		-- (opačně by plošina před hráčem vždy mizela dřív než ta, na které stojí, a úsek by nešel přejít)
+		table.insert(faders, { Part = f :: BasePart, Phase = (7 - i) * 0.55, Color = color })
 		x -= 8
 	end
 	x -= 5
@@ -259,9 +261,12 @@ local function skyPath(root: Instance, key: string, title: string, fromX: number
 
 	-- 5) barevné klády přes vodu (jako hrazda) – přeskakuj z jedné na druhou
 	for i = 1, 7 do
-		x -= 3.5
-		part(m, Vector3.new(10, 2.4, 2.4), CFrame.new(x - 1.2, deckY - 1.2, 0) * CFrame.Angles(0, math.rad(90), 0), nextColor(), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder, "PathPad")
-		x -= 2.4
+		x -= 3
+		deco(part(m, Vector3.new(10, 3, 3), CFrame.new(x - 1.5, deckY - 1.5, 0) * CFrame.Angles(0, math.rad(90), 0), nextColor(), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder, "Log"))
+		-- plochá neviditelná deska navrchu klády: na kulatém válci se nedá stát, hráč by sklouzl do vody
+		local top = part(m, Vector3.new(3, 0.6, 10), CFrame.new(x - 1.5, deckY - 0.3, 0), WHITE, nil, nil, "PathPad")
+		top.Transparency = 1
+		x -= 3
 		local _ = i
 	end
 	x -= 5
