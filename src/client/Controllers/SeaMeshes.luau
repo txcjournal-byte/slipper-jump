@@ -51,6 +51,13 @@ local SeaMeshes: { [string]: { MeshEntry } } = {
 		{ Mesh = "rbxassetid://760766662", Texture = "", Scale = Vector3.new(0.008, 0.019, 0.001), Pos = Vector3.new(1.019, -1.949, -17.724), Rot = Vector3.new(3.054, 1.309, 0), Color = Color3.fromRGB(175, 159, 130), Material = "Slate" },
 		{ Mesh = "rbxassetid://2915117180", Texture = "", Scale = Vector3.new(2.542, 4.597, 4.018), Pos = Vector3.new(0, -2.158, -13.044), Rot = Vector3.new(0, 0, 0), Color = Color3.fromRGB(140, 88, 89), Material = "Slate" },
 	},
+	-- kreslené verze (vygenerované v Roblox Studiu podle předlohy hry): žralok a velryba
+	CartoonShark = {
+		{ Mesh = "rbxassetid://122827703841845", Texture = "rbxassetid://89448781710408", Scale = Vector3.new(3.08, 3.08, 3.08), Pos = Vector3.new(0, -0.9, 0), Rot = Vector3.new(0, 1.571, 0), Color = Color3.fromRGB(255, 255, 255), Material = "SmoothPlastic" },
+	},
+	CartoonWhale = {
+		{ Mesh = "rbxassetid://126703249719336", Texture = "rbxassetid://137174416524990", Scale = Vector3.new(2.98, 2.98, 2.98), Pos = Vector3.new(0, -3.6, 0), Rot = Vector3.new(0, 3.142, 0), Color = Color3.fromRGB(255, 255, 255), Material = "SmoothPlastic" },
+	},
 	-- rozpětí chapadel 14 studů, hlava kousek pod hladinou
 	Octopus = {
 		{ Mesh = "rbxassetid://12375662872", Texture = "rbxassetid://12375663361", Scale = Vector3.new(25.711, 25.703, 25.711), Pos = Vector3.new(0, -1.5, 0), Rot = Vector3.new(-3.142, 0, -3.142), Color = Color3.fromRGB(163, 162, 165), Material = "SmoothPlastic" },

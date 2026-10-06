@@ -29,8 +29,9 @@ function Atmosphere.Apply()
 	local atmosphere = ensure("Atmosphere", Lighting) :: Atmosphere
 	atmosphere.Density = 0.24
 	atmosphere.Offset = 0.15
-	atmosphere.Color = Color3.fromRGB(200, 235, 255)
-	atmosphere.Decay = Color3.fromRGB(110, 175, 230)
+	-- paleta oblohy: #D6EEFF (opar u obzoru), #7CC8FF / #1EA0FF (modrá)
+	atmosphere.Color = Color3.fromRGB(214, 238, 255)
+	atmosphere.Decay = Color3.fromRGB(124, 200, 255)
 	atmosphere.Glare = 0.35
 	atmosphere.Haze = 0.8
 

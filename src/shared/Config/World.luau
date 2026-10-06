@@ -41,11 +41,12 @@ return {
 	},
 	-- Barevné zóny vody (od světle tyrkysové po tmavě modrou)
 	WaterZones = {
-		{ UpTo = 1_000, Color = Color3.fromRGB(64, 224, 230) },
-		{ UpTo = 5_000, Color = Color3.fromRGB(40, 196, 225) },
-		{ UpTo = 20_000, Color = Color3.fromRGB(28, 150, 215) },
-		{ UpTo = 60_000, Color = Color3.fromRGB(22, 105, 190) },
-		{ UpTo = 102_048, Color = Color3.fromRGB(16, 60, 150) },
+		-- paleta: mělká #67E2D9 / #2CC4BF → hluboká #3FB0FF / #0082D6 / #00508F
+		{ UpTo = 1_000, Color = Color3.fromRGB(44, 196, 191) },
+		{ UpTo = 5_000, Color = Color3.fromRGB(63, 176, 255) },
+		{ UpTo = 20_000, Color = Color3.fromRGB(0, 130, 214) },
+		{ UpTo = 60_000, Color = Color3.fromRGB(0, 104, 178) },
+		{ UpTo = 102_048, Color = Color3.fromRGB(0, 80, 143) },
 	},
 	HorizonGiftDistance = 260, -- zmenšená kopie dárku na obzoru (od kamery; na nízké kvalitě grafiky Roblox dál než ~300 studů nekreslí)
 	RealGiftShowDistance = 280, -- skutečný dárek se ukáže, když je hráč blíž (do té doby kopie na obzoru)

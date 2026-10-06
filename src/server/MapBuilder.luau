@@ -68,20 +68,21 @@ export type MapInfo = {
 local MapBuilder = {}
 
 -- ===== Barvy =====
-local SAND = Color3.fromRGB(246, 222, 160)
-local SAND_DARK = Color3.fromRGB(232, 200, 130)
-local WOOD = Color3.fromRGB(170, 115, 70)
-local WOOD_DARK = Color3.fromRGB(125, 82, 50)
-local WOOD_LIGHT = Color3.fromRGB(205, 150, 95)
+-- barvy podle palety hry (TROPICAL BEACH – COLOR PALETTE)
+local SAND = Color3.fromRGB(246, 217, 155) -- #F6D99B
+local SAND_DARK = Color3.fromRGB(232, 185, 106) -- #E8B96A
+local WOOD = Color3.fromRGB(176, 122, 79) -- #B07A4F
+local WOOD_DARK = Color3.fromRGB(139, 94, 52) -- #8B5E34
+local WOOD_LIGHT = Color3.fromRGB(217, 179, 140) -- #D9B38C
 local WHITE = Color3.new(1, 1, 1)
 local CORAL = Color3.fromRGB(240, 80, 70)
 local ROYAL = Color3.fromRGB(40, 110, 230)
-local LEAF = Color3.fromRGB(70, 175, 70)
-local LEAF_DARK = Color3.fromRGB(45, 140, 60)
+local LEAF = Color3.fromRGB(76, 175, 63) -- #4CAF3F
+local LEAF_DARK = Color3.fromRGB(31, 107, 46) -- #1F6B2E
 local ROCK = Color3.fromRGB(140, 140, 150)
 local BUOY_RED = Color3.fromRGB(235, 50, 55)
 local WARM_LIGHT = Color3.fromRGB(255, 214, 130) -- teplé světlo v oknech a lucernách
-local GOLD = Color3.fromRGB(255, 205, 50)
+local GOLD = Color3.fromRGB(255, 210, 46) -- #FFD22E
 
 local BALL = Enum.PartType.Ball
 local BLOCK = Enum.PartType.Block
@@ -993,8 +994,9 @@ local function buildWater(root: Instance, rng: Random)
 	terrain:FillBlock(CFrame.new((World.BeachFrontX + World.BeachBackX) / 2, World.WaterY - depth / 2, 0), Vector3.new(World.BeachFrontX - World.BeachBackX, depth, World.BeachHalfWidth * 2), Enum.Material.Sand)
 	-- mělčina u břehu
 	terrain:FillWedge(CFrame.new(World.BeachFrontX + 40, World.WaterY - depth + 3, 0) * CFrame.Angles(0, math.rad(-90), 0), Vector3.new(World.BeachHalfWidth * 2, 6, 80), Enum.Material.Sand)
-	terrain.WaterColor = Color3.fromRGB(40, 200, 220)
-	terrain.WaterTransparency = 0.55
+	terrain.WaterColor = Color3.fromRGB(26, 160, 196) -- tyrkysová (s jasem hry vypadá jako #2CC4BF)
+	terrain:SetMaterialColor(Enum.Material.Sand, SAND)
+	terrain.WaterTransparency = 0.45
 	terrain.WaterReflectance = 0.6
 	terrain.WaterWaveSize = 0.18
 	terrain.WaterWaveSpeed = 9

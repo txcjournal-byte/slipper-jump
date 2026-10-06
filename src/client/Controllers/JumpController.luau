@@ -1450,7 +1450,8 @@ end
 
 local function realSharkModel(parent: Instance, look: SharkLook?): Model
 	local style = look or SHARK_LOOK
-	local m, rig = meshChaser(parent, style.Kind, "Shark", style.Scale, style.Shift, if style.Top ~= SHARK_LOOK.Top and style.Kind == "Shark" then Color3.new(0.85, 0.88, 0.95) else nil)
+	local data = if style.Kind == "Shark" then "CartoonShark" else "Shark"
+	local m, rig = meshChaser(parent, style.Kind, data, style.Scale, style.Shift, if style.Top ~= SHARK_LOOK.Top and style.Kind == "Shark" then Color3.new(0.85, 0.88, 0.95) else nil)
 	if style.Kind == "Megalodon" then
 		monsterGlow(m, rig, Color3.fromRGB(20, 25, 40), style.Glow or Color3.fromRGB(255, 90, 40), Vector3.new(0.75, -1.15, -4.6), 0.55)
 	end
@@ -1459,7 +1460,7 @@ local function realSharkModel(parent: Instance, look: SharkLook?): Model
 end
 
 local function realWhaleModel(parent: Instance): Model
-	local m, rig = meshChaser(parent, "Whale", "Whale", 0.7, CFrame.new(0, 0.6, 8), nil)
+	local m, rig = meshChaser(parent, "Whale", "CartoonWhale", 0.7, CFrame.new(0, 0.6, 8), nil)
 	rig.Hinges = {
 		Rear = Vector3.new(0, -2.6, 4),
 		Tail = Vector3.new(0, -2.7, 11.5),
