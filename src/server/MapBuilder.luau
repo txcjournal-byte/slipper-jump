@@ -36,6 +36,7 @@ export type HouseInfo = {
 	OwnerLabel: TextLabel,
 	OwnerLabels: { TextLabel }, -- jméno majitele na všech cedulích (vpředu i vzadu, z obou stran)
 	HouseNameLabel: TextLabel,
+	HouseNameLabels: { TextLabel }, -- název domečku na všech cedulích (mění se s úrovní domečku)
 	Center: CFrame,
 	Size: Vector3,
 	Entrance: CFrame,
@@ -933,7 +934,7 @@ local function buildHouse(root: Instance, index: number, frontX: number, zCenter
 			if side == 1 then
 				cf *= CFrame.Angles(0, math.pi, 0)
 			end
-			wedge(m, Vector3.new(1, gableHeight, W / 2), cf, color, Enum.Material.WoodPlanks)
+			wedge(m, Vector3.new(1, gableHeight, W / 2), cf, color, Enum.Material.WoodPlanks).Name = "Gable"
 		end
 	end
 	-- střecha (dvě šikmé desky)
@@ -943,7 +944,7 @@ local function buildHouse(root: Instance, index: number, frontX: number, zCenter
 		local cf = CFrame.new(centerX, floorY + 1 + H + gableHeight / 2 + 0.6, zCenter + side * W / 4) * CFrame.Angles(side * roofAngle, 0, 0)
 		part(m, Vector3.new(L + 3, 1, slopeLength), cf, roofColor, Enum.Material.SmoothPlastic, BLOCK, "Roof")
 	end
-	deco(part(m, Vector3.new(L + 3.4, 1.4, 1.4), CFrame.new(centerX, floorY + 1 + H + gableHeight + 0.4, zCenter), trim, nil, CYL))
+	deco(part(m, Vector3.new(L + 3.4, 1.4, 1.4), CFrame.new(centerX, floorY + 1 + H + gableHeight + 0.4, zCenter), trim, nil, CYL)).Name = "Ridge"
 
 	-- cedule nad předním i zadním vchodem: název domečku + jméno hráče, čitelné z obou stran
 	-- (hráč tak svůj domeček najde z pláže i od mola)
@@ -1131,6 +1132,7 @@ local function buildHouse(root: Instance, index: number, frontX: number, zCenter
 		OwnerLabel = ownerLabel,
 		OwnerLabels = ownerLabels,
 		HouseNameLabel = houseNameLabel,
+		HouseNameLabels = houseNameLabels,
 		Center = CFrame.new(centerX, floorY + 1 + H / 2, zCenter),
 		Size = Vector3.new(L, H + 2, W),
 		Entrance = CFrame.lookAt(Vector3.new(frontX - 6, floorY + 3, zCenter), Vector3.new(frontX + 10, floorY + 3, zCenter)),

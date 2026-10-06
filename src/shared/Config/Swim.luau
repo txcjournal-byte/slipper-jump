@@ -164,6 +164,26 @@ local Variants: { SlalomVariant } = {
 local Slalom = {
 	Names = SlalomNames,
 	Variants = Variants,
+	-- Druhy slalomu (losují se podle levelu; Weight = jak často). Zvláštní varianty výše jen u branek.
+	--  Gates     – bariéry z bójek s mezerou (původní)
+	--  Buoys     – kličkování kolem jednotlivých bójek: šipka ukazuje, ze které strany ji objet
+	--  Hoops     – plovoucí obruče: proplavat středem = krátké zrychlení, minout = konec comba
+	--  Canyon    – úzký klikatý kanál mezi skalami
+	--  Whirlpool – branky a víry, které hráče stahují k sobě
+	Styles = {
+		{ Key = "Gates", MinLevel = 2, Weight = 3 },
+		{ Key = "Buoys", Name = "BUOY WEAVE", Color = Color3.fromRGB(255, 200, 40), MinLevel = 3, Weight = 2, Hint = "Weave AROUND the buoys - follow the arrows!" },
+		{ Key = "Hoops", Name = "HOOP DASH", Color = Color3.fromRGB(255, 120, 200), MinLevel = 4, Weight = 2, Hint = "Swim THROUGH the hoops for a speed boost!" },
+		{ Key = "Canyon", Name = "ROCK CANYON", Color = Color3.fromRGB(190, 150, 110), MinLevel = 8, Weight = 1.5, Hint = "Stay in the channel between the rocks!" },
+		{ Key = "Whirlpool", Name = "WHIRLPOOL BAY", Color = Color3.fromRGB(60, 140, 255), MinLevel = 12, Weight = 1.5, Hint = "Avoid the whirlpools - they pull you in!" },
+	} :: { { Key: string, Name: string?, Color: Color3?, MinLevel: number, Weight: number, Hint: string? } },
+	BuoyPass = 0.8, -- jak daleko za bójkou (na správné straně) musí hráč proplavat
+	BuoyRadius = 1.4, -- do bójky se nedá narazit skrz
+	HoopSize = 9, -- průměr obruče
+	HoopBoostTime = 1.2,
+	HoopBoostMultiplier = 1.5,
+	WhirlpoolPull = 9, -- síla stahování víru (studů/s u středu)
+	WhirlpoolRange = 10, -- dosah víru
 	VariantChance = { 0.4, 0.65, 0.85 }, -- šance na zvláštní slalom na voru 1, 2, 3
 	-- hvězdičky za slalom podle počtu nárazů: 0 = ★★★, do 2 = ★★, víc = ★
 	StarHits = { Three = 0, Two = 2 },
@@ -173,12 +193,12 @@ local Slalom = {
 	GatesBase = 2, -- branek na levelu 2, pak +1 každých GatesEvery levelů
 	GatesEvery = 5,
 	MaxGates = 8,
-	GapStart = 22, -- šířka mezery na levelu 2, každým levelem o GapPerLevel užší
+	GapStart = 19, -- šířka mezery na levelu 2, každým levelem o GapPerLevel užší
 	GapPerLevel = 0.3,
 	MinGap = 10,
-	OffsetStart = 6, -- jak daleko od středu může mezera být
-	OffsetPerLevel = 0.25,
-	MaxOffset = 16,
+	OffsetStart = 9, -- jak daleko od středu může mezera být
+	OffsetPerLevel = 0.3,
+	MaxOffset = 20,
 	MovingFromLevel = 10, -- od tohoto levelu se některé branky hýbou do stran
 	ObstaclesFromLevel = 4, -- od tohoto levelu přibývají překážky (1 za každé 3 levely, nejvýš 10)
 	MaxObstacles = 10,
@@ -193,8 +213,22 @@ local Slalom = {
 	HitStun = 0.7, -- náraz do překážky
 	KnockBack = 3, -- o kolik studů překážka odhodí zpět
 	-- velikost překážek (poloměr zásahu) a pohyb
-	ObstacleRadius = { Rock = 3, Jellyfish = 2.6, Log = 1.6, Puffer = 2.4 } :: { [string]: number },
+	ObstacleRadius = { Rock = 3, Jellyfish = 2.6, Log = 1.6, Puffer = 2.4, Whirlpool = 2.4 } :: { [string]: number },
 	LogLength = 12,
+	-- Sbírací věci ve slalomu (jedna v každém úseku, kousek před brankou):
+	-- Coin = peníze hned, Turbo = chvíli rychlejší plavání, Freeze = pronásledovatel na chvíli zamrzne.
+	-- Combo = branky projeté bez nárazu za sebou (jen efekt na obrazovce).
+	Pickups = {
+		TurboChance = 0.3,
+		FreezeChance = 0.18,
+		FreezeFromLevel = 6,
+		TurboTime = 2.5,
+		TurboMultiplier = 1.7,
+		FreezeTime = 1.6,
+		CoinSeconds = 4, -- peníze = příjem domečku za tolik sekund
+		CoinMin = 25,
+		Radius = 3.5, -- jak blízko musí hráč proplavat
+	},
 }
 
 return {

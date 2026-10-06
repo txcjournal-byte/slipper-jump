@@ -46,8 +46,28 @@ local ContestPrizes: { ContestPrize } = {
 	{ Money = 1_000 },
 }
 
+-- LEGEND RACE: všichni na serveru skočí naráz – kdo doletí nejdál, je do příštího závodu LEGENDA
+-- (korunka nad hlavou). Počítá se první skok odstartovaný v okně po GO.
+local LegendRace = {
+	FirstDelay = 150, -- první závod pár minut po startu serveru
+	Interval = 7 * 60, -- sekund mezi závody
+	Warning = 30, -- odpočet před startem
+	Window = 20, -- jak dlouho po GO se dá odstartovat závodní skok
+	Grace = 25, -- max. čekání na dopad posledních závodníků
+	MinPlayers = 2, -- závod jen když je na serveru aspoň tolik hráčů
+	ResultsTime = 10, -- jak dlouho visí výsledky
+	Prizes = { -- 1., 2., 3. místo ($ se násobí levelem ÷ Quests.MoneyLevelDivisor, min. 1×)
+		{ Money = 8_000, Spins = 3 },
+		{ Money = 4_000, Spins = 1 },
+		{ Money = 2_000 },
+	} :: { ContestPrize },
+	ParticipationMoney = 500, -- ostatní závodníci dostanou aspoň něco
+	Title = "👑 LEGEND",
+}
+
 return {
 	ServerEvents = Rotation,
+	LegendRace = LegendRace,
 	ServerEventInterval = 5 * 60, -- sekund mezi událostmi
 	ServerEventDuration = 90, -- jak dlouho událost běží
 	ServerEventWarning = 15, -- oznámení předem

@@ -69,6 +69,14 @@ function TestPanelService.Start()
 				character:PivotTo(CFrame.new(landing + Vector3.new(0, 4, 0)))
 			end
 			message = "Island challenge: " .. value
+		elseif action == "HouseTier" and type(value) == "number" then
+			Registry.House.SetTier(session, value)
+			message = "House tier " .. data.HouseTier
+		elseif action == "SlalomStyle" and type(value) == "string" then
+			Registry.Swim.ForceStyle(if value == "Random" then nil else value)
+			message = "Next slaloms: " .. value
+		elseif action == "LegendRace" then
+			message = if Registry.LegendRace.ForceStart() then "LEGEND RACE starting!" else "A race is already running."
 		elseif action == "ResetGifts" then
 			data.ClaimedGifts = {}
 			message = "Gift islands reset"

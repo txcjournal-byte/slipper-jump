@@ -39,19 +39,26 @@ export type SwimState = {
 	Trial: string?, -- úkol z ostrova (kánoe) – po doplutí rozhodne TrialService
 	Hits: number, -- nárazy ve slalomu (hlásí klient) → hvězdičky
 	LastHit: number,
+	StartZ: number, -- posun do strany počítají sbírací věci od tohoto Z
+	Pickups: { [string]: SlalomPickup }, -- nesebrané sbírací věci ve slalomu
+	Extra: number, -- turbo: o kolik studů může být hráč dál, než dovolí rychlost plavání
 }
 
 local SwimService = {}
 
 local rng = Random.new()
+local forcedStyle: string? = nil -- jen testovací panel ve Studiu
 
-export type SlalomGate = { X: number, Z: number, Gap: number, Amp: number, Speed: number, Phase: number }
+export type SlalomGate = { X: number, Z: number, Gap: number, Amp: number, Speed: number, Phase: number, Side: number? }
 export type SlalomObstacle = { Kind: string, X: number, Z: number, Amp: number, Speed: number, Phase: number }
+export type SlalomPickup = { Id: string, Kind: string, X: number, Z: number }
 export type SlalomLayout = {
 	Name: string,
 	Color: Color3,
 	Gates: { SlalomGate },
 	Obstacles: { SlalomObstacle },
+	Pickups: { SlalomPickup },
+	Style: string, -- druh slalomu (Gates, Buoys, Hoops, Canyon, Whirlpool)
 	Variant: string?, -- zvláštní druh slalomu (Storm, Night …)
 	Hint: string?,
 	Drift: number?, -- vlny posouvají hráče do stran (studů/s)
@@ -68,7 +75,35 @@ local function generateSlalom(level: number, distance: number, stage: number, ga
 	end
 	tier.Gap += gapBonus or 0
 	local cfg = Swim.Slalom
-	-- občas zvláštní druh slalomu (čím dál k pláži, tím častěji)
+	-- druh slalomu (branky, bójky, obruče, kaňon, víry) – závod na kánoi má vždy branky
+	local style = "Gates"
+	local styleCfg = nil
+	if not noVariants and forcedStyle then
+		for _, st in cfg.Styles do
+			if st.Key == forcedStyle then
+				style = st.Key
+				styleCfg = st
+			end
+		end
+	elseif not noVariants then
+		local pool, total = {}, 0
+		for _, st in cfg.Styles do
+			if level >= st.MinLevel then
+				table.insert(pool, st)
+				total += st.Weight
+			end
+		end
+		local r = rng:NextNumber() * total
+		for _, st in pool do
+			r -= st.Weight
+			if r <= 0 then
+				style = st.Key
+				styleCfg = st
+				break
+			end
+		end
+	end
+	-- občas zvláštní druh slalomu (čím dál k pláži, tím častěji) – jen u branek
 	local variant: Swim.SlalomVariant? = nil
 	local unlocked = {}
 	for _, v in cfg.Variants do
@@ -76,7 +111,7 @@ local function generateSlalom(level: number, distance: number, stage: number, ga
 			table.insert(unlocked, v)
 		end
 	end
-	if not noVariants and #unlocked > 0 and rng:NextNumber() < (cfg.VariantChance[stage] or 0.5) then
+	if not noVariants and style == "Gates" and #unlocked > 0 and rng:NextNumber() < (cfg.VariantChance[stage] or 0.5) then
 		variant = unlocked[rng:NextInteger(1, #unlocked)]
 	end
 	if variant then
@@ -92,8 +127,35 @@ local function generateSlalom(level: number, distance: number, stage: number, ga
 			tier.Obstacles = { [variant.Kind] = math.max(total, 2) }
 		end
 	end
+	-- úpravy podle druhu slalomu
+	local function halveObstacles()
+		for kind, n in tier.Obstacles do
+			tier.Obstacles[kind] = math.floor(n / 2)
+		end
+	end
+	if style == "Buoys" then
+		tier.Gates = math.min(tier.Gates + 2, 10)
+		tier.Moving = 0
+		halveObstacles()
+	elseif style == "Hoops" then
+		tier.Gates = math.min(tier.Gates + 1, 9)
+		tier.Gap = cfg.HoopSize + (gapBonus or 0)
+		halveObstacles()
+	elseif style == "Canyon" then
+		tier.Gates = math.min(tier.Gates * 2 + 2, 14)
+		tier.Moving = 0
+		tier.Gap = math.max(tier.Gap, 14)
+		tier.Obstacles = {}
+	elseif style == "Whirlpool" then
+		tier.Obstacles = { Whirlpool = math.clamp(2 + math.floor((level - 12) / 8), 2, 5) }
+	end
+	if styleCfg and styleCfg.Name then
+		tier.Name = styleCfg.Name
+		tier.Color = styleCfg.Color or tier.Color
+	end
 	local gates: { SlalomGate } = {}
 	local sign = if rng:NextNumber() < 0.5 then -1 else 1
+	local canyonPhase = rng:NextNumber(0, math.pi * 2)
 	local moving = {}
 	-- které branky se hýbou (náhodně vybrané)
 	local order = {}
@@ -114,6 +176,15 @@ local function generateSlalom(level: number, distance: number, stage: number, ga
 		local amp = if moving[i] then tier.MoveAmp else 0
 		local maxCenter = cfg.LaneHalfWidth - 2 - tier.Gap / 2 - amp
 		local z = sign * math.min(rng:NextNumber(tier.Offset * 0.45, tier.Offset), maxCenter)
+		local side: number? = nil
+		if style == "Buoys" then
+			-- bójka kousek od středu, objíždí se z vnější strany (cik-cak)
+			z = sign * rng:NextNumber(4, math.clamp(tier.Offset, 5, 10))
+			side = sign
+		elseif style == "Canyon" then
+			-- plynule klikatý kanál
+			z = math.clamp(tier.Offset * 0.9 * math.sin(i * 0.8 + canyonPhase), -maxCenter, maxCenter)
+		end
 		sign = -sign
 		table.insert(gates, {
 			X = spacing * i,
@@ -122,11 +193,12 @@ local function generateSlalom(level: number, distance: number, stage: number, ga
 			Amp = amp,
 			Speed = if moving[i] then tier.MoveSpeed * rng:NextNumber(0.85, 1.15) else 0,
 			Phase = rng:NextNumber(0, math.pi * 2),
+			Side = side,
 		})
 	end
 	-- překážky do úseků mezi brankami (úsek k = před k-tou brankou; poslední je mezi poslední brankou a vorem)
 	local kinds: { string } = {}
-	for _, kind in { "Rock", "Jellyfish", "Log", "Puffer" } do
+	for _, kind in { "Rock", "Jellyfish", "Log", "Puffer", "Whirlpool" } do
 		for _ = 1, tier.Obstacles[kind] or 0 do
 			table.insert(kinds, kind)
 		end
@@ -158,16 +230,55 @@ local function generateSlalom(level: number, distance: number, stage: number, ga
 			Phase = rng:NextNumber(0, math.pi * 2),
 		})
 	end
+	-- sbírací věci: v každém úseku jedna, kousek za začátkem úseku a směrem k mezeře další branky
+	local pc = cfg.Pickups
+	local pickups: { SlalomPickup } = {}
+	local hasTurbo = false
+	for k = 1, segments do
+		local nextGate = gates[k]
+		local prevZ = if k > 1 then gates[k - 1].Z else 0
+		local targetZ = if nextGate then nextGate.Z else prevZ
+		local roll = rng:NextNumber()
+		local kind = "Coin"
+		if level >= pc.FreezeFromLevel and roll < pc.FreezeChance then
+			kind = "Freeze"
+		elseif roll < pc.FreezeChance + pc.TurboChance then
+			kind = "Turbo"
+		end
+		-- aspoň jedno turbo v delším slalomu
+		if k == segments and not hasTurbo and segments >= 3 then
+			kind = "Turbo"
+		end
+		hasTurbo = hasTurbo or kind == "Turbo"
+		table.insert(pickups, {
+			Id = "p" .. k,
+			Kind = kind,
+			X = math.clamp(spacing * (k - 1) + spacing * 0.3, 5, distance - 5),
+			Z = math.clamp(prevZ + (targetZ - prevZ) * 0.55 + rng:NextNumber(-3, 3), -cfg.LaneHalfWidth + 4, cfg.LaneHalfWidth - 4),
+		})
+	end
 	return {
 		Name = tier.Name,
 		Color = tier.Color,
 		Gates = gates,
 		Obstacles = obstacles,
+		Pickups = pickups,
+		Style = style,
 		Variant = if variant then variant.Key else nil,
-		Hint = if variant then variant.Hint else nil,
+		Hint = if variant then variant.Hint elseif styleCfg then styleCfg.Hint else nil,
 		Drift = if variant then variant.Drift else nil,
 		Night = if variant then variant.Night else nil,
 	}
+end
+
+local function pickupMap(slalom: SlalomLayout?): { [string]: SlalomPickup }
+	local map = {}
+	if slalom then
+		for _, p in slalom.Pickups do
+			map[p.Id] = p
+		end
+	end
+	return map
 end
 
 local startEvent: RemoteEvent
@@ -306,7 +417,7 @@ startStage = function(session: Session, previous: SwimState?, flight: any, landD
 	local slalom = generateSlalom(slalomLevel, distance, stage)
 	-- delší plavba nesmí být nefér: pronásledovatel vyrazí o tolik později, kolik hráč plave navíc
 	local sharkDelay = Swim.SharkDelay + math.max(0, distance - Swim.Distance) / speed
-		+ (if slalom then #slalom.Gates * Swim.Slalom.DelayPerGate else 0)
+		+ (if slalom then math.min(#slalom.Gates, 8) * Swim.Slalom.DelayPerGate else 0)
 	local treasure: string? = nil
 	if stage >= 2 then
 		local luck = Registry.Items.Luck(session)
@@ -333,6 +444,12 @@ startStage = function(session: Session, previous: SwimState?, flight: any, landD
 		HasSlalom = slalom ~= nil,
 		Hits = 0,
 		LastHit = 0,
+		StartZ = root.Position.Z,
+		Pickups = pickupMap(slalom),
+		-- obruče zrychlují: server musí povolit, že hráč bude o kus dál, než dovolí plavání
+		Extra = if slalom and slalom.Style == "Hoops"
+			then #slalom.Gates * speed * (Swim.Slalom.HoopBoostMultiplier - 1) * Swim.Slalom.HoopBoostTime
+			else 0,
 	}
 	local _ = previous
 	session.Swim = state
@@ -412,6 +529,9 @@ function SwimService.StartTrial(session: Session, key: string, cfg: any, easy: b
 		HasSlalom = slalom ~= nil,
 		Hits = 0,
 		LastHit = 0,
+		StartZ = waterStart.Z,
+		Pickups = pickupMap(slalom),
+		Extra = 0,
 		Trial = key,
 	}
 	session.Swim = state
@@ -457,6 +577,11 @@ function SwimService.Begin(session: Session, flight: any, landDistance: number)
 	startStage(session, nil, flight, landDistance, 1, noShark, usedRepellent)
 end
 
+-- Testovací panel ve Studiu: další slalomy budou tohoto druhu (nil = náhodně)
+function SwimService.ForceStyle(style: string?)
+	forcedStyle = style
+end
+
 function SwimService.Init()
 	startEvent = Net.Event("SwimStart")
 	resultEvent = Net.Event("SwimResult")
@@ -467,6 +592,36 @@ function SwimService.Init()
 		if state and not state.Done and os.clock() - state.LastHit > 0.3 then
 			state.LastHit = os.clock()
 			state.Hits += 1
+		end
+	end)
+	-- klient sebral věc ve slalomu: server ověří, že u ní hráč opravdu je, a použije ji
+	Net.Event("SlalomPickup").OnServerEvent:Connect(function(player, id)
+		local session = Registry.Player.Get(player)
+		local state: SwimState? = session and session.Swim
+		if not session or not state or state.Done or type(id) ~= "string" then
+			return
+		end
+		local pickup = state.Pickups[id]
+		local root = Registry.Player.GetRoot(player)
+		if not pickup or not root then
+			return
+		end
+		local progress = (state.StartX - root.Position.X) * state.Dir
+		local pc = Swim.Slalom.Pickups
+		-- rezerva na zpoždění sítě (server vidí polohu o ping později)
+		if math.abs(progress - pickup.X) > pc.Radius + 6 or math.abs(root.Position.Z - (state.StartZ + pickup.Z)) > pc.Radius + 4 then
+			return
+		end
+		state.Pickups[id] = nil
+		if pickup.Kind == "Coin" then
+			local money = math.max(pc.CoinMin, math.floor(Registry.Economy.IncomePerSecond(session) * pc.CoinSeconds))
+			Registry.Economy.AddMoney(session, money)
+			Registry.Player.MarkDirty(session)
+			Net.Event("PlayEffect"):FireClient(player, "Collect", { Amount = money })
+		elseif pickup.Kind == "Turbo" then
+			state.Extra += state.Speed * (pc.TurboMultiplier - 1) * pc.TurboTime
+		elseif pickup.Kind == "Freeze" then
+			state.SharkDelay += pc.FreezeTime
 		end
 	end)
 	-- na voru: dál k dalšímu voru, nebo zpět na pláž
@@ -498,7 +653,7 @@ function SwimService.Start()
 					finish(session, state, false, "Lost")
 				else
 					-- postup k voru (nemůže být rychlejší, než dovolí rychlost plavání)
-					local progress = math.clamp((state.StartX - root.Position.X) * state.Dir, 0, state.Speed * elapsed * 1.15 + 4)
+					local progress = math.clamp((state.StartX - root.Position.X) * state.Dir, 0, state.Speed * elapsed * 1.15 + 4 + state.Extra)
 					local shark = Formulas.SharkProgress(elapsed, state.SharkSpeed, state.SharkDelay)
 					if progress >= state.Distance then
 						finish(session, state, true, "Safe")

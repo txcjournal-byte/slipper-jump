@@ -17,13 +17,16 @@ local Effects = require(script.Parent.Parent.Effects.Effects)
 
 local Slalom = {}
 
-type GateData = { X: number, Z: number, Gap: number, Amp: number, Speed: number, Phase: number }
+type GateData = { X: number, Z: number, Gap: number, Amp: number, Speed: number, Phase: number, Side: number? }
 type ObstacleData = { Kind: string, X: number, Z: number, Amp: number, Speed: number, Phase: number }
+type PickupData = { Id: string, Kind: string, X: number, Z: number }
 type Layout = {
 	Name: string,
 	Color: Color3,
 	Gates: { GateData },
 	Obstacles: { ObstacleData },
+	Pickups: { PickupData }?,
+	Style: string?, -- Gates, Buoys, Hoops, Canyon, Whirlpool
 	Variant: string?,
 	Hint: string?,
 	Drift: number?,
@@ -32,6 +35,7 @@ type Layout = {
 
 type Gate = { Data: GateData, Model: Model, Passed: boolean, LastBump: number }
 type Obstacle = { Data: ObstacleData, Model: Model, LastHit: number, Bob: number }
+type Pickup = { Data: PickupData, Model: Model, Taken: boolean }
 
 export type Run = {
 	Layout: Layout,
@@ -41,6 +45,10 @@ export type Run = {
 	Y: number,
 	Gates: { Gate },
 	Obstacles: { Obstacle },
+	Pickups: { Pickup },
+	Combo: number, -- branky za sebou bez nárazu
+	BoostUntil: number, -- zrychlení z obruče (Hoop Dash)
+	HitsAtGate: number,
 	StunUntil: number,
 	Passed: number,
 	Folder: Folder,
@@ -215,11 +223,150 @@ local function pufferModel(parent: Instance): Model
 	return m
 end
 
+-- ===== Další druhy slalomu =====
+
+-- Bójka (Buoy Weave): vysoká pruhovaná bójka se šipkou, ze které strany ji objet.
+-- side = na kterou stranu (±Z) ji hráč objíždí, dir = směr plavání (šipka je „vlevo/vpravo na obrazovce“)
+local function buoyModel(parent: Instance, side: number, dir: number, index: number, total: number): Model
+	local m = newModel("SlalomBuoy", parent)
+	local color = if side > 0 then Color3.fromRGB(255, 190, 30) else Color3.fromRGB(255, 110, 40)
+	part(m, Vector3.new(2.2, 3.2, 3.2), CFrame.new(0, 0.4, 0) * UP, color, nil, Enum.PartType.Cylinder)
+	for k = 0, 3 do
+		part(m, Vector3.new(1.4, 1.8 - k * 0.25, 1.8 - k * 0.25), CFrame.new(0, 2 + k * 1.4, 0) * UP, if k % 2 == 0 then WHITE else color, nil, Enum.PartType.Cylinder)
+	end
+	local top = part(m, Vector3.one * 1.6, CFrame.new(0, 7.6, 0), color, Enum.Material.Neon, Enum.PartType.Ball)
+	-- zelený pruh na vodě: tudy kolem bójky
+	local lane = part(m, Vector3.new(4, 0.2, 7), CFrame.new(0, 0.12, side * 4.6), GO_GREEN, Enum.Material.Neon)
+	lane.Transparency = 0.45
+	lane.Name = "GlowFloor"
+	-- šipka: doprava na obrazovce = −Z při plavání ke břehu (dir = 1)
+	local screenRight = side * -dir > 0
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(120, 70)
+	gui.StudsOffset = Vector3.new(0, 3, 0)
+	gui.MaxDistance = 220
+	gui.Parent = top
+	local label = Kit.Text(gui, { Text = (if screenRight then "➡" else "⬅") .. ` {index}/{total}`, Size = UDim2.fromScale(1, 1), TextColor3 = WHITE, StrokeThickness = 3 })
+	label.BackgroundTransparency = 0.1
+	label.BackgroundColor3 = color
+	Kit.Corner(label, 14)
+	return m
+end
+
+-- Obruč (Hoop Dash): svítící kruh napůl ve vodě, proplavat středem = zrychlení
+local function hoopModel(parent: Instance, size: number, color: Color3): Model
+	local m = newModel("SlalomHoop", parent)
+	local r = size / 2
+	local n = 18
+	for k = 0, n - 1 do
+		local a = k / n * math.pi * 2
+		local a2 = (k + 1) / n * math.pi * 2
+		local p1 = Vector3.new(0, math.sin(a) * r + 1.5, math.cos(a) * r)
+		local p2 = Vector3.new(0, math.sin(a2) * r + 1.5, math.cos(a2) * r)
+		if p1.Y > -0.5 or p2.Y > -0.5 then
+			local seg = part(m, Vector3.new(0.9, 0.9, (p2 - p1).Magnitude + 0.3), CFrame.lookAt((p1 + p2) / 2, p2), if k % 2 == 0 then color else WHITE, Enum.Material.Neon)
+			seg.Name = "Ring"
+		end
+	end
+	local glow = part(m, Vector3.new(0.2, size - 1.5, size - 1.5), CFrame.new(0, 1.5, 0) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(0, math.rad(90), 0), color, Enum.Material.Neon, Enum.PartType.Cylinder)
+	glow.Transparency = 0.85
+	glow.Name = "Glow"
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(110, 40)
+	gui.StudsOffset = Vector3.new(0, r + 3, 0)
+	gui.MaxDistance = 220
+	gui.Parent = glow
+	Kit.Text(gui, { Text = "⚡ BOOST", Size = UDim2.fromScale(1, 1), TextColor3 = Kit.Colors.Yellow, StrokeThickness = 3 })
+	return m
+end
+
+-- Kaňon (Rock Canyon): místo bójek řada skal od kraje mezery až daleko do strany
+local function canyonModel(parent: Instance, gap: number): Model
+	local m = newModel("SlalomCanyon", parent)
+	local half = gap / 2
+	local grey = Color3.fromRGB(105, 102, 98)
+	for _, side in { -1, 1 } do
+		local z = half + 2.2
+		local k = 0
+		while z < half + 44 do
+			local h = if k == 0 then 9 else 4 + (k * 37 % 5)
+			local w = 4.4 + (k * 13 % 3)
+			part(m, Vector3.new(w, h, w), CFrame.new(0, h / 2 - 1, side * z) * CFrame.Angles(0, k * 0.7, 0), grey:Lerp(WHITE, (k % 3) * 0.06), Enum.Material.Slate)
+			z += w - 0.6
+			k += 1
+		end
+		-- svítící tyčka na kraji kanálu
+		local pole = part(m, Vector3.new(0.5, 8, 0.5), CFrame.new(0, 4, side * (half + 0.6)), GO_GREEN, Enum.Material.Neon)
+		pole.Name = "Glow"
+	end
+	local floor = part(m, Vector3.new(4, 0.2, gap - 1.6), CFrame.new(0, 0.15, 0), GO_GREEN, Enum.Material.Neon)
+	floor.Transparency = 0.6
+	floor.Name = "GlowFloor"
+	return m
+end
+
+-- Vír (Whirlpool Bay): točící se tmavé kruhy na hladině s pěnou
+local function whirlpoolModel(parent: Instance): Model
+	local m = newModel("SlalomWhirlpool", parent)
+	for k = 0, 3 do
+		local d = 16 - k * 3.6
+		local ring = part(m, Vector3.new(0.2, d, d), CFrame.new(0, 0.1 + k * 0.03, 0) * UP, if k % 2 == 0 then Color3.fromRGB(20, 70, 140) else Color3.fromRGB(230, 245, 255), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		ring.Transparency = 0.25 + k * 0.1
+	end
+	-- spirálová ramena (točí se s modelem)
+	for k = 0, 3 do
+		local a = k * math.pi / 2
+		part(m, Vector3.new(0.6, 0.25, 6), CFrame.new(math.cos(a) * 4, 0.3, math.sin(a) * 4) * CFrame.Angles(0, -a + 0.6, 0), WHITE, Enum.Material.Neon).Transparency = 0.3
+	end
+	part(m, Vector3.new(0.3, 3, 3), CFrame.new(0, 0.25, 0) * UP, Color3.fromRGB(5, 20, 50), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+	return m
+end
+
+-- Sbírací věc: zářící koule se znakem nad vodou (mince / blesk / vločka), točí se a pohupuje
+local PICKUP_LOOK: { [string]: { Color: Color3, Icon: string } } = {
+	Coin = { Color = Color3.fromRGB(255, 205, 40), Icon = "💰" },
+	Turbo = { Color = Color3.fromRGB(255, 120, 30), Icon = "⚡" },
+	Freeze = { Color = Color3.fromRGB(120, 220, 255), Icon = "❄️" },
+}
+local function pickupModel(parent: Instance, kind: string): Model
+	local look = PICKUP_LOOK[kind] or PICKUP_LOOK.Coin
+	local m, root = newModel("SlalomPickup", parent)
+	local orb = part(m, Vector3.one * 2.6, CFrame.new(0, 2.2, 0), look.Color, Enum.Material.Neon, Enum.PartType.Ball)
+	orb.Transparency = 0.25
+	orb.Name = "Orb"
+	local ring = part(m, Vector3.new(0.3, 4.2, 4.2), CFrame.new(0, 0.15, 0) * UP, look.Color, Enum.Material.Neon, Enum.PartType.Cylinder)
+	ring.Transparency = 0.5
+	local light = Instance.new("PointLight")
+	light.Range = 14
+	light.Brightness = 2.5
+	light.Color = look.Color
+	light.Parent = orb
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Rate = 14
+	sparkle.Lifetime = NumberRange.new(0.4, 0.8)
+	sparkle.Speed = NumberRange.new(2, 4)
+	sparkle.SpreadAngle = Vector2.new(180, 180)
+	sparkle.LightEmission = 1
+	sparkle.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
+	sparkle.Color = ColorSequence.new(WHITE, look.Color)
+	sparkle.Parent = orb
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(54, 54)
+	gui.StudsOffset = Vector3.new(0, 4.2, 0)
+	gui.AlwaysOnTop = true
+	gui.MaxDistance = 260
+	gui.LightInfluence = 0
+	gui.Parent = root
+	Kit.Text(gui, { Text = look.Icon, Size = UDim2.fromScale(1, 1), NoStroke = true })
+	return m
+end
+
 local BUILDERS: { [string]: (Instance) -> Model } = {
 	Rock = rockModel,
 	Jellyfish = jellyfishModel,
 	Log = logModel,
 	Puffer = pufferModel,
+	Whirlpool = whirlpoolModel,
 }
 
 -- ===== Pozice =====
@@ -253,6 +400,10 @@ function Slalom.Start(layout: Layout, startX: number, startZ: number, y: number,
 		Y = y,
 		Gates = {},
 		Obstacles = {},
+		Pickups = {},
+		Combo = 0,
+		BoostUntil = 0,
+		HitsAtGate = 0,
 		StunUntil = 0,
 		Passed = 0,
 		Folder = folder,
@@ -278,7 +429,12 @@ function Slalom.Start(layout: Layout, startX: number, startZ: number, y: number,
 		run.Mood = mood
 	end
 	for _, g in layout.Gates do
-		local model = gateModel(folder, g.Gap, layout.Color, #run.Gates + 1, #layout.Gates)
+		local style = layout.Style or "Gates"
+		local index = #run.Gates + 1
+		local model = if style == "Buoys" then buoyModel(folder, g.Side or 1, run.Dir, index, #layout.Gates)
+			elseif style == "Hoops" then hoopModel(folder, g.Gap, layout.Color)
+			elseif style == "Canyon" then canyonModel(folder, g.Gap)
+			else gateModel(folder, g.Gap, layout.Color, index, #layout.Gates)
 		table.insert(run.Gates, { Data = g, Model = model, Passed = false, LastBump = 0 })
 	end
 	for _, o in layout.Obstacles do
@@ -295,6 +451,10 @@ function Slalom.Start(layout: Layout, startX: number, startZ: number, y: number,
 			end
 			table.insert(run.Obstacles, { Data = o, Model = model, LastHit = 0, Bob = math.random() * 6 })
 		end
+	end
+	local pickups: { PickupData } = layout.Pickups or {}
+	for _, p in pickups do
+		table.insert(run.Pickups, { Data = p, Model = pickupModel(folder, p.Kind), Taken = false })
 	end
 	Slalom.Animate(run, 0)
 	return run
@@ -345,9 +505,42 @@ function Slalom.Animate(run: Run, t: number)
 			cf *= CFrame.Angles(bob * 0.06, 0, 0)
 		elseif o.Kind == "Puffer" then
 			cf *= CFrame.Angles(0, t * 0.8, 0)
+		elseif o.Kind == "Whirlpool" then
+			cf = CFrame.new(run.StartX - run.Dir * o.X, run.Y, run.StartZ + obstacleZ(o, t)) * CFrame.Angles(0, -t * 2.5, 0)
 		end
 		obstacle.Model:PivotTo(cf)
 	end
+	for i, pickup in run.Pickups do
+		if not pickup.Taken then
+			local p = pickup.Data
+			pickup.Model:PivotTo(CFrame.new(run.StartX - run.Dir * p.X, run.Y + math.sin(t * 3 + i) * 0.4, run.StartZ + p.Z) * CFrame.Angles(0, t * 2, 0))
+		end
+	end
+end
+
+-- Sebere věci, kolem kterých hráč proplaval. Vrací druhy sebraných věcí (server je ověří a použije).
+function Slalom.Collect(run: Run, progress: number, z: number): { string }
+	local got = {}
+	local r = Swim.Slalom.Pickups.Radius
+	for _, pickup in run.Pickups do
+		local p = pickup.Data
+		if not pickup.Taken and math.abs(progress - p.X) < r and math.abs(z - p.Z) < r then
+			pickup.Taken = true
+			pickup.Model:Destroy()
+			Net.Event("SlalomPickup"):FireServer(p.Id)
+			local look = PICKUP_LOOK[p.Kind] or PICKUP_LOOK.Coin
+			Effects.Ripple(Vector3.new(run.StartX - run.Dir * progress, run.Y, run.StartZ + z), 1.2)
+			Effects.FovKick(6)
+			Sound.Play(if p.Kind == "Coin" then "Coin" else "Perfect", if p.Kind == "Freeze" then 1.4 else 1.1)
+			if p.Kind == "Turbo" then
+				Effects.BigText("⚡ TURBO!", look.Color, 0.9, 0.36)
+			elseif p.Kind == "Freeze" then
+				Effects.BigText("❄️ FREEZE! Chaser frozen!", look.Color, 1, 0.36)
+			end
+			table.insert(got, p.Kind)
+		end
+	end
+	return got
 end
 
 local function bumpEffect(run: Run, progress: number, z: number, text: string, color: Color3)
@@ -363,32 +556,78 @@ end
 function Slalom.Resolve(run: Run, t: number, prev: number, new: number, z: number): number
 	local now = os.clock()
 	local result = new
-	-- branky: bariérou se neproplave, jen mezerou
+	local style = run.Layout.Style or "Gates"
+	-- proplavaná branka / bójka / obruč: zvuk, combo, rozsvícení
+	local function passed(gate: Gate)
+		gate.Passed = true
+		run.Passed += 1
+		Sound.Play("Ring", 1.2 + run.Passed * 0.08)
+		-- combo: branky za sebou bez jediného nárazu
+		run.Combo = if run.Hits == run.HitsAtGate then run.Combo + 1 else 1
+		run.HitsAtGate = run.Hits
+		-- v kaňonu jsou branky hustě za sebou: combo hlásit jen po trojicích, ať text nezahltí obrazovku
+		local dense = style == "Canyon"
+		if run.Combo >= 2 and (not dense or run.Combo % 3 == 0 or run.Passed == #run.Gates) then
+			Effects.BigText(`COMBO x{run.Combo}!`, Kit.Colors.Yellow, 0.7, 0.42)
+			Effects.Shake(0.08 * math.min(run.Combo, 5))
+		end
+		if not dense then
+			local word = if style == "Buoys" then "BUOY" elseif style == "Hoops" then "HOOP" else "GATE"
+			Effects.FloatText(`{word} {run.Passed}/{#run.Gates}`, run.Layout.Color)
+		end
+		for _, name in { "Glow", "GlowFloor" } do
+			local glow = gate.Model:FindFirstChild(name) :: BasePart?
+			if glow then
+				glow.Color = Kit.Colors.Yellow
+				glow.Transparency = 0.8
+			end
+		end
+	end
+	local function blocked(gate: Gate, g: GateData, text: string)
+		result = math.min(result, g.X - 1.2)
+		if now - gate.LastBump > 0.7 then
+			gate.LastBump = now
+			if not registerHit(run, result, z) then
+				run.StunUntil = math.max(run.StunUntil, now + Swim.Slalom.BumpStun)
+				bumpEffect(run, result, z, text, Kit.Colors.Orange)
+			end
+		end
+	end
 	for _, gate in run.Gates do
 		local g = gate.Data
 		if not gate.Passed and prev < g.X and result >= g.X - 0.5 then
 			local center = gateZ(g, t)
-			if math.abs(z - center) <= g.Gap / 2 - PLAYER_HALF_WIDTH then
-				gate.Passed = true
-				run.Passed += 1
-				Sound.Play("Ring", 1.2 + run.Passed * 0.08)
-				Effects.FloatText(`GATE {run.Passed}/{#run.Gates}`, run.Layout.Color)
-				for _, name in { "Glow", "GlowFloor" } do
-					local glow = gate.Model:FindFirstChild(name) :: BasePart?
-					if glow then
-						glow.Color = Kit.Colors.Yellow
-						glow.Transparency = 0.8
-					end
-				end
-			else
-				result = math.min(result, g.X - 1.2)
-				if now - gate.LastBump > 0.7 then
-					gate.LastBump = now
+			if style == "Buoys" then
+				-- objet z vyznačené strany; skrz bójku to nejde, z druhé strany = chyba (bez zastavení)
+				local side = g.Side or 1
+				if math.abs(z - center) < Swim.Slalom.BuoyRadius + PLAYER_HALF_WIDTH then
+					blocked(gate, g, "BUMP! Go around the buoy!")
+				elseif (z - center) * side >= Swim.Slalom.BuoyPass then
+					passed(gate)
+				else
+					gate.Passed = true
+					run.Combo = 0
 					if not registerHit(run, result, z) then
-						run.StunUntil = math.max(run.StunUntil, now + Swim.Slalom.BumpStun)
-						bumpEffect(run, result, z, "BUMP! Swim through the gap!", Kit.Colors.Orange)
+						run.StunUntil = math.max(run.StunUntil, now + 0.25)
+						bumpEffect(run, result, z, "MISSED! Follow the arrow!", Kit.Colors.Orange)
 					end
 				end
+			elseif style == "Hoops" then
+				-- obruč: středem = zrychlení, vedle = jen konec comba (žádná bariéra)
+				gate.Passed = true
+				if math.abs(z - center) <= g.Gap / 2 - PLAYER_HALF_WIDTH then
+					passed(gate)
+					run.BoostUntil = now + Swim.Slalom.HoopBoostTime
+					Effects.FovKick(10)
+					Effects.BigText("⚡ BOOST!", Kit.Colors.Yellow, 0.5, 0.5)
+				else
+					run.Combo = 0
+					Effects.FloatText("Missed the hoop!", Kit.Colors.Gray)
+				end
+			elseif math.abs(z - center) <= g.Gap / 2 - PLAYER_HALF_WIDTH then
+				passed(gate)
+			else
+				blocked(gate, g, if style == "Canyon" then "BONK! Stay in the channel!" else "BUMP! Swim through the gap!")
 			end
 		end
 	end
@@ -403,11 +642,35 @@ function Slalom.Resolve(run: Run, t: number, prev: number, new: number, z: numbe
 			end
 			run.StunUntil = math.max(run.StunUntil, now + Swim.Slalom.HitStun)
 			result = math.max(0, result - Swim.Slalom.KnockBack)
-			local text = if o.Kind == "Jellyfish" then "ZAP! Jellyfish!" elseif o.Kind == "Puffer" then "OUCH! Pufferfish!" elseif o.Kind == "Log" then "BONK! Log!" else "BONK! Rock!"
+			local text = if o.Kind == "Jellyfish" then "ZAP! Jellyfish!" elseif o.Kind == "Puffer" then "OUCH! Pufferfish!" elseif o.Kind == "Log" then "BONK! Log!" elseif o.Kind == "Whirlpool" then "WHOOSH! Whirlpool!" else "BONK! Rock!"
 			bumpEffect(run, result, z, text, Kit.Colors.Coral)
 		end
 	end
 	return result
+end
+
+-- Víry stahují hráče do strany k sobě (vrací posun v Z za tento snímek)
+function Slalom.Pull(run: Run, t: number, progress: number, z: number, dt: number): number
+	local dz = 0
+	local range = Swim.Slalom.WhirlpoolRange
+	for _, obstacle in run.Obstacles do
+		local o = obstacle.Data
+		if o.Kind == "Whirlpool" then
+			local dx = math.abs(progress - o.X)
+			local oz = obstacleZ(o, t)
+			local d = math.sqrt(dx * dx + (z - oz) ^ 2)
+			if d < range and d > 0.5 then
+				local strength = Swim.Slalom.WhirlpoolPull * (1 - d / range)
+				dz += math.sign(oz - z) * strength * dt
+			end
+		end
+	end
+	return dz
+end
+
+-- Zrychlení z obruče (Hoop Dash)
+function Slalom.Boost(run: Run): number
+	return if os.clock() < run.BoostUntil then Swim.Slalom.HoopBoostMultiplier else 1
 end
 
 return Slalom

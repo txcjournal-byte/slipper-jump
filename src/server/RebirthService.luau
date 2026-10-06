@@ -40,6 +40,7 @@ function RebirthService.OnGiftReached(session: Session)
 		rewards = { FormatNumber.Money(GiantGift.RepeatMoney), if cfg then cfg.Name else item.Id }
 	end
 	data.GiftOpenedThisLife = true
+	Registry.House.CheckTier(session)
 	Registry.Player.MarkDirty(session)
 	Registry.Player.Announce(player.DisplayName .. " reached the Giant Gift!", "Gift")
 	Net.Event("OpenUI"):FireClient(player, "GiftOpened", { Rewards = rewards, First = first })
@@ -59,6 +60,7 @@ function RebirthService.OnIslandReached(session: Session, key: string)
 		return
 	end
 	data.ClaimedGifts[key] = true
+	Registry.House.CheckTier(session)
 	local rewards = {}
 	Registry.Economy.AddMoney(session, island.Money)
 	table.insert(rewards, FormatNumber.Money(island.Money))

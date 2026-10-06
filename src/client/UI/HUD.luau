@@ -304,7 +304,7 @@ function HUD.Init()
 	Kit.Corner(badgeFrame, 19)
 	Kit.Stroke(badgeFrame, 3, Kit.Colors.Outline, true)
 	spinBadge = Kit.Text(badgeFrame, { Text = "1", Size = UDim2.new(1, -6, 1, -6), Position = UDim2.fromOffset(3, 3), ZIndex = 6 })
-	local questButton = sideButton(left, "📜", "QUESTS", Kit.Colors.Orange, 3, "Quests")
+	local questButton = sideButton(left, "🎯", "GOALS", Kit.Colors.Orange, 3, "Quests")
 	questBadge = Kit.new("Frame", {
 		BackgroundColor3 = Kit.Colors.Coral,
 		Size = UDim2.fromOffset(26, 26),
@@ -506,10 +506,7 @@ function HUD.Init()
 end
 
 function HUD.Refresh(data: { [string]: any })
-	local previous = displayedMoney
-	if data.Money > previous + 0.5 then
-		Kit.Pop(moneyLabel, 1.08)
-	end
+	-- (částka peněz schválně neposkakuje – při příjmu každou sekundu to hráče rušilo)
 	incomeLabel.Text = "+" .. FormatNumber.Money(data.IncomePerSecond) .. "/s" .. (if data.Multiplier > 1 then "  (x" .. string.format("%.1f", data.Multiplier) .. ")" else "")
 	levelLabel.Text = "Lv. " .. data.Level
 	local ratio = if data.XPToNext > 0 then math.clamp(data.XP / data.XPToNext, 0, 1) else 1

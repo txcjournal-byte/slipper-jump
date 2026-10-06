@@ -29,6 +29,7 @@ export type Data = {
 	GiftEverOpened: boolean,
 	GiftOpenedThisLife: boolean,
 	ClaimedGifts: { [string]: boolean }, -- dárkové ostrovy získané v tomto životě (Bronze, Silver)
+	HouseTier: number, -- vzhled domečku (1 = chatrč … 5 = palác), nikdy neklesá
 	Titles: { string },
 	Title: string,
 	BestJump: number,
@@ -79,6 +80,7 @@ local TEMPLATE: Data = {
 	GiftEverOpened = false,
 	GiftOpenedThisLife = false,
 	ClaimedGifts = {},
+	HouseTier = 1,
 	Titles = {},
 	Title = "",
 	BestJump = 0,

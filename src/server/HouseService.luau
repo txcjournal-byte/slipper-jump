@@ -11,6 +11,9 @@ local FormatNumber = require(Shared.Util.FormatNumber)
 local Models = require(Shared.Models)
 
 local Registry = require(script.Parent.Registry)
+local HouseTiers = require(script.Parent.HouseTiers)
+local House = require(Shared.Config.House)
+local Net = require(Shared.Net)
 
 type Session = any
 
@@ -36,6 +39,8 @@ function HouseService.Assign(session: Session)
 				label.Text = session.Player.DisplayName
 			end
 			HouseService.Render(session)
+			HouseService.CheckTier(session, false)
+			HouseTiers.Apply(house, session.Data.HouseTier or 1)
 			return
 		end
 	end
@@ -55,6 +60,7 @@ function HouseService.Release(session: Session)
 		label.Text = "Free House"
 	end
 	house.PiggyLabel.Text = "$0"
+	HouseTiers.Apply(house, 0)
 	for _, pedestal in house.Pedestals do
 		local old = pedestal.Part:FindFirstChild("ItemModel")
 		if old then
@@ -103,6 +109,43 @@ function HouseService.UpdatePrompts(session: Session)
 		local cfg = item and Catalog.Item(item.Id)
 		prompt.ObjectText = if cfg then cfg.Name else ""
 		prompt:SetAttribute("Active", active)
+	end
+end
+
+-- Zkontroluje, jestli si hráč nezasloužil lepší domeček (level, dárkový ostrov, Obří dárek).
+-- Úroveň nikdy neklesá (ani po rebirthu). celebrate = oslava a oznámení (při přihlášení ne).
+function HouseService.CheckTier(session: Session, celebrate: boolean?)
+	local data = session.Data
+	local current = data.HouseTier or 1
+	local earned = HouseTiers.Earned(data)
+	if earned <= current then
+		data.HouseTier = current
+		return
+	end
+	data.HouseTier = earned
+	Registry.Player.MarkDirty(session)
+	if session.House then
+		HouseTiers.Apply(session.House, earned)
+	end
+	if celebrate ~= false then
+		local name = House.Tiers[earned].Name
+		-- chvíli počkat, ať oslava nepřekryje okno s odměnou (level up / dárek)
+		task.delay(3.5, function()
+			if session.Player.Parent then
+				Net.Event("PlayEffect"):FireClient(session.Player, "HouseUpgrade", { Tier = earned, Name = name })
+			end
+		end)
+		if earned >= 4 then
+			Registry.Player.Announce(`🏠 {session.Player.DisplayName} upgraded their house to a {string.upper(name)}!`, "Gift")
+		end
+	end
+end
+
+-- Testovací panel ve Studiu: nastavit vzhled domečku natvrdo
+function HouseService.SetTier(session: Session, tier: number)
+	session.Data.HouseTier = math.clamp(math.floor(tier), 1, #House.Tiers)
+	if session.House then
+		HouseTiers.Apply(session.House, session.Data.HouseTier)
 	end
 end
 

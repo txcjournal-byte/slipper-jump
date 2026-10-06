@@ -76,6 +76,7 @@ function LevelService.AddXP(session: Session, amount: number)
 	if leveled then
 		Registry.Avatar.UpdateOverhead(session)
 		Registry.House.Render(session)
+		Registry.House.CheckTier(session)
 		Registry.Items.FlushStorage(session)
 	end
 	Registry.Player.MarkDirty(session)

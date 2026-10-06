@@ -8,6 +8,7 @@ local CollectionService = game:GetService("CollectionService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Catalog = require(Shared.Catalog)
 local World = require(Shared.Config.World)
+local Events = require(Shared.Config.Events)
 local Models = require(Shared.Models)
 
 local Registry = require(script.Parent.Registry)
@@ -334,8 +335,11 @@ function AvatarService.UpdateOverhead(session: Session)
 	nameLabel.Text = session.Player.DisplayName .. (if session.Passes.VIP then " [VIP]" else "")
 	nameLabel.TextColor3 = if session.Passes.VIP then Color3.fromRGB(255, 210, 50) else Color3.new(1, 1, 1)
 	levelLabel.Text = "Lv. " .. data.Level .. (if data.Rebirths > 0 then "  ♻" .. data.Rebirths else "")
-	titleLabel.Text = data.Title
-	titleLabel.Visible = data.Title ~= ""
+	-- vítěz posledního LEGEND RACE má místo titulu zlatou korunku
+	local legend = Registry.LegendRace and Registry.LegendRace.IsLegend(session.Player)
+	titleLabel.Text = if legend then Events.LegendRace.Title else data.Title
+	titleLabel.TextColor3 = if legend then Color3.fromRGB(255, 210, 40) else Color3.fromRGB(255, 150, 230)
+	titleLabel.Visible = legend or data.Title ~= ""
 end
 
 local function setupGiftPrompt(session: Session, root: BasePart)

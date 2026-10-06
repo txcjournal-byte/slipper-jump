@@ -51,6 +51,7 @@ export type Flight = {
 	XPMultiplier: number, -- Double XP (podle události při odrazu)
 	DuringEvent: boolean, -- skok během události na serveru (úkol)
 	Contest: boolean, -- skok během Jump Contest
+	LegendRace: boolean, -- závodní skok v LEGEND RACE
 	GiftAt: number, -- vzdálenost nejbližšího dárku (ostrov nebo Obří dárek)
 	GiftIsland: string?, -- klíč dárkového ostrova (nil = Obří dárek)
 	PendingItem: string?, -- předmět z vody: hráč ho dostane, až doplave k voru (chycení = přijde o něj)
@@ -88,7 +89,7 @@ local function rollDiamond(level: number, rareBoost: number): string
 	for _, t in Diamonds.Types do
 		if level >= t.MinLevel then
 			local w = t.Weight
-			if t.Key ~= "Green" and t.Key ~= "Blue" then
+			if t.MinLevel > 1 then -- vzácné (Ruby a výš)
 				w *= (1 + level * Diamonds.RareBoostPerLevel) * rareBoost
 			end
 			total += w
@@ -258,14 +259,23 @@ function JumpService.Release(player: Player, clientValue: unknown)
 	if level >= Diamonds.MinLevel or data.TotalJumps >= Diamonds.MinJumps or rush then
 		local extra = (if rush then Diamonds.RushExtra else 0) + (if hunter then Diamonds.HunterExtra else 0)
 		local rareBoost = (if rush then Diamonds.RushRareBoost else 1) * (if hunter then Diamonds.HunterRareBoost else 1)
-		local count = math.min(Diamonds.BaseCount + math.floor(level / Diamonds.LevelsPerExtra), Diamonds.MaxCount, ringCount + 1) + extra
+		local count = math.min(Diamonds.BaseCount + math.floor(level / Diamonds.LevelsPerExtra), Diamonds.MaxCount, ringCount + 2) + extra
 		for index = 1, count do
-			-- mezi kruhy (posunuto o půl mezery) a kousek do strany, ať se pro ně musí kormidlovat
-			local p = c.StartFraction + span * (index - 0.5) / (count + 0.5) + span * 0.04
+			local p: number
+			local z: number
+			if ringCount > 0 then
+				-- decentně poházené kolem kruhů: kousek před/za kruhem a trochu do strany od něj
+				local ringIndex = ((index - 1) % ringCount) + 1
+				p = c.StartFraction + span * ringIndex / (ringCount + 1) + span * rng:NextNumber(0.03, 0.07) * (if rng:NextNumber() < 0.5 then -1 else 1)
+				local ringZ = ringList[ringIndex].Position.Z
+				z = ringZ + (if rng:NextNumber() < 0.5 then -1 else 1) * rng:NextNumber(5, 10)
+			else
+				p = c.StartFraction + span * (index - 0.5) / (count + 0.5)
+				z = (if rng:NextNumber() < 0.5 then -1 else 1) * rng:NextNumber(6, Diamonds.Lateral)
+			end
 			p = math.clamp(p, c.StartFraction, c.EndFraction)
 			local x, y = Formulas.Trajectory(p, startPosition.X, endX, startPosition.Y, endY, height)
-			local side = if rng:NextNumber() < 0.5 then -1 else 1
-			local pos = Vector3.new(x, y + rng:NextNumber(-2, 3), side * rng:NextNumber(8, Diamonds.Lateral))
+			local pos = Vector3.new(x, y + rng:NextNumber(-2, 2), math.clamp(z, -Diamonds.Lateral, Diamonds.Lateral))
 			local id = "d" .. index
 			local kind = rollDiamond(level, rareBoost)
 			diamonds[id] = { Position = pos, Type = kind }
@@ -321,6 +331,7 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		XPMultiplier = if Registry.ServerEvents.IsActive("DoubleXP") then Events.DoubleXPMultiplier else 1,
 		DuringEvent = Registry.ServerEvents.AnyActive(),
 		Contest = Registry.ServerEvents.IsActive("JumpContest"),
+		LegendRace = Registry.LegendRace.Enter(session),
 		GiftAt = giftAt,
 		GiftIsland = if island then island.Key else nil,
 	}
@@ -470,6 +481,7 @@ function JumpService.Finish(session: Session, flight: Flight, coinIds: { string 
 	end
 	Registry.Leaderboard.OnJump(session, distance)
 	Registry.ServerEvents.OnJump(session, distance, flight.Contest)
+	Registry.LegendRace.OnLand(session, distance, flight.LegendRace)
 	Registry.Level.AddXP(session, xp)
 	Registry.Tutorial.OnJumped(session)
 	Registry.Quests.Progress(session, "Jumps", 1)

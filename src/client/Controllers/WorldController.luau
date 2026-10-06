@@ -19,12 +19,14 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local World = require(Shared.Config.World)
 local Formulas = require(Shared.Formulas)
 local GiantGift = require(Shared.Config.GiantGift)
+local House = require(Shared.Config.House)
 local FormatNumber = require(Shared.Util.FormatNumber)
 local Net = require(Shared.Net)
 local ClientState = require(script.Parent.Parent.ClientState)
 local SpinnerUI = require(script.Parent.Parent.UI.SpinnerUI)
 local Effects = require(script.Parent.Parent.Effects.Effects)
 local Kit = require(script.Parent.Parent.UI.Kit)
+local Sound = require(script.Parent.Parent.Sound)
 
 local WorldController = {}
 
@@ -427,11 +429,21 @@ local function onEffect(kind: string, info: { [string]: any })
 			Effects.WorldConfetti(root.Position + Vector3.new(0, 4, 0), 80)
 		end
 		if info.UserId == player.UserId then
-			Effects.BigText("YOU WON THE JUMP CONTEST!", Kit.Colors.Yellow, 2.2)
+			Effects.BigText(if info.Legend then "👑 YOU ARE THE LEGEND! 👑" else "YOU WON THE JUMP CONTEST!", Kit.Colors.Yellow, 2.2)
 			Effects.ScreenConfetti(150)
 		else
 			Effects.ScreenConfetti(40)
 		end
+	elseif kind == "HouseUpgrade" then
+		-- domeček se vylepšil (chatrč → … → palác)
+		Effects.BigText(`🏠 HOUSE UPGRADE: {string.upper(info.Name)}!`, Kit.Colors.Yellow, 2.4, 0.3)
+		Effects.ScreenConfetti(if info.Tier >= 5 then 200 else 100)
+		Sound.Play("Fanfare")
+		-- a hned co dál (cíl hry je palác)
+		local nextTier = House.Tiers[info.Tier + 1]
+		task.delay(2.6, function()
+			Effects.FloatText(if nextTier then `Next: {nextTier.Name} – {nextTier.Hint}` else "You are a true ISLAND LEGEND! 👑", Kit.Colors.Yellow)
+		end)
 	elseif kind == "Rebirth" then
 		Effects.BigText("REBIRTH " .. info.Rebirths .. "!", Kit.Colors.Purple, 2)
 		Effects.ScreenConfetti(150)

@@ -28,12 +28,14 @@ local EVENTS = {
 	"SwimStart", -- server → klient: začni plavat k voru (žralok)
 	"SwimResult", -- server → klient: doplaval / chytil ho žralok
 	"SlalomHit", -- klient → server: náraz ve slalomu (hvězdičky)
+	"SlalomPickup", -- klient → server: sebral věc ve slalomu (mince, turbo, mráz)
 	"TrialOffer", -- server → klient: úkol na cestu domů z dárkového ostrova (panel + šipka)
 	"TrialAction", -- klient → server: "Start" / "GoHome"
 	"TrialState", -- server → klient: průběh úkolu (Running, Checkpoint, Respawn, Complete, End)
 	"SwimChoice", -- klient → server: na voru plavat dál k dalšímu voru (true) / zpět na pláž (false)
 	"ServerEvent", -- server → všichni: právě běžící událost (nebo konec)
 	"ContestBoard", -- server → všichni: živá tabulka soutěže o nejdelší skok (nebo nil = konec)
+	"LegendRace", -- server → všichni: stav závodu LEGEND RACE (odpočet, závodníci, výsledky)
 	"Teleport", -- klient → server: rychlý přesun (House / Pier)
 	"QuickSell", -- klient → server: prodat běžný předmět z rukou kdekoli (tlačítko SELL)
 	"SelectSkin", -- klient → server: který skin tenisek chce koupit (před nákupem za Robux)

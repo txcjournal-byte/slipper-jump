@@ -91,6 +91,20 @@ function TestPanel.Init(screen: ScreenGui, hudScreen: ScreenGui)
 			window.Close()
 		end)
 	end
+	for _, style in { "Random", "Gates", "Buoys", "Hoops", "Canyon", "Whirlpool" } do
+		button(other, "Slalom: " .. style, Kit.Colors.Turquoise, function()
+			send("SlalomStyle", style)
+		end)
+	end
+	for tier = 1, 5 do
+		button(other, "House tier " .. tier, Kit.Colors.Blue, function()
+			send("HouseTier", tier)
+		end)
+	end
+	button(other, "LEGEND RACE now", Kit.Colors.Yellow, function()
+		send("LegendRace", true)
+		window.Close()
+	end)
 	button(other, "Reset gift islands", Kit.Colors.Coral, function()
 		send("ResetGifts", true)
 	end)

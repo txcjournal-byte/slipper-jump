@@ -130,6 +130,7 @@ function PlayerService.BuildState(session: Session): { [string]: any }
 		Discovered = data.Discovered,
 		CanRebirth = data.GiftOpenedThisLife,
 		ClaimedGifts = data.ClaimedGifts, -- dárkové ostrovy získané v tomto životě
+		HouseTier = data.HouseTier or 1, -- vzhled domečku (cesta v okně JOURNEY)
 		Title = data.Title,
 		HouseIndex = if session.House then session.House.Index else 0,
 		SuperJumps = data.SuperJumps,
@@ -265,6 +266,7 @@ local function onPlayerRemoving(player: Player)
 		Registry.Leaderboard.OnLeave(session)
 	end
 	Registry.ServerEvents.OnLeave(player)
+	Registry.LegendRace.OnLeave(player)
 	DataService.Release(player)
 end
 

@@ -285,10 +285,10 @@ end
 
 -- Barevný diamant: velký „briliant“ – osmiboká korunka s plochou tabulkou nahoře, pás a špičatý spodek,
 -- zářící jádro, obrys (vidět i přes mraky), sloupec světla a ikonka 💎 viditelná z dálky
-local GEM_R = 2.8 -- poloměr
-local GEM_TABLE = 1.3 -- poloměr ploché tabulky nahoře
-local GEM_CROWN = 1.5 -- výška korunky
-local GEM_PAVILION = 3.6 -- výška spodku
+local GEM_R = 3.1 -- poloměr
+local GEM_TABLE = 1.45 -- poloměr ploché tabulky nahoře
+local GEM_CROWN = 1.65 -- výška korunky
+local GEM_PAVILION = 4 -- výška spodku
 local function diamondModel(position: Vector3, kind: string, parent: Instance): Model
 	local t = Diamonds.ByKey[kind] or Diamonds.Types[1]
 	local m = Instance.new("Model")
@@ -311,7 +311,7 @@ local function diamondModel(position: Vector3, kind: string, parent: Instance): 
 		return p
 	end
 	-- zářící jádro (prosvítá sklem)
-	local core = add("Part", Vector3.one * 2.4, CFrame.identity, 0, Enum.Material.Neon)
+	local core = add("Part", Vector3.one * 2.7, CFrame.identity, 0, Enum.Material.Neon)
 	;(core :: Part).Shape = Enum.PartType.Ball
 	core.Name = "Core"
 	m.PrimaryPart = core
@@ -332,38 +332,43 @@ local function diamondModel(position: Vector3, kind: string, parent: Instance): 
 	tableTop.Reflectance = 0.4
 	local girdle = add("Part", Vector3.new(0.35, GEM_R * 2.05, GEM_R * 2.05), CFrame.Angles(0, 0, math.pi / 2), 0, Enum.Material.Neon, 0.2)
 	;(girdle :: Part).Shape = Enum.PartType.Cylinder
-	-- sloupec světla nahoru (je vidět z dálky)
-	local beam = add("Part", Vector3.new(60, 1.2, 1.2), CFrame.new(0, 32, 0) * CFrame.Angles(0, 0, math.pi / 2), 0, Enum.Material.Neon, 0.65)
-	;(beam :: Part).Shape = Enum.PartType.Cylinder
-	beam.Name = "Beam"
 	local light = Instance.new("PointLight")
-	light.Range = 24
-	light.Brightness = 3
+	light.Range = 32
+	light.Brightness = 4
 	light.Color = t.Color
 	light.Parent = core
 	local sparkle = Instance.new("ParticleEmitter")
-	sparkle.Rate = if kind == "Rainbow" or kind == "Gold" then 40 else 20
+	sparkle.Rate = if kind == "Rainbow" or kind == "Gold" then 50 else 28
 	sparkle.Lifetime = NumberRange.new(0.5, 1)
 	sparkle.Speed = NumberRange.new(3, 7)
 	sparkle.SpreadAngle = Vector2.new(180, 180)
 	sparkle.LightEmission = 1
-	sparkle.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.7), NumberSequenceKeypoint.new(1, 0) })
+	sparkle.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0) })
 	sparkle.Color = ColorSequence.new(Color3.new(1, 1, 1), t.Color)
 	sparkle.Parent = core
 	-- obrys diamantu (svítí i přes jiné věci) a ikonka z dálky
 	local outline = Instance.new("Highlight")
-	outline.FillTransparency = 0.75
+	outline.FillTransparency = 0.6
 	outline.FillColor = t.Color
 	outline.OutlineColor = Color3.new(1, 1, 1)
 	outline.OutlineTransparency = 0.1
 	outline.DepthMode = Enum.HighlightDepthMode.Occluded
 	outline.Parent = m
 	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(46, 46)
-	gui.StudsOffset = Vector3.new(0, 5, 0)
+	gui.Size = UDim2.fromOffset(44, 44)
+	gui.StudsOffset = Vector3.new(0, 5.5, 0)
 	gui.MaxDistance = 700
 	gui.LightInfluence = 0
 	gui.Parent = core
+	-- barevná záře za ikonkou, ať je i z dálky poznat, jaký diamant to je
+	local glow = Instance.new("Frame")
+	glow.Size = UDim2.fromScale(0.9, 0.9)
+	glow.Position = UDim2.fromScale(0.05, 0.05)
+	glow.BackgroundColor3 = t.Color
+	glow.BackgroundTransparency = 0.5
+	glow.BorderSizePixel = 0
+	glow.Parent = gui
+	Kit.Corner(glow, 32)
 	Kit.Text(gui, { Text = "💎", Size = UDim2.fromScale(1, 1), NoStroke = true })
 	m.Parent = parent
 	return m
@@ -1639,10 +1644,23 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 		-- doprava na obrazovce = doprava ve světě i při plavání opačným směrem (kamera je vždy za hráčem)
 		-- bouřkový slalom: vlny posouvají hráče do stran (střídavě)
 		local drift = if run and run.Layout.Drift then run.Layout.Drift * math.sin(elapsed * 0.9) else 0
-		state.Z = math.clamp(state.Z - move.X * dir * info.Speed * steer * dt + drift * dt, info.StartZ - lane, info.StartZ + lane)
-		local progress = math.min(info.Distance, state.SwimProgress + info.Speed * forward * dt)
+		-- víry (Whirlpool Bay) stahují hráče k sobě
+		local pull = if run then Slalom.Pull(run, elapsed, state.SwimProgress, state.Z - info.StartZ, dt) else 0
+		state.Z = math.clamp(state.Z - move.X * dir * info.Speed * steer * dt + drift * dt + pull, info.StartZ - lane, info.StartZ + lane)
+		-- turbo ze slalomu: chvíli rychlejší plavání (server mu kvůli tomu povolí delší postup)
+		local turbo = (if typeof(info.TurboUntil) == "number" and os.clock() < info.TurboUntil then Swim.Slalom.Pickups.TurboMultiplier else 1)
+			* (if run then Slalom.Boost(run) else 1)
+		local progress = math.min(info.Distance, state.SwimProgress + info.Speed * turbo * forward * dt)
 		if run then
 			progress = Slalom.Resolve(run, elapsed, state.SwimProgress, progress, state.Z - info.StartZ)
+			for _, kind in Slalom.Collect(run, progress, state.Z - info.StartZ) do
+				if kind == "Turbo" then
+					info.TurboUntil = os.clock() + Swim.Slalom.Pickups.TurboTime
+				elseif kind == "Freeze" then
+					-- pronásledovatel vyrazí / pokračuje o kus později (stejně jako na serveru)
+					info.SharkDelay += Swim.Slalom.Pickups.FreezeTime
+				end
+			end
 		end
 		state.SwimProgress = progress
 		-- tempa: zvuk a čeření
@@ -1680,7 +1698,7 @@ updateSwim = function(state: FlightState, root: BasePart, dt: number)
 	local escapedAt = info.EscapedAt
 	local chaseElapsed = if typeof(escapedAt) == "number" then math.min(elapsed, escapedAt) else elapsed
 	local dive = if typeof(escapedAt) == "number" then math.max(0, elapsed - escapedAt) * 6 else 0
-	local sharkProgress = Formulas.SharkProgress(chaseElapsed, info.SharkSpeed)
+	local sharkProgress = Formulas.SharkProgress(chaseElapsed, info.SharkSpeed, info.SharkDelay)
 	-- jak blízko je pronásledovatel (0 = daleko, 1 = těsně za hráčem)
 	local danger = 0
 	if not info.NoShark and not state.SwimEnded and elapsed >= info.SharkDelay then
