@@ -26,6 +26,7 @@ local ClientState = require(script.Parent.Parent.ClientState)
 local Sound = require(script.Parent.Parent.Sound)
 local Effects = require(script.Parent.Parent.Effects.Effects)
 local Slalom = require(script.Parent.Slalom)
+local SeaMeshes = require(script.Parent.SeaMeshes)
 
 local JumpController = {}
 
@@ -919,7 +920,11 @@ type ChaserRig = {
 	Tentacles: { Tentacle },
 	Spout: ParticleEmitter?,
 	NextSpout: number,
+	Hinges: { [string]: Vector3 }?, -- klouby realistického modelu (jinak výchozí kreslené)
+	Squish: { Mesh: SpecialMesh, Base: Vector3 }?, -- chobotnice z jednoho meshe „dýchá“
 }
+
+local REALISTIC_SEA = true -- žralok, velryba, chobotnice z realistických meshů
 
 local chaserRigs: { [Model]: ChaserRig } = setmetatable({}, { __mode = "k" }) :: any
 
@@ -951,6 +956,8 @@ local function newRig(kind: string, scale: number, parent: Instance): (Model, Ch
 		Tentacles = {},
 		Spout = nil,
 		NextSpout = 0,
+		Hinges = nil,
+		Squish = nil,
 	}
 	chaserRigs[m] = rig
 	m.Parent = parent
@@ -1361,8 +1368,143 @@ local function octopusModel(parent: Instance, kraken: boolean): Model
 	return m
 end
 
+-- ---- Realistické modely (SeaMeshes): Part + SpecialMesh pro každý díl ----
+-- segment dílu velryby podle polohy (ocas se vlní, tlama se otvírá, ploutve mávají)
+local function whaleSeg(entry: SeaMeshes.MeshEntry): string
+	local p = entry.Pos
+	if entry.Mesh == "rbxassetid://2915073129" then
+		return "Jaw"
+	elseif entry.Mesh == "rbxassetid://2911568571" then
+		return if p.X < 0 then "FinL" else "FinR"
+	elseif p.Z > 11 then
+		return "Tail"
+	elseif p.Z > 4 then
+		return "Rear"
+	end
+	return "Body"
+end
+
+local function meshChaser(parent: Instance, kind: string, data: string, scale: number, shift: CFrame, tint: Color3?): (Model, ChaserRig)
+	local m, rig = newRig(kind, scale, parent)
+	rig.Shift = shift
+	for _, entry in SeaMeshes[data] do
+		local r = entry.Rot
+		local seg = if data == "Whale" then whaleSeg(entry) else "Body"
+		local part = rigAdd(m, rig, "Part", Vector3.one, CFrame.new(entry.Pos) * CFrame.Angles(r.X, r.Y, r.Z), entry.Color, seg)
+		local material = (Enum.Material :: any)[entry.Material]
+		if material then
+			part.Material = material
+		end
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.FileMesh
+		mesh.MeshId = entry.Mesh
+		mesh.TextureId = entry.Texture
+		mesh.Scale = entry.Scale * scale
+		if tint then
+			mesh.VertexColor = Vector3.new(tint.R, tint.G, tint.B)
+		end
+		mesh.Parent = part
+		if data == "Octopus" then
+			rig.Squish = { Mesh = mesh, Base = mesh.Scale }
+		end
+	end
+	return m, rig
+end
+
+-- tmavý nádech + svítící oči (megalodon, kraken)
+local function monsterGlow(m: Model, rig: ChaserRig, fill: Color3, eyes: Color3, eyePos: Vector3?, fillTransparency: number)
+	local shade = Instance.new("Highlight")
+	shade.FillColor = fill
+	shade.FillTransparency = fillTransparency
+	shade.OutlineColor = eyes
+	shade.OutlineTransparency = 0.6
+	shade.DepthMode = Enum.HighlightDepthMode.Occluded
+	shade.Parent = m
+	if eyePos then
+		for _, side in { -1, 1 } do
+			local eye = rigBall(m, rig, 0.5, Vector3.new(side * eyePos.X, eyePos.Y, eyePos.Z), eyes, "Body")
+			makeGlow(eye, eyes, 10)
+		end
+	else
+		-- bez očí: zlověstná záře zevnitř
+		local light = Instance.new("PointLight")
+		light.Color = eyes
+		light.Range = 18
+		light.Brightness = 3
+		light.Parent = rig.Parts[1].Part
+	end
+end
+
+local function realSharkModel(parent: Instance, look: SharkLook?): Model
+	local style = look or SHARK_LOOK
+	local m, rig = meshChaser(parent, style.Kind, "Shark", style.Scale, style.Shift, if style.Top ~= SHARK_LOOK.Top and style.Kind == "Shark" then Color3.new(0.85, 0.88, 0.95) else nil)
+	if style.Kind == "Megalodon" then
+		monsterGlow(m, rig, Color3.fromRGB(20, 25, 40), style.Glow or Color3.fromRGB(255, 90, 40), Vector3.new(0.75, -1.15, -4.6), 0.55)
+	end
+	addWake(m, rig, Vector3.new(0, 0.2, 1), 3)
+	return m
+end
+
+local function realWhaleModel(parent: Instance): Model
+	local m, rig = meshChaser(parent, "Whale", "Whale", 0.7, CFrame.new(0, 0.6, 8), nil)
+	rig.Hinges = {
+		Rear = Vector3.new(0, -2.6, 4),
+		Tail = Vector3.new(0, -2.7, 11.5),
+		Fin = Vector3.new(3.4, -3.8, -7.2),
+		Jaw = Vector3.new(0, -2.4, -10.5),
+	}
+	-- gejzír z nozder na temeni hlavy
+	local blowhole = rigAdd(m, rig, "Part", Vector3.one * 0.3, CFrame.new(0, 0.4, -7), Color3.new(1, 1, 1), "Body")
+	blowhole.Transparency = 1
+	local spout = Instance.new("ParticleEmitter")
+	spout.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	spout.Color = ColorSequence.new(Color3.fromRGB(235, 250, 255), Color3.fromRGB(170, 220, 255))
+	spout.LightEmission = 0.3
+	spout.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 3) })
+	spout.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(1, 1) })
+	spout.Lifetime = NumberRange.new(0.8, 1.2)
+	spout.Speed = NumberRange.new(22, 30)
+	spout.SpreadAngle = Vector2.new(10, 10)
+	spout.Acceleration = Vector3.new(0, -35, 0)
+	spout.EmissionDirection = Enum.NormalId.Top
+	spout.Rate = 0
+	spout.Parent = blowhole
+	rig.Spout = spout
+	addWake(m, rig, Vector3.new(0, 0.4, 0), 6)
+	return m
+end
+
+local function realOctopusModel(parent: Instance, kraken: boolean): Model
+	local m, rig = meshChaser(parent, if kraken then "Kraken" else "Octopus", "Octopus", if kraken then 2.2 else 1.3, if kraken then CFrame.new(0, -0.4, 4) else CFrame.new(0, -0.2, 2), nil)
+	if kraken then
+		monsterGlow(m, rig, Color3.fromRGB(45, 0, 55), Color3.fromRGB(255, 60, 120), nil, 0.35)
+	end
+	addWake(m, rig, Vector3.new(0, 0.3, 2), if kraken then 6 else 4)
+	return m
+end
+
 -- Postaví pronásledovatele pro daný tier (klíč z Config/Swim → Chasers); neznámý klíč = žralok
 local function chaserModels(key: string, parent: Instance): { Model }
+	-- realistické meshe (SeaMeshes); kreslené modely z dílů zůstávají jako záloha (REALISTIC_SEA = false)
+	if REALISTIC_SEA then
+		if key == "Whale" then
+			return { realWhaleModel(parent) }
+		elseif key == "TwoSharks" then
+			local first = table.clone(SHARK_LOOK)
+			first.Shift = CFrame.new(3.5, 0, 0)
+			local second = table.clone(SHARK_LOOK)
+			second.Top = Color3.fromRGB(78, 98, 122)
+			second.Shift = CFrame.new(-4, 0, 5)
+			return { realSharkModel(parent, first), realSharkModel(parent, second) }
+		elseif key == "Octopus" then
+			return { realOctopusModel(parent, false) }
+		elseif key == "Kraken" then
+			return { realOctopusModel(parent, true) }
+		elseif key == "Megalodon" then
+			return { realSharkModel(parent, MEGALODON_LOOK) }
+		end
+		return { realSharkModel(parent, nil) }
+	end
 	if key == "Whale" then
 		return { whaleModel(parent) }
 	elseif key == "TwoSharks" then
@@ -1429,14 +1571,18 @@ local function animateChaser(model: Model, target: Vector3, dt: number)
 		local t = advance(3.2 + a * 1.5)
 		local base = root * CFrame.new(0, a * 1.2 * k + 0.3 * math.sin(t * 0.5), 0) * CFrame.Angles(a * 0.15, 0, 0)
 		local body = base * CFrame.Angles(0.03 * math.sin(t + 0.6), 0, 0)
-		local rear = body * aroundHinge(WHALE_REAR_HINGE * k, CFrame.Angles(0.12 * math.sin(t - 0.8), 0, 0))
-		local tail = rear * aroundHinge(WHALE_TAIL_HINGE * k, CFrame.Angles(0.4 * math.sin(t - 1.8), 0, 0))
-		local finHinge = WHALE_FIN_HINGE * k
+		local h = rig.Hinges
+		local rearHinge = if h then h.Rear else WHALE_REAR_HINGE
+		local tailHinge = if h then h.Tail else WHALE_TAIL_HINGE
+		local jawHinge = if h then h.Jaw else WHALE_JAW_HINGE
+		local rear = body * aroundHinge(rearHinge * k, CFrame.Angles(0.12 * math.sin(t - 0.8), 0, 0))
+		local tail = rear * aroundHinge(tailHinge * k, CFrame.Angles(0.4 * math.sin(t - 1.8), 0, 0))
+		local finHinge = (if h then h.Fin else WHALE_FIN_HINGE) * k
 		local flap = 0.25 * math.sin(t * 0.8)
 		frames.Body = body
 		frames.Rear = rear
 		frames.Tail = tail
-		frames.Jaw = body * aroundHinge(WHALE_JAW_HINGE * k, CFrame.Angles(-a * 0.35, 0, 0))
+		frames.Jaw = body * aroundHinge(jawHinge * k, CFrame.Angles(-a * 0.25, 0, 0))
 		frames.FinL = body * aroundHinge(Vector3.new(-finHinge.X, finHinge.Y, finHinge.Z), CFrame.Angles(0, 0, flap))
 		frames.FinR = body * aroundHinge(finHinge, CFrame.Angles(0, 0, -flap))
 		local spout = rig.Spout
@@ -1448,6 +1594,14 @@ local function animateChaser(model: Model, target: Vector3, dt: number)
 		-- chobotnice / kraken: hlava se pohupuje, chapadla se vlní (vlna běží od hlavy ke konci)
 		local t = advance(2.6 + a * 2)
 		local body = root * CFrame.new(0, (0.35 * math.sin(t * 0.7) + a * 0.8) * k, 0) * CFrame.Angles(0.06 * math.sin(t * 0.7), 0, 0)
+		local squish = rig.Squish
+		if squish then
+			-- realistická chobotnice: pomalu se otáčí, „dýchá“ a při útoku se roztáhne
+			body = body * CFrame.Angles(0, 0.25 * math.sin(t * 0.35), 0.05 * math.sin(t * 0.9))
+			local pulse = math.sin(t * 1.6)
+			local spread = 1 + a * 0.12
+			squish.Mesh.Scale = squish.Base * Vector3.new(spread * (1 + 0.05 * pulse), 1 - 0.08 * pulse, spread * (1 + 0.05 * pulse))
+		end
 		frames.Body = body
 		for _, tentacle in rig.Tentacles do
 			local frame = body
