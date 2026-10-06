@@ -36,6 +36,11 @@ local EVENTS = {
 	"ServerEvent", -- server → všichni: právě běžící událost (nebo konec)
 	"ContestBoard", -- server → všichni: živá tabulka soutěže o nejdelší skok (nebo nil = konec)
 	"LegendRace", -- server → všichni: stav závodu LEGEND RACE (odpočet, závodníci, výsledky)
+	"DuelState", -- server → klient: CHALLENGE souboj (výběr hry, start kola, odrazy, výsledky)
+	"DuelInvite", -- server → klient: pozvánka na souboj
+	"DuelRequest", -- klient → server: vyzvat hráče (UserId, hra)
+	"DuelRespond", -- klient → server: přijmout / odmítnout pozvánku
+	"DuelAction", -- klient → server: Takeoff (odraz) / Practice / Leave
 	"Teleport", -- klient → server: rychlý přesun (House / Pier)
 	"QuickSell", -- klient → server: prodat běžný předmět z rukou kdekoli (tlačítko SELL)
 	"SelectSkin", -- klient → server: který skin tenisek chce koupit (před nákupem za Robux)

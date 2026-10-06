@@ -92,6 +92,7 @@ local giftMessage: TextLabel
 local giftStage = 0 -- 0 = nic, 1 = „Almost there“ (80 %), 2 = „SO CLOSE“ (95 %), 3 = dárek
 
 local inZone = false
+local launchMode = "Pier" -- na které odrazové dráze hráč stojí (Pier / Cannon / Slide)
 local charging = false
 local chargeStart = 0
 local chargePeriod = Jump.Meter.Period
@@ -171,7 +172,7 @@ local function startCharge()
 	end
 	charging = true
 	chargeStart = os.clock()
-	chargePeriod = if data.TutorialDone ~= true and (data.BestJump or 0) == 0 then Jump.Meter.TutorialPeriod else Jump.Meter.Period
+	chargePeriod = if data.TutorialDone ~= true and (data.BestJump or 0) == 0 then Jump.Meter.TutorialPeriod else (Jump.LaunchModes[launchMode] or Jump.LaunchModes.Pier).Period
 	createMeter()
 	Net.Event("JumpCharge"):FireServer()
 end
@@ -220,14 +221,22 @@ local function setInZone(value: boolean)
 	end
 end
 
+-- Stojí hráč na konci mola nebo na boční dráze (dělo / tobogán)? Podle dráhy se změní nápis tlačítka.
 local function zoneCheck(): boolean
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not root then
 		return false
 	end
-	local pos = root.Position
-	return pos.X >= World.PierEndX - Jump.JumpZoneLength and pos.X <= World.PierEndX + 2 and math.abs(pos.Z) <= World.PierWidth / 2 + 1 and pos.Y > World.PierDeckY - 1 and pos.Y < World.PierDeckY + 10
+	local mode = Formulas.LaunchMode(root.Position)
+	if mode and mode ~= launchMode and not charging then
+		launchMode = mode
+		Kit.SetButtonText(jumpButton, Jump.LaunchModes[mode].Button)
+		if inZone then
+			Kit.Pop(jumpButton, 1.2)
+		end
+	end
+	return mode ~= nil
 end
 
 -- ===== Mince a kruhy =====
@@ -749,6 +758,17 @@ local function startFlight(info: { [string]: any })
 		steerHint.Visible = false
 	end)
 	Sound.Play("Takeoff")
+	-- efekt podle dráhy: výstřel z děla / sjezd z tobogánu
+	if info.Mode == "Cannon" then
+		Effects.BigText("💥 BOOM!", Kit.Colors.Orange, 0.8, 0.62)
+		Effects.Shake(0.6)
+		Effects.FovKick(18)
+		Sound.Play("Boing", 0.5)
+		Effects.WorldConfetti(info.StartPosition + Vector3.new(6, 3, 0), 40, 6)
+	elseif info.Mode == "Slide" then
+		Effects.BigText("🌊 WHOOSH!", Kit.Colors.Turquoise, 0.8, 0.62)
+		Effects.Splash(info.StartPosition + Vector3.new(4, -3, 0), true)
+	end
 	if info.Tier == "Perfect" then
 		Effects.BigText("PERFECT!", Kit.Colors.Green, 1.1)
 		Effects.ScreenConfetti(60)

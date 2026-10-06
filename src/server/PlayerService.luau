@@ -26,8 +26,9 @@ export type Session = {
 	Flight: any?, -- JumpService.Flight
 	Swim: any?, -- SwimService.SwimState
 	Trial: any?, -- TrialService.TrialState (úkol na cestu z ostrova)
+	Duel: any?, -- DuelService: probíhající CHALLENGE souboj / trénink
 	PendingSkin: string?, -- skin vybraný v obchodě před nákupem za Robux
-	Charge: { Start: number, Period: number }?,
+	Charge: { Start: number, Period: number, Mode: string? }?,
 	LastJump: number,
 	PerfectStreak: number, -- série PERFECT skoků za sebou (neukládá se)
 	Returning: boolean,
@@ -131,6 +132,9 @@ function PlayerService.BuildState(session: Session): { [string]: any }
 		CanRebirth = data.GiftOpenedThisLife,
 		ClaimedGifts = data.ClaimedGifts, -- dárkové ostrovy získané v tomto životě
 		HouseTier = data.HouseTier or 1, -- vzhled domečku (cesta v okně JOURNEY)
+		DuelWins = data.DuelWins or 0,
+		LongJumpBest = data.LongJumpBest or 0,
+		SkiJumpBest = data.SkiJumpBest or 0,
 		Title = data.Title,
 		HouseIndex = if session.House then session.House.Index else 0,
 		SuperJumps = data.SuperJumps,
@@ -205,6 +209,7 @@ local function onPlayerAdded(player: Player)
 		Flight = nil,
 		Swim = nil,
 		Trial = nil,
+		Duel = nil,
 		PendingSkin = nil,
 		Charge = nil,
 		LastJump = 0,
@@ -267,6 +272,7 @@ local function onPlayerRemoving(player: Player)
 	end
 	Registry.ServerEvents.OnLeave(player)
 	Registry.LegendRace.OnLeave(player)
+	Registry.Duels.OnLeave(player)
 	DataService.Release(player)
 end
 
@@ -275,7 +281,7 @@ local function boundsLoop()
 	while true do
 		task.wait(0.5)
 		for _, session in PlayerService.Sessions do
-			if session.Loaded and not session.Flight and not session.Returning and not session.Trial then
+			if session.Loaded and not session.Flight and not session.Returning and not session.Trial and not session.Duel then
 				local root = PlayerService.GetRoot(session.Player)
 				if root then
 					local pos = root.Position
@@ -322,7 +328,7 @@ function PlayerService.Start()
 	-- rychlý přesun tlačítky HOUSE / PIER
 	Net.Event("Teleport").OnServerEvent:Connect(function(player, target)
 		local session = PlayerService.Get(player)
-		if not session or session.Flight or session.Returning or os.clock() - session.LastQuickTeleport < World.TeleportCooldown then
+		if not session or session.Flight or session.Returning or session.Duel or os.clock() - session.LastQuickTeleport < World.TeleportCooldown then
 			return
 		end
 		local character = player.Character

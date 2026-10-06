@@ -11,6 +11,8 @@ local House = require(Config.House)
 local Products = require(Config.Products)
 local Swim = require(Config.Swim)
 local GiantGift = require(Config.GiantGift)
+local World = require(Config.World)
+local Duels = require(Config.Duels)
 local Catalog = require(script.Parent.Catalog)
 
 local Formulas = {}
@@ -68,6 +70,55 @@ end
 function Formulas.FlightDuration(distance: number): number
 	local t = math.clamp((math.log10(math.max(distance, 100)) - 2) / 3, 0, 1)
 	return Jump.Flight.MinTime + (Jump.Flight.MaxTime - Jump.Flight.MinTime) * t
+end
+
+-- Souboje na pláži: síla výbavy (stejně jako u skoku z mola, jen bez náhody)
+function Formulas.DuelGear(slippers: string, hat: string?, superJumper: boolean): number
+	return Formulas.BaseJump(slippers, hat) * Formulas.PassJumpMultiplier(superJumper)
+end
+
+-- Výsledek pokusu v souboji. delta = čas odrazu vůči čáře (záporný = dřív, nil = neskočil),
+-- gates = podíl projetých branek (jen lyže). Vrací metry (0 = faul), faul, perfect.
+function Formulas.DuelMeters(gameKey: string, gear: number, delta: number?, gates: number?): (number, boolean, boolean)
+	local cfg = Duels.Games[gameKey]
+	if not cfg or delta == nil or delta > Duels.FoulLate then
+		return 0, true, false
+	end
+	local early = math.max(0, -delta)
+	local base = cfg.BaseMeters + cfg.GearMeters * math.log10(math.max(gear, 10))
+	if gameKey == "SandSki" then
+		base *= 1 - cfg.GateWeight + cfg.GateWeight * math.clamp(gates or 0, 0, 1)
+	end
+	if early > Duels.MaxEarly then
+		return math.floor(base * 30 + 0.5) / 100, false, false -- skočil moc brzo: jen kousek
+	end
+	local meters: number
+	if gameKey == "LongJump" then
+		meters = base - early * cfg.RunMetersPerSecond
+	else
+		meters = base * (1 - early * 0.6)
+	end
+	local perfect = early <= Duels.PerfectWindow
+	if perfect then
+		meters *= 1 + Duels.PerfectBonus
+	end
+	return math.max(0.5, math.floor(meters * 100 + 0.5) / 100), false, perfect
+end
+
+-- Na které odrazové dráze hráč stojí (Pier / Cannon / Slide), nebo nil mimo konec mola
+function Formulas.LaunchMode(pos: Vector3): string?
+	if pos.X < World.PierEndX - Jump.JumpZoneLength - 2 or pos.X > World.PierEndX + 3 then
+		return nil
+	end
+	if pos.Y < World.PierDeckY - 1 or pos.Y > World.PierDeckY + 12 then
+		return nil
+	end
+	for key, mode in Jump.LaunchModes do
+		if math.abs(pos.Z - mode.Z) <= mode.HalfWidth then
+			return key
+		end
+	end
+	return nil
 end
 
 function Formulas.FlightHeight(distance: number): number

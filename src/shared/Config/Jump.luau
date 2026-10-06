@@ -56,6 +56,17 @@ return {
 	},
 
 	JumpZoneLength = 22, -- posledních X studů mola, kde jde skákat
+	-- Tři cesty skoku na konci mola (hráč si vybere, kam se postaví):
+	--  Pier   – klasický skok z mola
+	--  Cannon – dělo na levém můstku: vyšší oblouk a dál, ale rychlejší ukazatel (těžší trefit PERFECT)
+	--  Slide  – tobogán na pravém můstku: nízký rychlý let, pomalejší ukazatel, víc kruhů a diamant navíc
+	-- Z = střed dráhy, HalfWidth = jak široká je oblast odrazu, Period = rychlost ukazatele,
+	-- Distance = bonus ke vzdálenosti, Height = násobek výšky letu, Rings = násobek kruhů
+	LaunchModes = {
+		Pier = { Name = "PIER JUMP", Z = 0, HalfWidth = 8, Period = 1.1, Distance = 0, Height = 1, Rings = 1, ExtraDiamonds = 0, Button = "JUMP!" },
+		Cannon = { Name = "CANNON", Z = -27, HalfWidth = 6, Period = 0.8, Distance = 0.12, Height = 1.6, Rings = 1, ExtraDiamonds = 0, Button = "FIRE!" },
+		Slide = { Name = "WATER SLIDE", Z = 27, HalfWidth = 6, Period = 1.6, Distance = -0.04, Height = 0.55, Rings = 2, ExtraDiamonds = 1, Button = "SLIDE!" },
+	} :: { [string]: { Name: string, Z: number, HalfWidth: number, Period: number, Distance: number, Height: number, Rings: number, ExtraDiamonds: number, Button: string } },
 	SuperJumpBonus = 0.20,
 	-- série PERFECT skoků za sebou: každý další PERFECT +5 % vzdálenosti (2. skok +5 %, … max. +30 %)
 	PerfectStreak = {

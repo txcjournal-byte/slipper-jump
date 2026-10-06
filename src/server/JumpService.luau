@@ -66,13 +66,9 @@ local flightStartEvent: RemoteEvent
 local jumpResultEvent: RemoteEvent
 local effectEvent: RemoteEvent
 
+-- konec mola nebo jedna z bočních odrazových drah (dělo, tobogán)
 local function inJumpZone(root: BasePart): boolean
-	local pos = root.Position
-	return pos.X >= World.PierEndX - Jump.JumpZoneLength - 2
-		and pos.X <= World.PierEndX + 3
-		and math.abs(pos.Z) <= World.PierWidth / 2 + 2
-		and pos.Y >= World.PierDeckY - 1
-		and pos.Y <= World.PierDeckY + 12
+	return Formulas.LaunchMode(root.Position) ~= nil
 end
 
 local function meterPeriod(session: Session): number
@@ -135,14 +131,20 @@ function JumpService.Charge(player: Player)
 		return
 	end
 	local root = Registry.Player.GetRoot(player)
-	if not root or not inJumpZone(root) then
+	if not root or not inJumpZone(root) or session.Duel then
 		return
 	end
 	if session.Data.Carried then
 		Registry.Player.Notify(player, "Your hands are full! Put the item in your house, sell it or gift it first.", "Warning")
 		return
 	end
-	session.Charge = { Start = os.clock(), Period = meterPeriod(session) }
+	local mode = Formulas.LaunchMode(root.Position) or "Pier"
+	local period = meterPeriod(session)
+	-- první skok v tutoriálu má vždy pomalý ukazatel, jinak podle dráhy (dělo rychleji, tobogán pomaleji)
+	if period ~= Jump.Meter.TutorialPeriod then
+		period = Jump.LaunchModes[mode].Period
+	end
+	session.Charge = { Start = os.clock(), Period = period, Mode = mode }
 end
 
 function JumpService.Release(player: Player, clientValue: unknown)
@@ -178,6 +180,8 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		end
 	end
 	local tier, bonus = Formulas.PowerTier(value)
+	local modeKey: string = charge.Mode or "Pier"
+	local mode = Jump.LaunchModes[modeKey] or Jump.LaunchModes.Pier
 
 	-- série PERFECT skoků (jen pro tuto session, neukládá se)
 	local streak = if tier == "Perfect" then (session.PerfectStreak or 0) + 1 else 0
@@ -201,6 +205,7 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		* (if megaJump then 1 + Products.MegaJumpBonus elseif superJump then 1 + Jump.SuperJumpBonus else 1)
 		* (if Registry.ServerEvents.IsActive("MegaJump") then 1 + Events.MegaJumpBonus else 1)
 		* (1 + streakBonus)
+		* (1 + mode.Distance)
 	local cap = if Catalog.IsBestShoe(data.EquippedSlippers) then Jump.MaxDistance else Jump.MaxDistanceWithoutBest
 	-- nejbližší dárkový ostrov, který hráč ještě nezískal: skok se u něj zastaví a hráč na něm přistane
 	local island = Formulas.NextGiftIsland(data.ClaimedGifts)
@@ -216,7 +221,7 @@ function JumpService.Release(player: Player, clientValue: unknown)
 	local reachesGift = distance >= giftAt
 	local endY = if reachesGift then giftLanding.Y + 3 else World.WaterY + 1.5
 	local duration = Formulas.FlightDuration(distance)
-	local height = Formulas.FlightHeight(distance)
+	local height = Formulas.FlightHeight(distance) * mode.Height
 
 	-- mince a kruhy (pro každého hráče zvlášť)
 	local c = Jump.Collectibles
@@ -227,7 +232,7 @@ function JumpService.Release(player: Player, clientValue: unknown)
 	local span = c.EndFraction - c.StartFraction
 	local rows = math.clamp(math.floor(distance / c.StudsPerCoinRow), 2, c.CoinRows)
 	local ringMultiplier = if Registry.ServerEvents.IsActive("RainbowRings") then Events.RainbowRingsMultiplier else 1
-	local ringCount = math.clamp(math.floor(distance * ringMultiplier / c.StudsPerRing), 1, c.Rings * ringMultiplier)
+	local ringCount = math.clamp(math.floor(distance * ringMultiplier * mode.Rings / c.StudsPerRing), 1, c.Rings * ringMultiplier * mode.Rings)
 	local spacing = math.max(distance * c.CoinRowSpacing, c.MinCoinSpacing) / distance
 	for row = 1, rows do
 		local p0 = c.StartFraction + span * (row - 0.5) / rows
@@ -257,7 +262,7 @@ function JumpService.Release(player: Player, clientValue: unknown)
 	local rush = Registry.ServerEvents.IsActive("DiamondRush")
 	local hunter = session.Passes.TreasureHunter == true
 	if level >= Diamonds.MinLevel or data.TotalJumps >= Diamonds.MinJumps or rush then
-		local extra = (if rush then Diamonds.RushExtra else 0) + (if hunter then Diamonds.HunterExtra else 0)
+		local extra = (if rush then Diamonds.RushExtra else 0) + (if hunter then Diamonds.HunterExtra else 0) + mode.ExtraDiamonds
 		local rareBoost = (if rush then Diamonds.RushRareBoost else 1) * (if hunter then Diamonds.HunterRareBoost else 1)
 		local count = math.min(Diamonds.BaseCount + math.floor(level / Diamonds.LevelsPerExtra), Diamonds.MaxCount, ringCount + 2) + extra
 		for index = 1, count do
@@ -364,6 +369,7 @@ function JumpService.Release(player: Player, clientValue: unknown)
 		RingBonus = flight.RingBonus,
 		PerfectStreak = streak,
 		StreakBonus = streakBonus,
+		Mode = modeKey, -- odkud skočil (Pier / Cannon / Slide) – klient podle toho ukáže efekt
 	})
 	effectEvent:FireAllClients("Takeoff", { UserId = player.UserId, Tier = tier, Slippers = data.EquippedSlippers })
 
@@ -565,8 +571,8 @@ function JumpService.Landed(player: Player, flightId: unknown, coinIds: unknown,
 		return result
 	end
 	local coins = sanitize(coinIds, Jump.Collectibles.CoinRows * Jump.Collectibles.CoinsPerRow)
-	local rings = sanitize(ringIds, Jump.Collectibles.Rings * Events.RainbowRingsMultiplier)
-	local gems = sanitize(diamondIds, Diamonds.MaxCount + Diamonds.RushExtra + Diamonds.HunterExtra)
+	local rings = sanitize(ringIds, Jump.Collectibles.Rings * Events.RainbowRingsMultiplier * 2) -- ×2 = tobogán
+	local gems = sanitize(diamondIds, Diamonds.MaxCount + Diamonds.RushExtra + Diamonds.HunterExtra + 1) -- +1 = tobogán
 	local pops = sanitize(balloonIds, Diamonds.Balloon.PartyCount)
 	-- klient nesmí přistát dřív, než by let doopravdy trval
 	local remaining = flight.Duration * 0.9 - (os.clock() - flight.StartClock)

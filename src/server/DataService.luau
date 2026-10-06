@@ -30,6 +30,9 @@ export type Data = {
 	GiftOpenedThisLife: boolean,
 	ClaimedGifts: { [string]: boolean }, -- dárkové ostrovy získané v tomto životě (Bronze, Silver)
 	HouseTier: number, -- vzhled domečku (1 = chatrč … 5 = palác), nikdy neklesá
+	DuelWins: number, -- vyhrané CHALLENGE souboje
+	LongJumpBest: number, -- nejlepší skok do dálky na pláži (metry)
+	SkiJumpBest: number, -- nejlepší skok na písečných lyžích (metry)
 	Titles: { string },
 	Title: string,
 	BestJump: number,
@@ -81,6 +84,9 @@ local TEMPLATE: Data = {
 	GiftOpenedThisLife = false,
 	ClaimedGifts = {},
 	HouseTier = 1,
+	DuelWins = 0,
+	LongJumpBest = 0,
+	SkiJumpBest = 0,
 	Titles = {},
 	Title = "",
 	BestJump = 0,

@@ -9,6 +9,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Catalog = require(Shared.Catalog)
 local World = require(Shared.Config.World)
 local Events = require(Shared.Config.Events)
+local Duels = require(Shared.Config.Duels)
 local Models = require(Shared.Models)
 
 local Registry = require(script.Parent.Registry)
@@ -337,9 +338,13 @@ function AvatarService.UpdateOverhead(session: Session)
 	levelLabel.Text = "Lv. " .. data.Level .. (if data.Rebirths > 0 then "  ♻" .. data.Rebirths else "")
 	-- vítěz posledního LEGEND RACE má místo titulu zlatou korunku
 	local legend = Registry.LegendRace and Registry.LegendRace.IsLegend(session.Player)
-	titleLabel.Text = if legend then Events.LegendRace.Title else data.Title
-	titleLabel.TextColor3 = if legend then Color3.fromRGB(255, 210, 40) else Color3.fromRGB(255, 150, 230)
-	titleLabel.Visible = legend or data.Title ~= ""
+	-- vítěz souboje má titul CHAMPION (dokud neprohraje)
+	local champion = if Registry.Duels then Registry.Duels.ChampionStreak(session.Player) else 0
+	titleLabel.Text = if legend then Events.LegendRace.Title
+		elseif champion > 0 then Duels.ChampionTitle .. (if champion > 1 then ` x{champion}` else "")
+		else data.Title
+	titleLabel.TextColor3 = if legend or champion > 0 then Color3.fromRGB(255, 210, 40) else Color3.fromRGB(255, 150, 230)
+	titleLabel.Visible = legend or champion > 0 or data.Title ~= ""
 end
 
 local function setupGiftPrompt(session: Session, root: BasePart)
@@ -357,6 +362,25 @@ local function setupGiftPrompt(session: Session, root: BasePart)
 	CollectionService:AddTag(prompt, "GiftPrompt")
 	prompt.Triggered:Connect(function(giver)
 		Registry.Gifting.Request(giver, session.Player)
+	end)
+end
+
+-- Výzva CHALLENGE na souboj (klient ji u sebe skryje)
+local function setupDuelPrompt(session: Session, root: BasePart)
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "DuelPrompt"
+	prompt.ActionText = "Challenge"
+	prompt.ObjectText = session.Player.DisplayName
+	prompt.HoldDuration = 0.4
+	prompt.MaxActivationDistance = 12
+	prompt.RequiresLineOfSight = false
+	prompt.KeyboardKeyCode = Enum.KeyCode.C
+	prompt.UIOffset = Vector2.new(0, 60)
+	prompt:SetAttribute("OwnerUserId", session.Player.UserId)
+	prompt.Parent = root
+	CollectionService:AddTag(prompt, "DuelPrompt")
+	prompt.Triggered:Connect(function(challenger)
+		Registry.Duels.OnPrompt(challenger, session.Player)
 	end)
 end
 
@@ -405,6 +429,7 @@ local function onCharacter(session: Session, character: Model)
 	-- vzhled avatara se načítá chvíli, obličej zkontrolujeme až potom
 	task.delay(3, ensureFace, character)
 	setupGiftPrompt(session, root)
+	setupDuelPrompt(session, root)
 	if session.Flight and not session.Flight.Finished then
 		Registry.Jump.Finish(session, session.Flight, {}, {}, {}, {})
 	end
