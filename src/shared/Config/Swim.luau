@@ -201,7 +201,7 @@ local Slalom = {
 	MaxOffset = 20,
 	MovingFromLevel = 10, -- od tohoto levelu se některé branky hýbou do stran
 	ObstaclesFromLevel = 4, -- od tohoto levelu přibývají překážky (1 za každé 3 levely, nejvýš 10)
-	MaxObstacles = 10,
+	MaxObstacles = 6,
 	-- od kterého levelu se která překážka může objevit
 	ObstacleUnlock = { Rock = 4, Jellyfish = 15, Log = 25, Puffer = 30 } :: { [string]: number },
 	ExtraDistancePerLevel = 2, -- trať je s každým levelem o kousek delší (nejvýš MaxExtraLevelDistance)

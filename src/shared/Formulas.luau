@@ -69,7 +69,8 @@ end
 -- 100 studů → MinTime, 100 000 studů → MaxTime (logaritmicky)
 function Formulas.FlightDuration(distance: number): number
 	local t = math.clamp((math.log10(math.max(distance, 100)) - 2) / 3, 0, 1)
-	return Jump.Flight.MinTime + (Jump.Flight.MaxTime - Jump.Flight.MinTime) * t
+	-- t² = krátké skoky skoro stejné jako dřív, dlouhé lety (dárky) výrazně pomalejší
+	return Jump.Flight.MinTime + (Jump.Flight.MaxTime - Jump.Flight.MinTime) * t * t
 end
 
 -- Souboje na pláži: síla výbavy (stejně jako u skoku z mola, jen bez náhody)
@@ -107,15 +108,23 @@ end
 
 -- Na které odrazové dráze hráč stojí (Pier / Cannon / Slide), nebo nil mimo konec mola
 function Formulas.LaunchMode(pos: Vector3): string?
-	if pos.X < World.PierEndX - Jump.JumpZoneLength - 2 or pos.X > World.PierEndX + 3 then
-		return nil
-	end
-	if pos.Y < World.PierDeckY - 1 or pos.Y > World.PierDeckY + 12 then
-		return nil
-	end
 	for key, mode in Jump.LaunchModes do
 		if math.abs(pos.Z - mode.Z) <= mode.HalfWidth then
-			return key
+			local platform = mode.PlatformHeight
+			if platform then
+				-- odraz z plošiny nahoře (tobogán)
+				local fromX = World.PierEndX + (mode.ZoneFrom or -Jump.JumpZoneLength) - 1
+				local toX = World.PierEndX + (mode.ZoneTo or 0) + 1
+				local y = pos.Y - World.PierDeckY
+				if pos.X >= fromX and pos.X <= toX and y >= platform - 1 and y <= platform + 8 then
+					return key
+				end
+			elseif pos.X >= World.PierEndX - Jump.JumpZoneLength - 2 and pos.X <= World.PierEndX + 3 then
+				local y = pos.Y - World.PierDeckY
+				if y >= -1 and y <= 12 then
+					return key
+				end
+			end
 		end
 	end
 	return nil

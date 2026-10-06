@@ -683,6 +683,9 @@ end
 -- ===== Boční odrazové dráhy u konce mola: DĚLO (vlevo) a TOBOGÁN (vpravo) =====
 -- Hráč přejde po lávce z mola na můstek, postaví se na svítící kruh a skáče stejně jako z mola
 -- (podle dráhy se mění ukazatel a let – viz Config/Jump → LaunchModes).
+-- široká lávka z mola na boční můstky (od konce mola: 38 … 16 studů), ať se tam dá pohodlně dojít
+local WALK_FROM, WALK_TO = 38, 16
+
 local function buildLaunchDocks(pier: Model, endX: number, deckY: number, width: number, gapFrom: number, gapTo: number)
 	local dockLength = 40 -- od lávky (endX − 37 … −27) až po konec
 	for key, mode in Jump.LaunchModes do
@@ -725,9 +728,11 @@ local function buildLaunchDocks(pier: Model, endX: number, deckY: number, width:
 			deco(part(m, Vector3.new(dockLength, 0.3, 0.3), CFrame.new(endX - dockLength / 2, deckY + 2.5, outer), Color3.fromRGB(200, 170, 120), Enum.Material.Fabric, CYL))
 			-- svítící kruh, kam se postavit, a čára odrazu
 			local color = if key == "Cannon" then Color3.fromRGB(255, 140, 40) else Color3.fromRGB(60, 210, 255)
-			local pad = deco(part(m, Vector3.new(0.2, 8, 8), CFrame.new(endX - 10, deckY + 0.05, z) * UP, color, Enum.Material.Neon, CYL))
-			pad.Transparency = 0.35
-			deco(part(m, Vector3.new(1, 0.1, dockHalf * 2), CFrame.new(endX - 0.6, deckY + 0.02, z), WHITE, Enum.Material.Neon))
+			if key == "Cannon" then
+				local pad = deco(part(m, Vector3.new(0.2, 8, 8), CFrame.new(endX - 10, deckY + 0.05, z) * UP, color, Enum.Material.Neon, CYL))
+				pad.Transparency = 0.35
+				deco(part(m, Vector3.new(1, 0.1, dockHalf * 2), CFrame.new(endX - 0.6, deckY + 0.02, z), WHITE, Enum.Material.Neon))
+			end
 			-- cedule nad lávkou
 			local sign = part(m, Vector3.new(0.6, 5, 14), CFrame.new(gapFrom - 1, deckY + 8, z), WHITE, Enum.Material.SmoothPlastic, BLOCK, "Sign")
 			deco(sign)
@@ -784,30 +789,88 @@ local function buildLaunchDocks(pier: Model, endX: number, deckY: number, width:
 				end
 				deco(part(m, Vector3.one * 1.6, CFrame.new(endX - 16.25, deckY + 2.1, z + side * (dockHalf - 1.4)), Color3.fromRGB(35, 35, 40), Enum.Material.Metal, BALL))
 			else
-				-- tobogán: věž se schody nahoru a zatočená skluzavka dolů ke kruhu
-				local towerX = endX - dockLength + 3.5
-				local towerTop = deckY + 18
-				for _, cx in { -2.5, 2.5 } do
-					for _, cz in { -2.5, 2.5 } do
-						deco(part(m, Vector3.new(towerTop - deckY, 0.9, 0.9), CFrame.new(towerX + cx, (deckY + towerTop) / 2, z + cz) * UP, WHITE, Enum.Material.SmoothPlastic, CYL))
+				-- tobogán: schody nahoru na plošinu, tam se hráč postaví na svítící kruh a po uvolnění
+				-- sjede skluzavkou dolů a vyletí z jejího konce nad vodu (animaci sjezdu dělá klient)
+				local platformHeight = mode.PlatformHeight or 12
+				local platformTop = deckY + platformHeight
+				local platformFrom, platformTo = endX - 22, endX - 15
+				local platformX = (platformFrom + platformTo) / 2
+				local platformHalf = 2.75
+				local platform = part(m, Vector3.new(platformTo - platformFrom, 1, platformHalf * 2), CFrame.new(platformX, platformTop - 0.5, z), WOOD_LIGHT, Enum.Material.WoodPlanks, BLOCK, "Plank")
+				platform.CanQuery = true
+				-- schody (každý schod o 1 stud výš, jdou vylézt bez skákání)
+				local steps = math.floor(platformHeight)
+				for k = 1, steps do
+					local sx = platformFrom - (steps - k) - 0.5
+					local step = part(m, Vector3.new(1.05, k, platformHalf * 2), CFrame.new(sx, deckY + k / 2, z), if k % 2 == 0 then WOOD_LIGHT else WOOD, Enum.Material.WoodPlanks, BLOCK, "Plank")
+					step.CanQuery = true
+				end
+				-- zábradlí po stranách schodů a plošiny (neviditelné zdi + bílé tyčky)
+				for _, sideZ in { -1, 1 } do
+					local wz = z + sideZ * (platformHalf + 0.5)
+					local wallLen = platformTo - (platformFrom - steps)
+					local wall = part(m, Vector3.new(wallLen, platformTop - deckY + 6, 1), CFrame.new((platformTo + platformFrom - steps) / 2, (deckY + platformTop + 6) / 2, wz), WHITE, nil, BLOCK, "Rail")
+					wall.Transparency = 1
+					deco(part(m, Vector3.new(platformTo - platformFrom, 0.3, 0.3), CFrame.new(platformX, platformTop + 2.5, wz), Color3.fromRGB(255, 255, 255), Enum.Material.SmoothPlastic, CYL))
+					for _, px in { platformFrom + 0.3, platformTo - 0.3 } do
+						deco(part(m, Vector3.new(platformTop - deckY + 2.5, 0.7, 0.7), CFrame.new(px, (deckY + platformTop + 2.5) / 2, wz) * UP, WHITE, Enum.Material.SmoothPlastic, CYL))
 					end
 				end
-				deco(part(m, Vector3.new(6.4, 0.6, 6.4), CFrame.new(towerX, towerTop, z), Color3.fromRGB(255, 210, 60)))
-				deco(part(m, Vector3.new(6.4, 0.4, 6.4), CFrame.new(towerX, towerTop + 5, z), Color3.fromRGB(255, 90, 120)))
-				-- skluzavka: řada skloněných žlabů od věže dolů k odrazu (dvě barvy)
-				local steps = 8
-				local from = Vector3.new(towerX + 3, towerTop - 0.5, z)
-				local to = Vector3.new(endX - 11, deckY + 1.2, z)
-				for k = 0, steps - 1 do
-					local a = from:Lerp(to, k / steps)
-					local b = from:Lerp(to, (k + 1) / steps)
-					local wob = Vector3.new(0, 0, side * math.sin(k / steps * math.pi) * 3)
-					local seg = deco(part(m, Vector3.new(3.6, 0.5, (b - a).Magnitude + 0.4), CFrame.lookAt(a:Lerp(b, 0.5) + wob, b + wob), if k % 2 == 0 then Color3.fromRGB(60, 200, 255) else Color3.fromRGB(255, 255, 255), Enum.Material.SmoothPlastic))
+				-- zadní zábrana na konci plošiny (do skluzavky se nejde, sjíždí se po skoku)
+				local endWall = part(m, Vector3.new(1, 6, platformHalf * 2), CFrame.new(platformTo + 0.5, platformTop + 3, z), WHITE, nil, BLOCK, "Rail")
+				endWall.Transparency = 1
+				-- stříška nad plošinou
+				deco(part(m, Vector3.new(platformTo - platformFrom + 0.6, 0.4, platformHalf * 2 + 1.2), CFrame.new(platformX, platformTop + 7, z), Color3.fromRGB(255, 90, 120)))
+				-- svítící kruh na plošině
+				local pad = deco(part(m, Vector3.new(0.2, 4.6, 4.6), CFrame.new(platformX - 0.5, platformTop + 0.05, z) * UP, color, Enum.Material.Neon, CYL))
+				pad.Transparency = 0.35
+				-- skluzavka z plošiny dolů až na konec můstku (dvě barvy)
+				local segCount = 8
+				local from = Vector3.new(platformTo, platformTop - 0.3, z)
+				local to = Vector3.new(endX + 0.8, deckY + 2, z)
+				for k = 0, segCount - 1 do
+					local a = from:Lerp(to, k / segCount)
+					local b = from:Lerp(to, (k + 1) / segCount)
+					local cf = CFrame.lookAt(a:Lerp(b, 0.5), b)
+					local seg = deco(part(m, Vector3.new(3.6, 0.5, (b - a).Magnitude + 0.4), cf, if k % 2 == 0 then Color3.fromRGB(60, 200, 255) else Color3.fromRGB(255, 255, 255), Enum.Material.SmoothPlastic))
 					seg.Transparency = 0.05
 					for _, edge in { -1.9, 1.9 } do
-						deco(part(m, Vector3.new(0.4, 1.2, (b - a).Magnitude + 0.4), CFrame.lookAt(a:Lerp(b, 0.5) + wob, b + wob) * CFrame.new(edge, 0.5, 0), Color3.fromRGB(30, 140, 230), Enum.Material.SmoothPlastic))
+						deco(part(m, Vector3.new(0.4, 1.2, (b - a).Magnitude + 0.4), cf * CFrame.new(edge, 0.5, 0), Color3.fromRGB(30, 140, 230), Enum.Material.SmoothPlastic))
+					end
+					-- podpěry
+					if k % 2 == 1 then
+						local mid = a:Lerp(b, 0.5)
+						deco(part(m, Vector3.new(mid.Y - deckY, 0.6, 0.6), CFrame.new(mid.X, (mid.Y + deckY) / 2, z) * UP, WHITE, Enum.Material.SmoothPlastic, CYL))
 					end
 				end
+				-- odrazový můstek na konci skluzavky: zahne nahoru, ať to hráče vyhodí do vzduchu
+				local kickFrom = to
+				local kickTo = to + Vector3.new(3.4, 2.2, 0)
+				local kickCF = CFrame.lookAt(kickFrom:Lerp(kickTo, 0.5), kickTo)
+				deco(part(m, Vector3.new(3.6, 0.5, (kickTo - kickFrom).Magnitude + 0.4), kickCF, Color3.fromRGB(255, 210, 60), Enum.Material.SmoothPlastic))
+				for _, edge in { -1.9, 1.9 } do
+					deco(part(m, Vector3.new(0.4, 1.2, (kickTo - kickFrom).Magnitude + 0.4), kickCF * CFrame.new(edge, 0.5, 0), Color3.fromRGB(30, 140, 230), Enum.Material.SmoothPlastic))
+				end
+				deco(part(m, Vector3.new(kickTo.Y - deckY, 0.6, 0.6), CFrame.new(kickTo.X - 0.5, (kickTo.Y + deckY) / 2 - 1, z) * UP, WHITE, Enum.Material.SmoothPlastic, CYL))
+				-- šipky „SLIDE ↑“ u schodů, ať je jasné, kudy nahoru
+				local hint = deco(part(m, Vector3.new(0.4, 2.6, 5), CFrame.new(platformFrom - steps - 1.5, deckY + 3, z), WHITE, Enum.Material.SmoothPlastic))
+				local hintGui = Instance.new("SurfaceGui")
+				hintGui.Face = Enum.NormalId.Left
+				hintGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+				hintGui.PixelsPerStud = 40
+				hintGui.Parent = hint
+				local hintText = Instance.new("TextLabel")
+				hintText.BackgroundTransparency = 1
+				hintText.Size = UDim2.fromScale(1, 1)
+				hintText.Font = Enum.Font.FredokaOne
+				hintText.TextScaled = true
+				hintText.Text = "⬆ CLIMB UP!"
+				hintText.TextColor3 = color
+				hintText.Parent = hintGui
+				local hintStroke = Instance.new("UIStroke")
+				hintStroke.Thickness = 3
+				hintStroke.Color = Color3.fromRGB(30, 30, 45)
+				hintStroke.Parent = hintText
 				-- voda tekoucí po skluzavce
 				local mist = deco(part(m, Vector3.new(1, 1, 1), CFrame.new(to + Vector3.new(0, 0.6, 0)), WHITE))
 				mist.Transparency = 1
@@ -853,8 +916,18 @@ local function buildPier(root: Instance): Model
 		end
 		postX += 15
 	end
+	-- provaz má mezeru u lávek k bočním drahám (dělo / tobogán), ať přes lávku nevede
+	local ropeGapFrom, ropeGapTo = endX - WALK_FROM, endX - WALK_TO
+	local ropeColor = Color3.fromRGB(200, 170, 120)
 	for _, side in { -1, 1 } do
-		deco(part(pier, Vector3.new(World.PierLength + 10, 0.3, 0.3), CFrame.new(startX - 5 + (World.PierLength + 10) / 2, deckY + 2.5, side * (width / 2 + 0.4)), Color3.fromRGB(200, 170, 120), Enum.Material.Fabric, CYL))
+		local ropeZ = side * (width / 2 + 0.4)
+		local fromX = startX - 5
+		deco(part(pier, Vector3.new(ropeGapFrom - fromX, 0.3, 0.3), CFrame.new((fromX + ropeGapFrom) / 2, deckY + 2.5, ropeZ), ropeColor, Enum.Material.Fabric, CYL))
+		deco(part(pier, Vector3.new(endX + 5 - ropeGapTo, 0.3, 0.3), CFrame.new((ropeGapTo + endX + 5) / 2, deckY + 2.5, ropeZ), ropeColor, Enum.Material.Fabric, CYL))
+		-- kůly po stranách lávky
+		for _, gx in { ropeGapFrom, ropeGapTo } do
+			deco(part(pier, Vector3.new(deckY + 6, 1.6, 1.6), CFrame.new(gx, (deckY + 4) / 2 - 1, ropeZ) * UP, WOOD_DARK, Enum.Material.Wood, CYL))
+		end
 	end
 	-- konec mola: značka odrazu (neviditelná oblast pro klienta a tutoriál)
 	local zone = part(pier, Vector3.new(Jump.JumpZoneLength, 8, width), CFrame.new(endX - Jump.JumpZoneLength / 2, deckY + 4, 0), Color3.fromRGB(80, 255, 120), nil, BLOCK, "JumpZone")
@@ -866,7 +939,7 @@ local function buildPier(root: Instance): Model
 	-- světlá čára na konci
 	deco(part(pier, Vector3.new(1, 0.1, width), CFrame.new(endX - 0.6, deckY + 0.02, 0), WHITE, Enum.Material.Neon))
 	-- neviditelné zábrany po stranách mola (aby hráč nespadl do vody) – s mezerou u lávek k bočním drahám
-	local gapFrom, gapTo = endX - 37, endX - 27
+	local gapFrom, gapTo = endX - WALK_FROM, endX - WALK_TO
 	for _, side in { -1, 1 } do
 		local wallA = part(pier, Vector3.new(gapFrom - startX, 10, 1), CFrame.new((startX + gapFrom) / 2, deckY + 5, side * (width / 2 + 1)), WHITE, nil, BLOCK, "Rail")
 		wallA.Transparency = 1

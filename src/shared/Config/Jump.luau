@@ -21,10 +21,10 @@ return {
 
 	Flight = {
 		MinTime = 3,
-		MaxTime = 10,
+		MaxTime = 18, -- dlouhé lety k dárkům trvají déle (pomalejší, přehlednější let)
 		HeightFactor = 0.18, -- výška paraboly = vzdálenost × faktor
 		MinHeight = 25,
-		MaxHeight = 450,
+		MaxHeight = 240, -- strop oblouku (dřív 450 – u dárků to vystřelilo moc vysoko)
 		CorridorHalfWidth = 50, -- koridor mezi bójkami
 		SteerLimit = 44, -- jak daleko do strany může hráč uhnout
 		SteerSpeed = 48, -- studů za sekundu
@@ -33,7 +33,7 @@ return {
 		ExtraGlideHeight = 0.25, -- výška doletu = délka doletu × faktor
 		ExtraGlideMaxHeight = 60,
 		CameraFov = 70,
-		CameraFlightFov = 95,
+		CameraFlightFov = 85,
 	},
 
 	Collectibles = {
@@ -65,8 +65,10 @@ return {
 	LaunchModes = {
 		Pier = { Name = "PIER JUMP", Z = 0, HalfWidth = 8, Period = 1.1, Distance = 0, Height = 1, Rings = 1, ExtraDiamonds = 0, Button = "JUMP!" },
 		Cannon = { Name = "CANNON", Z = -27, HalfWidth = 6, Period = 0.8, Distance = 0.12, Height = 1.6, Rings = 1, ExtraDiamonds = 0, Button = "FIRE!" },
-		Slide = { Name = "WATER SLIDE", Z = 27, HalfWidth = 6, Period = 1.6, Distance = -0.04, Height = 0.55, Rings = 2, ExtraDiamonds = 1, Button = "SLIDE!" },
-	} :: { [string]: { Name: string, Z: number, HalfWidth: number, Period: number, Distance: number, Height: number, Rings: number, ExtraDiamonds: number, Button: string } },
+		-- tobogán: odraz z plošiny nahoře (PlatformHeight nad molem, X od konce mola ZoneFrom…ZoneTo),
+		-- po uvolnění hráč sjede skluzavkou (SlideTime s) a vyletí z jejího konce
+		Slide = { Name = "WATER SLIDE", Z = 27, HalfWidth = 3, Period = 1.6, Distance = 0.04, Height = 1.3, Rings = 2, ExtraDiamonds = 1, Button = "SLIDE!", PlatformHeight = 12, ZoneFrom = -22, ZoneTo = -15, SlideTime = 0.8 },
+	} :: { [string]: { Name: string, Z: number, HalfWidth: number, Period: number, Distance: number, Height: number, Rings: number, ExtraDiamonds: number, Button: string, PlatformHeight: number?, ZoneFrom: number?, ZoneTo: number?, SlideTime: number? } },
 	SuperJumpBonus = 0.20,
 	-- série PERFECT skoků za sebou: každý další PERFECT +5 % vzdálenosti (2. skok +5 %, … max. +30 %)
 	PerfectStreak = {

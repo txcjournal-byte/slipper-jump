@@ -135,16 +135,8 @@ local function gateModel(parent: Instance, gap: number, color: Color3, index: nu
 		end
 	end
 	-- svítící oblouk nad mezerou v barvě slalomu a cedulka s číslem branky
-	local arch = part(m, Vector3.new(0.6, 0.6, gap + 1), CFrame.new(0, 10.2, 0), color, Enum.Material.Neon)
-	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(150, 46)
-	gui.StudsOffset = Vector3.new(0, 2.2, 0)
-	gui.MaxDistance = 260
-	gui.Parent = arch
-	local label = Kit.Text(gui, { Text = `GATE {index}/{total}`, Size = UDim2.fromScale(1, 1), TextColor3 = WHITE, StrokeThickness = 3 })
-	label.BackgroundTransparency = 0
-	label.BackgroundColor3 = RED
-	Kit.Corner(label, 12)
+	-- (bez cedulky s číslem – svítící oblouk a zelená mezera stačí, obrazovka zůstane přehledná)
+	part(m, Vector3.new(0.6, 0.6, gap + 1), CFrame.new(0, 10.2, 0), color, Enum.Material.Neon)
 	-- zelená záře v mezeře: sem plav
 	local glow = part(m, Vector3.new(0.3, 8.4, gap - 1.6), CFrame.new(0, 4.6, 0), GO_GREEN, Enum.Material.Neon)
 	glow.Transparency = 0.7
@@ -242,11 +234,11 @@ local function buoyModel(parent: Instance, side: number, dir: number, index: num
 	-- šipka: doprava na obrazovce = −Z při plavání ke břehu (dir = 1)
 	local screenRight = side * -dir > 0
 	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(120, 70)
+	gui.Size = UDim2.fromOffset(60, 44)
 	gui.StudsOffset = Vector3.new(0, 3, 0)
-	gui.MaxDistance = 220
+	gui.MaxDistance = 90
 	gui.Parent = top
-	local label = Kit.Text(gui, { Text = (if screenRight then "➡" else "⬅") .. ` {index}/{total}`, Size = UDim2.fromScale(1, 1), TextColor3 = WHITE, StrokeThickness = 3 })
+	local label = Kit.Text(gui, { Text = if screenRight then "➡" else "⬅", Size = UDim2.fromScale(1, 1), TextColor3 = WHITE, StrokeThickness = 3 })
 	label.BackgroundTransparency = 0.1
 	label.BackgroundColor3 = color
 	Kit.Corner(label, 14)
@@ -271,12 +263,6 @@ local function hoopModel(parent: Instance, size: number, color: Color3): Model
 	local glow = part(m, Vector3.new(0.2, size - 1.5, size - 1.5), CFrame.new(0, 1.5, 0) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(0, math.rad(90), 0), color, Enum.Material.Neon, Enum.PartType.Cylinder)
 	glow.Transparency = 0.85
 	glow.Name = "Glow"
-	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(110, 40)
-	gui.StudsOffset = Vector3.new(0, r + 3, 0)
-	gui.MaxDistance = 220
-	gui.Parent = glow
-	Kit.Text(gui, { Text = "⚡ BOOST", Size = UDim2.fromScale(1, 1), TextColor3 = Kit.Colors.Yellow, StrokeThickness = 3 })
 	return m
 end
 
@@ -353,8 +339,8 @@ local function pickupModel(parent: Instance, kind: string): Model
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.fromOffset(54, 54)
 	gui.StudsOffset = Vector3.new(0, 4.2, 0)
-	gui.AlwaysOnTop = true
-	gui.MaxDistance = 260
+	gui.AlwaysOnTop = false
+	gui.MaxDistance = 120
 	gui.LightInfluence = 0
 	gui.Parent = root
 	Kit.Text(gui, { Text = look.Icon, Size = UDim2.fromScale(1, 1), NoStroke = true })
@@ -533,9 +519,9 @@ function Slalom.Collect(run: Run, progress: number, z: number): { string }
 			Effects.FovKick(6)
 			Sound.Play(if p.Kind == "Coin" then "Coin" else "Perfect", if p.Kind == "Freeze" then 1.4 else 1.1)
 			if p.Kind == "Turbo" then
-				Effects.BigText("⚡ TURBO!", look.Color, 0.9, 0.36)
+				Effects.FloatText("⚡ TURBO!", look.Color)
 			elseif p.Kind == "Freeze" then
-				Effects.BigText("❄️ FREEZE! Chaser frozen!", look.Color, 1, 0.36)
+				Effects.FloatText("❄️ FREEZE!", look.Color)
 			end
 			table.insert(got, p.Kind)
 		end
@@ -566,14 +552,9 @@ function Slalom.Resolve(run: Run, t: number, prev: number, new: number, z: numbe
 		run.Combo = if run.Hits == run.HitsAtGate then run.Combo + 1 else 1
 		run.HitsAtGate = run.Hits
 		-- v kaňonu jsou branky hustě za sebou: combo hlásit jen po trojicích, ať text nezahltí obrazovku
-		local dense = style == "Canyon"
-		if run.Combo >= 2 and (not dense or run.Combo % 3 == 0 or run.Passed == #run.Gates) then
-			Effects.BigText(`COMBO x{run.Combo}!`, Kit.Colors.Yellow, 0.7, 0.42)
-			Effects.Shake(0.08 * math.min(run.Combo, 5))
-		end
-		if not dense then
-			local word = if style == "Buoys" then "BUOY" elseif style == "Hoops" then "HOOP" else "GATE"
-			Effects.FloatText(`{word} {run.Passed}/{#run.Gates}`, run.Layout.Color)
+		-- přehlednost: žádné nápisy u každé branky, combo jen po trojicích a na konci
+		if run.Combo >= 3 and (run.Combo % 3 == 0 or run.Passed == #run.Gates) then
+			Effects.FloatText(`COMBO x{run.Combo}!`, Kit.Colors.Yellow)
 		end
 		for _, name in { "Glow", "GlowFloor" } do
 			local glow = gate.Model:FindFirstChild(name) :: BasePart?
@@ -619,10 +600,8 @@ function Slalom.Resolve(run: Run, t: number, prev: number, new: number, z: numbe
 					passed(gate)
 					run.BoostUntil = now + Swim.Slalom.HoopBoostTime
 					Effects.FovKick(10)
-					Effects.BigText("⚡ BOOST!", Kit.Colors.Yellow, 0.5, 0.5)
 				else
 					run.Combo = 0
-					Effects.FloatText("Missed the hoop!", Kit.Colors.Gray)
 				end
 			elseif math.abs(z - center) <= g.Gap / 2 - PLAYER_HALF_WIDTH then
 				passed(gate)

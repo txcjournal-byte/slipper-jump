@@ -17,6 +17,7 @@ local Net = require(Shared.Net)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Dialogs = require(script.Parent.Parent.UI.Dialogs)
+local HUD = require(script.Parent.Parent.UI.HUD)
 local Sound = require(script.Parent.Parent.Sound)
 local Effects = require(script.Parent.Parent.Effects.Effects)
 
@@ -57,6 +58,9 @@ local resultsTitle: TextLabel
 local resultsText: TextLabel
 local revengeButton: TextButton
 local againButton: TextButton
+local lobby: Kit.Window
+local lobbyList: ScrollingFrame
+local lobbyEmpty: TextLabel
 local run: Run? = nil
 local controls: any? = nil
 local inDuel = false
@@ -423,6 +427,99 @@ local function onState(state: { [string]: any })
 	end
 end
 
+-- ===== Lobby: tlačítko DUEL v HUD → seznam hráčů na serveru + trénink =====
+
+local function openPicker(target: Player)
+	pickTargetId = target.UserId
+	pickerTitle.Text = `⚔️ Challenge {target.DisplayName}!`
+	picker.Visible = true
+	Kit.Pop(picker, 1.1)
+end
+
+local function refreshLobby()
+	for _, child in lobbyList:GetChildren() do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+	local count = 0
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			count += 1
+			local row = Kit.new("Frame", { BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0.2, Size = UDim2.new(1, -12, 0, 64), LayoutOrder = count, Parent = lobbyList })
+			Kit.Corner(row, 12)
+			Kit.Text(row, { Text = other.DisplayName, Size = UDim2.new(1, -230, 1, -14), Position = UDim2.fromOffset(14, 7), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Kit.Colors.Text, NoStroke = true })
+			Kit.Button(row, { Text = "⚔️ CHALLENGE", Color = Kit.Colors.Coral, Size = UDim2.fromOffset(200, 52), Position = UDim2.new(1, -206, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) }, function()
+				lobby.Close()
+				openPicker(other)
+			end)
+		end
+	end
+	lobbyEmpty.Visible = count == 0
+end
+
+local function toggleLobby()
+	if lobby.IsOpen() then
+		lobby.Close()
+	else
+		refreshLobby()
+		lobby.Open()
+	end
+end
+
+local function buildLobby()
+	local windows = player:WaitForChild("PlayerGui"):WaitForChild("Windows") :: ScreenGui
+	lobby = Kit.Window(windows, "⚔️ BEACH CHALLENGE", UDim2.fromOffset(640, 520), Kit.Colors.Coral)
+	local content = lobby.Content
+	Kit.Text(content, {
+		Text = "Challenge another player: 3 jumps each, the longest jump wins!\nWinner gets 💰 money, a 🎡 spin and the 🏆 CHAMPION title.",
+		Size = UDim2.new(1, 0, 0, 56),
+		TextColor3 = Kit.Colors.Text,
+		NoStroke = true,
+		TextWrapped = true,
+	})
+	lobbyList = Kit.new("ScrollingFrame", {
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(0, 64),
+		Size = UDim2.new(1, 0, 1, -170),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+		ScrollBarThickness = 8,
+		Parent = content,
+	}) :: ScrollingFrame
+	Kit.new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = lobbyList })
+	lobbyEmpty = Kit.Text(content, {
+		Text = "No other players here yet.\nPractice alone and set a record!",
+		Size = UDim2.new(1, -40, 0, 70),
+		Position = UDim2.fromOffset(20, 90),
+		TextColor3 = Kit.Colors.Gray,
+		NoStroke = true,
+		TextWrapped = true,
+	})
+	Kit.Text(content, { Text = "PRACTICE ALONE:", Size = UDim2.new(1, 0, 0, 28), Position = UDim2.new(0, 0, 1, -100), TextColor3 = Kit.Colors.Text, NoStroke = true })
+	for i, key in Duels.Order do
+		local cfg = Duels.Games[key]
+		Kit.Button(content, { Text = `{cfg.Icon} {if key == "LongJump" then "LONG JUMP" else "SKI JUMP"}`, Color = if i == 1 then Kit.Colors.Orange else Kit.Colors.Turquoise, Size = UDim2.new(0.5, -6, 0, 64), Position = UDim2.new((i - 1) * 0.5, (i - 1) * 6, 1, -66) }, function()
+			lobby.Close()
+			Net.Event("DuelAction"):FireServer("Practice", key)
+		end)
+	end
+	HUD.Bind("Duel", toggleLobby)
+	-- nový hráč na serveru → nápověda, že se dá vyzvat
+	Players.PlayerAdded:Connect(function(other)
+		task.wait(8)
+		if other.Parent and not inDuel then
+			HUD.Notify(`⚔️ {other.DisplayName} joined! Press DUEL to challenge them.`, "Info")
+		end
+	end)
+	task.delay(25, function()
+		if #Players:GetPlayers() > 1 and not inDuel then
+			HUD.Notify("⚔️ Tip: press DUEL to challenge other players in beach games!", "Info")
+		end
+	end)
+end
+
 -- ===== UI =====
 
 function DuelController.Init()
@@ -509,6 +606,7 @@ function DuelController.Init()
 		})
 	end)
 	Net.Event("DuelState").OnClientEvent:Connect(onState)
+	buildLobby()
 	RunService.RenderStepped:Connect(update)
 
 	-- vlastní výzvu CHALLENGE na sobě skrýt (a během souboje i ostatní)

@@ -273,7 +273,7 @@ function HUD.Init()
 	})
 	if TOUCH then
 		-- 3 sloupce × 2 řady (jinak by spodní tlačítka zakryl joystick nebo by se nevešla)
-		left.Size = UDim2.fromOffset(3 * (SIDE_SIZE + 10), 2 * (SIDE_SIZE + 10))
+		left.Size = UDim2.fromOffset(3 * (SIDE_SIZE + 10), 3 * (SIDE_SIZE + 10))
 		-- (pod pilulkami 2x MONEY / 2x LUCK na y = 240, ať je nepřekrývají)
 		left.Position = UDim2.fromOffset(16, 292)
 		Kit.new("UIGridLayout", { CellSize = UDim2.fromOffset(SIDE_SIZE, SIDE_SIZE), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = left })
@@ -318,7 +318,8 @@ function HUD.Init()
 	Kit.Stroke(questBadge, 3, Kit.Colors.Outline, true)
 	sideButton(left, "🏠", "HOUSE", Kit.Colors.Green, 4, "TeleportHouse")
 	sideButton(left, "🌊", "PIER", Kit.Colors.Blue, 5, "TeleportPier")
-	rebirthButton = sideButton(left, "♻", "REBIRTH", Kit.Colors.Purple, 6, "Rebirth")
+	sideButton(left, "⚔️", "DUEL", Kit.Colors.Coral, 6, "Duel")
+	rebirthButton = sideButton(left, "♻", "REBIRTH", Kit.Colors.Purple, 7, "Rebirth")
 	rebirthButton.Visible = false
 
 	-- ===== Tlačítka vpravo (Robux košík, nastavení) =====

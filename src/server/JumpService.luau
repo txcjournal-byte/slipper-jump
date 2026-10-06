@@ -217,6 +217,10 @@ function JumpService.Release(player: Player, clientValue: unknown)
 	distance = math.clamp(distance, 10, cap)
 
 	local startPosition = root.Position
+	if mode.PlatformHeight then
+		-- tobogán: let začíná na konci skluzavky (klient předtím přehraje sjezd z plošiny)
+		startPosition = Vector3.new(World.PierEndX + 4.2, World.PierDeckY + 7.2, mode.Z)
+	end
 	local endX = World.PierEndX + distance
 	local reachesGift = distance >= giftAt
 	local endY = if reachesGift then giftLanding.Y + 3 else World.WaterY + 1.5

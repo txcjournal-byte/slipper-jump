@@ -45,6 +45,7 @@ type FlightState = {
 	Id: number,
 	Info: { [string]: any },
 	StartClock: number,
+	SlideFrom: Vector3?, -- tobogán: odkud hráč sjíždí (plošina nahoře), než začne let
 	Phase: "Main" | "Glide" | "Landed" | "Swim" | "Returned",
 	Z: number,
 	Coins: { Collectible },
@@ -743,7 +744,19 @@ local function startFlight(info: { [string]: any })
 		Slalom = nil,
 		OnRaft = false,
 		ExpectedPosition = nil,
+		SlideFrom = nil,
 	}
+	-- tobogán: nejdřív sjezd po skluzavce z plošiny, až pak let z jejího konce
+	local slideMode = Jump.LaunchModes[info.Mode or ""]
+	local slideTime = slideMode and slideMode.SlideTime
+	if slideTime then
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root then
+			state.SlideFrom = root.Position
+			state.StartClock = os.clock() + slideTime
+		end
+	end
 	flight = state
 	setInZone(false)
 	setCharacterFlying(true)
@@ -1771,20 +1784,9 @@ local function startSwim(info: { [string]: any })
 		end)
 	end
 	if state.Slalom then
+		-- jeden řádek dole místo několika velkých nápisů přes sebe
 		local layout = state.Slalom.Layout
-		task.delay(1.3, function()
-			if flight == state and not state.SwimEnded then
-				Effects.BigText(layout.Name .. "!", layout.Color, 1.3, 0.36)
-			end
-		end)
-		swimHint.Text = layout.Hint or "Steer with A / D (joystick) through the gaps!"
-		if state.Slalom.Shield > 0 then
-			task.delay(2.4, function()
-				if flight == state and not state.SwimEnded then
-					Effects.FloatText(`💜 SHIELD x{shield} - {if shield == 1 then "one free bump" else `{shield} free bumps`}!`, Color3.fromRGB(200, 140, 255))
-				end
-			end)
-		end
+		swimHint.Text = layout.Name .. ": " .. (layout.Hint or "Steer through the gaps!") .. (if state.Slalom.Shield > 0 then `  💜x{shield}` else "")
 	else
 		swimHint.Text = "Hold W / joystick forward to swim!"
 	end
@@ -2160,7 +2162,18 @@ local function updateFlight(dt: number)
 		state.Z = math.clamp(state.Z + steerInput() * Jump.Flight.SteerSpeed * dt, -limit, limit)
 	end
 	local lean = 0
-	if state.Phase == "Main" then
+	local slideFrom = state.SlideFrom
+	if state.Phase == "Main" and slideFrom and elapsed < 0 then
+		-- sjezd po skluzavce (zrychluje se) až na její konec, odkud začíná let
+		local slideMode = Jump.LaunchModes[info.Mode or ""]
+		local total = slideMode and slideMode.SlideTime or 0.8
+		local a = math.clamp(1 + elapsed / total, 0, 1) ^ 1.5
+		-- dolů po skluzavce až na její konec, pak krátce nahoru po odrazovém můstku
+		local chuteEnd = info.StartPosition + Vector3.new(-3.4, -2.2, 0)
+		local pos = if a < 0.85 then slideFrom:Lerp(chuteEnd, a / 0.85) else chuteEnd:Lerp(info.StartPosition, (a - 0.85) / 0.15)
+		x, y = pos.X, pos.Y
+		state.Z = pos.Z
+	elseif state.Phase == "Main" then
 		local p = math.clamp(elapsed / info.Duration, 0, 1)
 		x, y = Formulas.Trajectory(p, info.StartPosition.X, info.EndX, info.StartPosition.Y, info.EndY, info.Height)
 		lean = steerInput()

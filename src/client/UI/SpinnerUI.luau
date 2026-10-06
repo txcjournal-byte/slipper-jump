@@ -3,6 +3,7 @@
 -- tlačítko SPIN s odpočtem a nákup extra točení.
 
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Spinner = require(Shared.Config.Spinner)
@@ -30,6 +31,56 @@ local spinning = false
 local spinFunction = Net.Function("Spin")
 
 local RADIUS = 10
+-- kamera kola: ze vzdálenosti 34 s FOV 40 je vidět ±12,37 studu → převod na měřítko okna
+local VIEW_HALF = 34 * math.tan(math.rad(20))
+
+-- krátký popisek na dílek kola (dlouhý je v tabulce šancí vedle)
+local function shortLabel(segment: Spinner.Segment): string
+	local reward = segment.Reward
+	if reward.Rarity then
+		return if reward.Rarity == "Legendary" then "⭐ LEGEND" else string.upper(reward.Rarity)
+	elseif reward.BoostMinutes then
+		return "2x 💰"
+	end
+	return segment.Label
+end
+
+-- 2D popisky nad 3D kolem (SurfaceGui se ve ViewportFrame nevykresluje): každý snímek
+-- se dopočítá střed dílku a popisek se posune s ním, takže se točí spolu s kolem
+local function attachLabels(holder: Instance, model: Model)
+	local labels: { TextLabel } = {}
+	for i, segment in Spinner.Segments do
+		labels[i] = Kit.Text(holder, {
+			Text = shortLabel(segment),
+			Size = UDim2.fromScale(0.2, 0.08),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			TextColor3 = Kit.Colors.White,
+			StrokeThickness = 2.5,
+			ZIndex = 2,
+		})
+	end
+	RunService.RenderStepped:Connect(function()
+		if not (holder :: GuiObject).Visible then
+			return
+		end
+		local sums: { Vector3 } = {}
+		for _, child in model:GetChildren() do
+			local index = tonumber(string.match(child.Name, "^Segment_(%d+)$"))
+			if index and child:IsA("BasePart") then
+				sums[index] = (sums[index] or Vector3.zero) + child.Position
+			end
+		end
+		for i, label in labels do
+			local sum = sums[i]
+			if sum then
+				local flat = Vector3.new(sum.X, sum.Y, 0)
+				local p = if flat.Magnitude > 0 then flat.Unit * RADIUS * 0.63 else Vector3.zero
+				-- kamera se dívá ve směru +Z, takže +X světa je na obrazovce vlevo
+				label.Position = UDim2.fromScale(0.5 - p.X / (2 * VIEW_HALF), 0.5 - p.Y / (2 * VIEW_HALF))
+			end
+		end
+	end)
+end
 
 local function buildWheel(parent: Instance): Model
 	local m = Instance.new("Model")
@@ -196,6 +247,7 @@ function SpinnerUI.Init(screen: ScreenGui)
 	camera.CFrame = CFrame.lookAt(Vector3.new(0, 0, -34), Vector3.zero)
 	camera.Parent = viewport
 	viewport.CurrentCamera = camera
+	attachLabels(viewportHolder, wheel)
 	Kit.Text(viewportHolder, { Text = "▼", Size = UDim2.fromOffset(60, 60), Position = UDim2.new(0.5, 0, 0, -18), AnchorPoint = Vector2.new(0.5, 0), TextColor3 = Kit.Colors.Coral, StrokeThickness = 3, ZIndex = 3 })
 	resultLabel = Kit.Text(content, { Text = "Spin the wheel!", Size = UDim2.fromOffset(420, 44), Position = UDim2.fromOffset(0, 440), TextColor3 = Kit.Colors.Yellow, StrokeThickness = 3 })
 
