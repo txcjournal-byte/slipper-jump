@@ -1,0 +1,172 @@
+--!strict
+-- Ukládání dat hráčů přes ProfileStore (session locking, automatické ukládání).
+-- Ukládá se při odchodu a každých Economy.SaveInterval sekund.
+
+local Players = game:GetService("Players")
+
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
+local Economy = require(Shared.Config.Economy)
+local ProfileStore = require(script.Parent.Packages.ProfileStore)
+
+export type ItemData = { Id: string, Uid: number }
+
+export type Data = {
+	Money: number,
+	TotalEarned: number,
+	OwnedSlippers: { string },
+	EquippedSlippers: string,
+	OwnedSkins: { string }, -- skiny tenisek (za Robux, jen vzhled)
+	EquippedSkin: string, -- "" = bez skinu (vidět jsou pantofle)
+	OwnedHats: { string },
+	EquippedHat: string,
+	HouseSlots: { [string]: ItemData },
+	Carried: ItemData?,
+	Storage: { ItemData },
+	PendingCash: number,
+	Level: number,
+	XP: number,
+	Rebirths: number,
+	GiftEverOpened: boolean,
+	GiftOpenedThisLife: boolean,
+	ClaimedGifts: { [string]: boolean }, -- dárkové ostrovy získané v tomto životě (Bronze, Silver)
+	HouseTier: number, -- vzhled domečku (1 = chatrč … 5 = palác), nikdy neklesá
+	DuelWins: number, -- vyhrané CHALLENGE souboje
+	LongJumpBest: number, -- nejlepší skok do dálky na pláži (metry)
+	SkiJumpBest: number, -- nejlepší skok na písečných lyžích (metry)
+	Titles: { string },
+	Title: string,
+	BestJump: number,
+	TotalJumps: number,
+	DailyPeriodStart: number,
+	DailySpinsUsed: number,
+	ExtraSpins: number,
+	BoostUntil: number,
+	LuckUntil: number,
+	TutorialDone: boolean,
+	TutorialStep: number,
+	UsedCodes: { [string]: boolean },
+	LastLogout: number,
+	GiftsSentDay: number,
+	GiftsSentToday: number,
+	Settings: { Music: boolean, Sfx: boolean },
+	PurchaseIds: { string },
+	Discovered: { [string]: boolean },
+	IndexRewards: { [string]: boolean }, -- album: za kterou vzácnost už dostal odměnu
+	NextUid: number,
+	SuperJumps: number,
+	MegaJumps: number,
+	SwimLevel: number,
+	Repellents: number,
+	Shields: number, -- Bubble Shield: kolik slalomů ještě chrání
+	StarterPackBought: boolean,
+	Quests: { Day: number, List: { { Index: number, Progress: number, Done: boolean } } },
+	LoginDay: number,
+	LoginStreak: number,
+}
+
+local TEMPLATE: Data = {
+	Money = Economy.StartingMoney,
+	TotalEarned = 0,
+	OwnedSlippers = { "BasicBlackSlippers" },
+	EquippedSlippers = "BasicBlackSlippers",
+	OwnedSkins = { "MuddyOldSneakers" },
+	EquippedSkin = "",
+	OwnedHats = {},
+	EquippedHat = "",
+	HouseSlots = {},
+	Carried = nil,
+	Storage = {},
+	PendingCash = 0,
+	Level = 1,
+	XP = 0,
+	Rebirths = 0,
+	GiftEverOpened = false,
+	GiftOpenedThisLife = false,
+	ClaimedGifts = {},
+	HouseTier = 1,
+	DuelWins = 0,
+	LongJumpBest = 0,
+	SkiJumpBest = 0,
+	Titles = {},
+	Title = "",
+	BestJump = 0,
+	TotalJumps = 0,
+	DailyPeriodStart = 0,
+	DailySpinsUsed = 0,
+	ExtraSpins = 0,
+	BoostUntil = 0,
+	LuckUntil = 0, -- Lucky Potion (starší profily doplní Reconcile)
+	TutorialDone = false,
+	TutorialStep = 1,
+	UsedCodes = {},
+	LastLogout = 0,
+	GiftsSentDay = 0,
+	GiftsSentToday = 0,
+	Settings = { Music = true, Sfx = true },
+	PurchaseIds = {},
+	Discovered = {},
+	IndexRewards = {},
+	NextUid = 1,
+	SuperJumps = 0,
+	MegaJumps = 0, -- zbývající skoky z Mega Jump Packu
+	SwimLevel = 0,
+	Repellents = 0,
+	Shields = 0,
+	StarterPackBought = false,
+	Quests = { Day = 0, List = {} },
+	LoginDay = 0,
+	LoginStreak = 0,
+}
+
+local store = ProfileStore.New("SlipperJump_PlayerData_v1", TEMPLATE)
+
+local DataService = {}
+DataService.Profiles = {} :: { [Player]: any }
+
+function DataService.Load(player: Player): any?
+	local profile = store:StartSessionAsync(tostring(player.UserId), {
+		Cancel = function()
+			return player.Parent ~= Players
+		end,
+	})
+	if profile == nil then
+		player:Kick("We could not load your data. Please rejoin!")
+		return nil
+	end
+	profile:AddUserId(player.UserId)
+	profile:Reconcile()
+	profile.OnSessionEnd:Connect(function()
+		DataService.Profiles[player] = nil
+		player:Kick("Your data was opened on another server. Please rejoin!")
+	end)
+	if player.Parent ~= Players then
+		profile:EndSession()
+		return nil
+	end
+	DataService.Profiles[player] = profile
+	return profile
+end
+
+function DataService.Release(player: Player)
+	local profile = DataService.Profiles[player]
+	if profile then
+		DataService.Profiles[player] = nil
+		profile:EndSession()
+	end
+end
+
+function DataService.Start()
+	-- průběžné ukládání
+	task.spawn(function()
+		while true do
+			task.wait(Economy.SaveInterval)
+			for _, profile in DataService.Profiles do
+				if profile:IsActive() then
+					profile:Save()
+				end
+			end
+		end
+	end)
+end
+
+return DataService

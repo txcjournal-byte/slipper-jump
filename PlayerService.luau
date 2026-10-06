@@ -1,0 +1,365 @@
+--!strict
+-- Příchod a odchod hráčů, session, odesílání stavu klientovi, leaderstats,
+-- návrat na pláž a hlídání, aby hráč nevlezl do vody bez skoku.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
+local World = require(Shared.Config.World)
+local Jump = require(Shared.Config.Jump)
+local Spinner = require(Shared.Config.Spinner)
+local Economy = require(Shared.Config.Economy)
+local Formulas = require(Shared.Formulas)
+local Catalog = require(Shared.Catalog)
+local Net = require(Shared.Net)
+
+local Registry = require(script.Parent.Registry)
+local DataService = require(script.Parent.DataService)
+
+export type Session = {
+	Player: Player,
+	Profile: any,
+	Data: DataService.Data,
+	House: any?, -- MapBuilder.HouseInfo
+	Passes: { [string]: boolean },
+	Flight: any?, -- JumpService.Flight
+	Swim: any?, -- SwimService.SwimState
+	Trial: any?, -- TrialService.TrialState (úkol na cestu z ostrova)
+	Duel: any?, -- DuelService: probíhající CHALLENGE souboj / trénink
+	PendingSkin: string?, -- skin vybraný v obchodě před nákupem za Robux
+	Charge: { Start: number, Period: number, Mode: string? }?,
+	LastJump: number,
+	PerfectStreak: number, -- série PERFECT skoků za sebou (neukládá se)
+	Returning: boolean,
+	Dirty: boolean,
+	Loaded: boolean,
+	LastCollect: number,
+	LastTeleport: number,
+	LastQuickTeleport: number,
+	Leaderstats: { Money: NumberValue, Level: IntValue, Best: NumberValue }?,
+}
+
+local PlayerService = {}
+PlayerService.Sessions = {} :: { [Player]: Session }
+
+local stateEvent: RemoteEvent
+local notifyEvent: RemoteEvent
+local announceEvent: RemoteEvent
+
+function PlayerService.Get(player: Player): Session?
+	local session = PlayerService.Sessions[player]
+	if session and session.Loaded then
+		return session
+	end
+	return nil
+end
+
+function PlayerService.MarkDirty(session: Session)
+	session.Dirty = true
+end
+
+function PlayerService.Notify(player: Player, text: string, kind: string?)
+	notifyEvent:FireClient(player, text, kind or "Info")
+end
+
+function PlayerService.Announce(text: string, kind: string?)
+	announceEvent:FireAllClients(text, kind or "Info")
+end
+
+function PlayerService.GetRoot(player: Player): BasePart?
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		return root
+	end
+	return nil
+end
+
+function PlayerService.SpinStatus(session: Session): (number, number)
+	local data = session.Data
+	local now = os.time()
+	local dailyMax = Spinner.DailySpins + (if session.Passes.VIP then Spinner.VipDailySpins else 0)
+	local periodOver = now - data.DailyPeriodStart >= Spinner.Cooldown
+	local available = if periodOver then dailyMax else math.max(0, dailyMax - data.DailySpinsUsed)
+	local nextFree = if periodOver then now else data.DailyPeriodStart + Spinner.Cooldown
+	return available, nextFree
+end
+
+-- Snapshot pro klienta (UI)
+function PlayerService.BuildState(session: Session): { [string]: any }
+	local data = session.Data
+	local economy = Registry.Economy
+	local dailyAvailable, nextFree = PlayerService.SpinStatus(session)
+	local slotsTotal = Formulas.TotalSlots(data.Level, session.Passes.PlusSlots == true)
+	local slotsUsed = 0
+	for _ in data.HouseSlots do
+		slotsUsed += 1
+	end
+	local day = os.time() // 86400
+	return {
+		Money = data.Money,
+		PendingCash = data.PendingCash,
+		IncomePerSecond = economy.IncomePerSecond(session),
+		Multiplier = economy.Multiplier(session),
+		Level = data.Level,
+		XP = data.XP,
+		XPToNext = Formulas.XPToNext(data.Level),
+		Rebirths = data.Rebirths,
+		OwnedSlippers = data.OwnedSlippers,
+		EquippedSlippers = data.EquippedSlippers,
+		OwnedSkins = data.OwnedSkins,
+		EquippedSkin = data.EquippedSkin,
+		OwnedHats = data.OwnedHats,
+		EquippedHat = data.EquippedHat,
+		Carried = data.Carried,
+		Storage = data.Storage,
+		HouseItems = data.HouseSlots, -- předměty v domečku (prodejní okno)
+		SlotsTotal = slotsTotal,
+		SlotsUsed = slotsUsed,
+		BestJump = data.BestJump,
+		DailySpins = dailyAvailable,
+		NextFreeSpin = nextFree,
+		ExtraSpins = data.ExtraSpins,
+		BoostUntil = data.BoostUntil,
+		LuckUntil = data.LuckUntil,
+		Premium = economy.IsPremium(session),
+		TutorialDone = data.TutorialDone,
+		TutorialStep = data.TutorialStep,
+		Settings = data.Settings,
+		Passes = session.Passes,
+		Discovered = data.Discovered,
+		CanRebirth = data.GiftOpenedThisLife,
+		ClaimedGifts = data.ClaimedGifts, -- dárkové ostrovy získané v tomto životě
+		HouseTier = data.HouseTier or 1, -- vzhled domečku (cesta v okně JOURNEY)
+		DuelWins = data.DuelWins or 0,
+		LongJumpBest = data.LongJumpBest or 0,
+		SkiJumpBest = data.SkiJumpBest or 0,
+		Title = data.Title,
+		HouseIndex = if session.House then session.House.Index else 0,
+		SuperJumps = data.SuperJumps,
+		MegaJumps = data.MegaJumps,
+		GiftsLeftToday = Economy.GiftsPerDay - (if data.GiftsSentDay == day then data.GiftsSentToday else 0),
+		ServerTime = os.time(),
+		Flying = session.Flight ~= nil,
+		SwimLevel = data.SwimLevel,
+		Repellents = data.Repellents,
+		Shields = data.Shields,
+		StarterPackBought = data.StarterPackBought,
+		Quests = Registry.Quests.BuildState(session),
+		LoginStreak = data.LoginStreak,
+		PerfectStreak = session.PerfectStreak,
+	}
+end
+
+function PlayerService.SendState(session: Session)
+	session.Dirty = false
+	stateEvent:FireClient(session.Player, PlayerService.BuildState(session))
+	local stats = session.Leaderstats
+	if stats then
+		stats.Money.Value = session.Data.Money
+		stats.Level.Value = session.Data.Level
+		stats.Best.Value = math.floor(session.Data.BestJump)
+	end
+end
+
+local function createLeaderstats(session: Session)
+	local folder = Instance.new("Folder")
+	folder.Name = "leaderstats"
+	local money = Instance.new("NumberValue")
+	money.Name = "Money"
+	money.Parent = folder
+	local level = Instance.new("IntValue")
+	level.Name = "Level"
+	level.Parent = folder
+	local best = Instance.new("NumberValue")
+	best.Name = "Best Jump"
+	best.Parent = folder
+	folder.Parent = session.Player
+	session.Leaderstats = { Money = money, Level = level, Best = best }
+end
+
+-- Návrat na pláž (začátek cesty k molu)
+function PlayerService.ReturnToBeach(session: Session)
+	local character = session.Player.Character
+	if not character then
+		return
+	end
+	local map = Registry.Map
+	local offset = Vector3.new(math.random(-3, 3), 0, math.random(-4, 4))
+	character:PivotTo(map.ReturnPoint + offset)
+	local root = PlayerService.GetRoot(session.Player)
+	if root then
+		root.AssemblyLinearVelocity = Vector3.zero
+	end
+	session.Returning = false
+end
+
+local function onPlayerAdded(player: Player)
+	local profile = DataService.Load(player)
+	if not profile then
+		return
+	end
+	local session: Session = {
+		Player = player,
+		Profile = profile,
+		Data = profile.Data,
+		House = nil,
+		Passes = {},
+		Flight = nil,
+		Swim = nil,
+		Trial = nil,
+		Duel = nil,
+		PendingSkin = nil,
+		Charge = nil,
+		LastJump = 0,
+		PerfectStreak = 0,
+		Returning = false,
+		Dirty = true,
+		Loaded = false,
+		LastCollect = 0,
+		LastTeleport = 0,
+		LastQuickTeleport = 0,
+		Leaderstats = nil,
+	}
+	PlayerService.Sessions[player] = session
+	Registry.Monetization.LoadPasses(session)
+	if player.Parent ~= Players or PlayerService.Sessions[player] ~= session then
+		return -- hráč odešel během načítání
+	end
+	createLeaderstats(session)
+	Registry.Shop.MigrateSkins(session) -- tenisky ze starších dat → skiny (před oblékáním avatara)
+	Registry.House.Assign(session)
+	Registry.Items.OnJoin(session)
+	session.Loaded = true
+	Registry.Economy.ApplyOffline(session)
+	Registry.Avatar.OnSessionLoaded(session)
+	Registry.Tutorial.OnJoin(session)
+	-- startovní pantofle zdarma, i pro starší uložená data
+	local freeSlipper = Catalog.Slippers[1]
+	if freeSlipper and not table.find(session.Data.OwnedSlippers, freeSlipper.Id) then
+		table.insert(session.Data.OwnedSlippers, freeSlipper.Id)
+	end
+	Registry.Quests.OnJoin(session)
+	PlayerService.SendState(session)
+	Registry.Leaderboard.SendTo(player)
+	-- jen pro testování ve Studiu: game.Players.<jméno>:SetAttribute("DevMoney", 1e9) v Command Baru (Server)
+	if RunService:IsStudio() then
+		player:GetAttributeChangedSignal("DevMoney"):Connect(function()
+			local amount = player:GetAttribute("DevMoney")
+			if type(amount) == "number" and amount > 0 then
+				Registry.Economy.AddMoney(session, amount)
+				player:SetAttribute("DevMoney", nil)
+			end
+		end)
+	end
+end
+
+local function onPlayerRemoving(player: Player)
+	local session = PlayerService.Sessions[player]
+	PlayerService.Sessions[player] = nil
+	if session then
+		session.Data.LastLogout = os.time()
+		-- rozletěný skok se už nedopočítá (jinak by odešlého hráče vrátil do žebříčků a soutěže)
+		if session.Flight then
+			session.Flight.Finished = true
+			session.Flight = nil
+		end
+		session.Swim = nil
+		Registry.Gifting.OnLeave(player)
+		Registry.House.Release(session)
+		Registry.Leaderboard.OnLeave(session)
+	end
+	Registry.ServerEvents.OnLeave(player)
+	Registry.LegendRace.OnLeave(player)
+	Registry.Duels.OnLeave(player)
+	DataService.Release(player)
+end
+
+-- Kdo se bez skoku dostane do vody nebo za konec mola, vrátí se na pláž
+local function boundsLoop()
+	while true do
+		task.wait(0.5)
+		for _, session in PlayerService.Sessions do
+			if session.Loaded and not session.Flight and not session.Returning and not session.Trial and not session.Duel then
+				local root = PlayerService.GetRoot(session.Player)
+				if root then
+					local pos = root.Position
+					-- stojí na vodě (HRP je nad pískem i molem výš než hladina + 4,5)
+					local inWater = pos.Y < World.WaterY + 4.5 or pos.X > World.OutOfBoundsX
+					if inWater or math.abs(pos.Z) > World.BeachHalfWidth + 150 or pos.X < World.BeachBackX - 150 then
+						PlayerService.ReturnToBeach(session)
+					end
+					Registry.Tutorial.CheckPosition(session, pos)
+				end
+			end
+		end
+	end
+end
+
+function PlayerService.Init()
+	stateEvent = Net.Event("State")
+	notifyEvent = Net.Event("Notify")
+	announceEvent = Net.Event("Announce")
+end
+
+function PlayerService.Start()
+	Players.PlayerAdded:Connect(onPlayerAdded)
+	Players.PlayerRemoving:Connect(onPlayerRemoving)
+	for _, player in Players:GetPlayers() do
+		task.spawn(onPlayerAdded, player)
+	end
+	-- odesílání změněného stavu (max. 4× za sekundu)
+	local accumulator = 0
+	RunService.Heartbeat:Connect(function(dt)
+		accumulator += dt
+		if accumulator < 0.25 then
+			return
+		end
+		accumulator = 0
+		for _, session in PlayerService.Sessions do
+			if session.Loaded and session.Dirty then
+				PlayerService.SendState(session)
+			end
+		end
+	end)
+	task.spawn(boundsLoop)
+
+	-- rychlý přesun tlačítky HOUSE / PIER
+	Net.Event("Teleport").OnServerEvent:Connect(function(player, target)
+		local session = PlayerService.Get(player)
+		if not session or session.Flight or session.Returning or session.Duel or os.clock() - session.LastQuickTeleport < World.TeleportCooldown then
+			return
+		end
+		local character = player.Character
+		if not character then
+			return
+		end
+		session.LastQuickTeleport = os.clock()
+		if session.Trial then
+			-- teleport z ostrova = vzdát úkol (bez bonusu)
+			Registry.Trials.Abandon(session)
+		end
+		if target == "House" and session.House then
+			character:PivotTo(session.House.Entrance)
+		elseif target == "Pier" then
+			-- rovnou do zóny skoku na konci mola, čelem k moři (tlačítko JUMP se hned ukáže)
+			local spot = Vector3.new(World.PierEndX - Jump.JumpZoneLength / 2, World.PierDeckY + 3, 0)
+			character:PivotTo(CFrame.lookAt(spot, spot + Vector3.xAxis))
+		elseif target == "Sell" then
+			-- k prodejnímu stánku a rovnou otevřít prodejní okno
+			character:PivotTo(Registry.Map.SellTeleport)
+			Net.Event("OpenUI"):FireClient(player, "Sell")
+		end
+	end)
+
+	Net.Event("SetSetting").OnServerEvent:Connect(function(player, key, value)
+		local session = PlayerService.Get(player)
+		if session and (key == "Music" or key == "Sfx") and type(value) == "boolean" then
+			session.Data.Settings[key] = value
+			PlayerService.MarkDirty(session)
+		end
+	end)
+end
+
+return PlayerService

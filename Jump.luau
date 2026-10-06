@@ -1,0 +1,79 @@
+--!strict
+-- Vše kolem skoku: ukazatel síly, let, mince, kruhy, limity.
+
+return {
+	BaseDistance = 100, -- studů s Basic Black Slippers bez bonusů
+	MaxDistance = 100_000, -- dál už je jen dárek
+	MaxDistanceWithoutBest = 95_000, -- limit bez nejlepších pantoflí
+	BestSlippersId = "RoyalDiamondSlippers", -- a také Golden Air Kings (poslední tenisky)
+	RandomSpread = 0.05, -- ± 5 % náhody
+
+	Meter = {
+		Period = 1.1, -- sekundy z dola nahoru
+		TutorialPeriod = 2.2, -- pomalejší ukazatel při prvním skoku
+		GoodMin = 0.72, -- žlutá zóna od
+		PerfectMin = 0.92, -- zelená zóna od (až do 1.0)
+		GoodBonus = 0.10,
+		PerfectBonus = 0.25,
+		Tolerance = 0.3, -- jak moc se smí hodnota klienta lišit od odhadu serveru
+		MaxHoldTime = 20,
+	},
+
+	Flight = {
+		MinTime = 3,
+		MaxTime = 10,
+		HeightFactor = 0.18, -- výška paraboly = vzdálenost × faktor
+		MinHeight = 25,
+		MaxHeight = 450,
+		CorridorHalfWidth = 50, -- koridor mezi bójkami
+		SteerLimit = 44, -- jak daleko do strany může hráč uhnout
+		SteerSpeed = 48, -- studů za sekundu
+		ExtraGlideMin = 0.8, -- dolet díky kruhům: minimální čas
+		ExtraGlideMax = 2.2,
+		ExtraGlideHeight = 0.25, -- výška doletu = délka doletu × faktor
+		ExtraGlideMaxHeight = 60,
+		CameraFov = 70,
+		CameraFlightFov = 95,
+	},
+
+	Collectibles = {
+		CoinRows = 6,
+		CoinsPerRow = 5,
+		CoinRowSpacing = 0.012, -- rozestup mincí v řadě (podíl vzdálenosti)
+		MinCoinSpacing = 6, -- ale aspoň tolik studů
+		StudsPerCoinRow = 45, -- krátké skoky mají méně řad (min. 2)
+		StudsPerRing = 60, -- krátké skoky mají méně kruhů (min. 1)
+		CoinRadius = 6,
+		CoinLateral = 36, -- mince až takhle daleko do strany
+		CoinValueSeconds = 1, -- mince = příjem domečku za X sekund
+		Rings = 4,
+		RingRadius = 10,
+		RingLateral = 30,
+		RingBonus = 0.05, -- každý kruh +5 % ke vzdálenosti
+		ServerTolerance = 7, -- tolerance serverové kontroly (studů)
+		StartFraction = 0.12,
+		EndFraction = 0.88,
+	},
+
+	JumpZoneLength = 22, -- posledních X studů mola, kde jde skákat
+	-- Tři cesty skoku na konci mola (hráč si vybere, kam se postaví):
+	--  Pier   – klasický skok z mola
+	--  Cannon – dělo na levém můstku: vyšší oblouk a dál, ale rychlejší ukazatel (těžší trefit PERFECT)
+	--  Slide  – tobogán na pravém můstku: nízký rychlý let, pomalejší ukazatel, víc kruhů a diamant navíc
+	-- Z = střed dráhy, HalfWidth = jak široká je oblast odrazu, Period = rychlost ukazatele,
+	-- Distance = bonus ke vzdálenosti, Height = násobek výšky letu, Rings = násobek kruhů
+	LaunchModes = {
+		Pier = { Name = "PIER JUMP", Z = 0, HalfWidth = 8, Period = 1.1, Distance = 0, Height = 1, Rings = 1, ExtraDiamonds = 0, Button = "JUMP!" },
+		Cannon = { Name = "CANNON", Z = -27, HalfWidth = 6, Period = 0.8, Distance = 0.12, Height = 1.6, Rings = 1, ExtraDiamonds = 0, Button = "FIRE!" },
+		Slide = { Name = "WATER SLIDE", Z = 27, HalfWidth = 6, Period = 1.6, Distance = -0.04, Height = 0.55, Rings = 2, ExtraDiamonds = 1, Button = "SLIDE!" },
+	} :: { [string]: { Name: string, Z: number, HalfWidth: number, Period: number, Distance: number, Height: number, Rings: number, ExtraDiamonds: number, Button: string } },
+	SuperJumpBonus = 0.20,
+	-- série PERFECT skoků za sebou: každý další PERFECT +5 % vzdálenosti (2. skok +5 %, … max. +30 %)
+	PerfectStreak = {
+		Step = 0.05,
+		MaxBonus = 0.30,
+	},
+	ReturnDelay = 2.6, -- sekund po dopadu, než se hráč vrátí na pláž
+	GiftReturnDelay = 7,
+	Cooldown = 1.5,
+}
